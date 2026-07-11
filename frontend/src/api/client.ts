@@ -116,6 +116,14 @@ export async function getClassificationMetrics() {
   return result.data;
 }
 
+export async function getSourceHealth(probeNetwork = false) {
+  const result = await api.GET('/api/v1/sources/health', {
+    params: {query: {probe_network: probeNetwork}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
 export function audioClipUrl(storyId: string, segmentId: string): string {
   return `/api/v1/stories/${encodeURIComponent(storyId)}/audio/${encodeURIComponent(segmentId)}`;
 }

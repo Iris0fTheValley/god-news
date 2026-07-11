@@ -5,4 +5,5 @@ export const queryKeys = {
   transitions: (storyId: string) => ['story', storyId, 'transitions'] as const,
   manifest: (storyId: string) => ['story', storyId, 'manifest'] as const,
   classificationMetrics: () => ['metrics', 'classification'] as const,
+  sourceHealth: (probeNetwork: boolean) => ['sources', 'health', {probeNetwork}] as const,
 };

@@ -14,3 +14,5 @@ export type ScriptSegment = components['schemas']['ScriptSegment'];
 export type ContentCategory = components['schemas']['ContentCategory'];
 export type EditorialScreening = components['schemas']['EditorialScreening'];
 export type ClassificationMetrics = components['schemas']['ClassificationMetrics'];
+export type SourceHealth = components['schemas']['SourceHealth'];
+export type SourceHealthReport = components['schemas']['SourceHealthReport'];
