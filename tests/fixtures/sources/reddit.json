@@ -1,0 +1,36 @@
+{
+  "source": "reddit",
+  "post_id": "1abcxyz",
+  "permalink": "/r/HumansBeingBros/comments/1abcxyz/a_kind_act/?utm_source=fixture#top",
+  "title": "A　kind stranger helps",
+  "selftext": "Someone stopped to help.\r\n\r\nEveryone got home safely.",
+  "author": "kind_user",
+  "created_utc": 1783706400,
+  "subreddit": "HumansBeingBros",
+  "score": 4242,
+  "num_comments": 88,
+  "link_flair_text": "Good News",
+  "over_18": false,
+  "spoiler": true,
+  "locked": false,
+  "is_self": false,
+  "outbound_url": "https://kind.example/story?utm_medium=reddit",
+  "language": "en",
+  "video": {
+    "kind": "video",
+    "fallback_url": "https://v.redd.it/fixture/DASH_720.mp4?source=fallback",
+    "thumbnail_url": "https://preview.redd.it/fixture.jpg",
+    "duration_ms": 18000,
+    "bitrate_kbps": 2400
+  },
+  "preview_images": [
+    {
+      "url": "https://preview.redd.it/fixture.jpg?utm_source=preview",
+      "width": 640,
+      "height": 360,
+      "resolutions": []
+    }
+  ],
+  "upvote_ratio": 0.99,
+  "future_api_field": {"ignored": true}
+}

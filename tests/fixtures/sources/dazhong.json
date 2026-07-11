@@ -1,0 +1,41 @@
+{
+  "source": "dazhong",
+  "article_id": "article-1001",
+  "url": "https://example.dzng.com/article/1001?utm_source=test&b=2&a=1#comments",
+  "canonical_url": "https://example.dzng.com/article/1001?utm_campaign=fixture",
+  "title": "ＡＩ　帮助老人回家",
+  "body": "第一段。\r\n\r\n第二段　保留温度。",
+  "author": "  张　三  ",
+  "publisher": "大众新闻",
+  "published_at": "2026-07-10T20:30:00+08:00",
+  "language": "zh-CN",
+  "channel": "开屏见好",
+  "region": "山东",
+  "tags": ["善意", " 善意 ", "AI"],
+  "rights": {
+    "status": "attribution_license",
+    "copyright_holder": "大众新闻",
+    "license_name": "Fixture Attribution License",
+    "allows_republication": true,
+    "allows_derivatives": true,
+    "requires_attribution": true
+  },
+  "media": [
+    {
+      "kind": "image",
+      "url": "https://cdn.example.dzng.com/cover.jpg?utm_source=feed",
+      "role": "main",
+      "alt_text": "  现场　照片 ",
+      "credit": "摄影师",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "kind": "video",
+      "url": "https://cdn.example.dzng.com/story.mp4",
+      "poster_url": "https://cdn.example.dzng.com/poster.jpg",
+      "caption": "现场视频",
+      "duration_ms": 12000
+    }
+  ]
+}

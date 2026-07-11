@@ -1,0 +1,4965 @@
+{
+  "components": {
+    "schemas": {
+      "Attribution": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution_text": {
+            "minLength": 1,
+            "title": "Attribution Text",
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "original_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Original Url",
+            "type": "string"
+          },
+          "publisher": {
+            "minLength": 1,
+            "title": "Publisher",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "publisher",
+          "original_url",
+          "attribution_text"
+        ],
+        "title": "Attribution",
+        "type": "object"
+      },
+      "AudioBundle": {
+        "additionalProperties": false,
+        "properties": {
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/AudioClip"
+            },
+            "minItems": 1,
+            "title": "Clips",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "model_identity": {
+            "minLength": 1,
+            "title": "Model Identity",
+            "type": "string"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "synthesis": {
+            "$ref": "#/components/schemas/SynthesisMetadata"
+          }
+        },
+        "required": [
+          "revision",
+          "provider",
+          "model_identity",
+          "synthesis",
+          "clips"
+        ],
+        "title": "AudioBundle",
+        "type": "object"
+      },
+      "AudioClip": {
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "exclusiveMinimum": 0.0,
+            "title": "Channels",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat",
+            "default": "wav"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "sample_rate_hz": {
+            "exclusiveMinimum": 0.0,
+            "title": "Sample Rate Hz",
+            "type": "integer"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "path",
+          "duration_ms",
+          "sample_rate_hz",
+          "channels",
+          "sha256"
+        ],
+        "title": "AudioClip",
+        "type": "object"
+      },
+      "AudioFormat": {
+        "enum": [
+          "wav"
+        ],
+        "title": "AudioFormat",
+        "type": "string"
+      },
+      "AudioMediaAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "audio",
+            "default": "audio",
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "AudioMediaAsset",
+        "type": "object"
+      },
+      "ClassificationMetrics": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_count": {
+            "minimum": 0.0,
+            "title": "Accepted Count",
+            "type": "integer"
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy"
+          },
+          "reviewed_count": {
+            "minimum": 0.0,
+            "title": "Reviewed Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reviewed_count",
+          "accepted_count"
+        ],
+        "title": "ClassificationMetrics",
+        "type": "object"
+      },
+      "ContentCategory": {
+        "enum": [
+          "kindness",
+          "cats_dogs",
+          "forum",
+          "short_video"
+        ],
+        "title": "ContentCategory",
+        "type": "string"
+      },
+      "ContentFlags": {
+        "additionalProperties": false,
+        "properties": {
+          "has_audio": {
+            "default": false,
+            "title": "Has Audio",
+            "type": "boolean"
+          },
+          "has_images": {
+            "default": false,
+            "title": "Has Images",
+            "type": "boolean"
+          },
+          "has_video": {
+            "default": false,
+            "title": "Has Video",
+            "type": "boolean"
+          },
+          "is_nsfw": {
+            "default": false,
+            "title": "Is Nsfw",
+            "type": "boolean"
+          },
+          "is_spoiler": {
+            "default": false,
+            "title": "Is Spoiler",
+            "type": "boolean"
+          },
+          "is_user_generated": {
+            "title": "Is User Generated",
+            "type": "boolean"
+          },
+          "requires_rights_review": {
+            "default": true,
+            "title": "Requires Rights Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_user_generated"
+        ],
+        "title": "ContentFlags",
+        "type": "object"
+      },
+      "DazhongSourceFields": {
+        "additionalProperties": false,
+        "properties": {
+          "article_id": {
+            "minLength": 1,
+            "title": "Article Id",
+            "type": "string"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "source": {
+            "const": "dazhong",
+            "default": "dazhong",
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "article_id"
+        ],
+        "title": "DazhongSourceFields",
+        "type": "object"
+      },
+      "EditorialScreening": {
+        "additionalProperties": false,
+        "description": "AI screening evidence plus the current human-reviewable decision.\n\nModel fields are immutable evidence. Review edits update only ``category``\nand ``candidate_recommendation``, so acceptance metrics remain auditable.",
+        "properties": {
+          "candidate_recommendation": {
+            "title": "Candidate Recommendation",
+            "type": "boolean"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ContentCategory"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "model_candidate_recommendation": {
+            "title": "Model Candidate Recommendation",
+            "type": "boolean"
+          },
+          "model_category": {
+            "$ref": "#/components/schemas/ContentCategory"
+          },
+          "rationale": {
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "risk_flags": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Risk Flags",
+            "type": "array"
+          },
+          "secondary_categories": {
+            "items": {
+              "$ref": "#/components/schemas/ContentCategory"
+            },
+            "maxItems": 3,
+            "title": "Secondary Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model_category",
+          "category",
+          "model_candidate_recommendation",
+          "candidate_recommendation",
+          "confidence",
+          "rationale"
+        ],
+        "title": "EditorialScreening",
+        "type": "object"
+      },
+      "FirstReviewSubmission": {
+        "additionalProperties": false,
+        "properties": {
+          "corrected_candidate_recommendation": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Candidate Recommendation"
+          },
+          "corrected_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContentCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrected_key_points": {
+            "anyOf": [
+              {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Key Points"
+          },
+          "corrected_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Summary"
+          },
+          "corrected_translation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Translation"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "expected_story_version": {
+            "minimum": 1.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScriptPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_story_version",
+          "decision",
+          "reviewer_id"
+        ],
+        "title": "FirstReviewSubmission",
+        "type": "object"
+      },
+      "GuardianSourceFields": {
+        "additionalProperties": false,
+        "properties": {
+          "article_id": {
+            "minLength": 1,
+            "title": "Article Id",
+            "type": "string"
+          },
+          "pillar_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pillar Name"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "source": {
+            "const": "guardian",
+            "default": "guardian",
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Tags",
+            "type": "array"
+          },
+          "trail_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trail Text"
+          }
+        },
+        "required": [
+          "article_id"
+        ],
+        "title": "GuardianSourceFields",
+        "type": "object"
+      },
+      "HealthReport": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ready",
+          "checks"
+        ],
+        "title": "HealthReport",
+        "type": "object"
+      },
+      "ImageMediaAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "const": "image",
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "role": {
+            "default": "body",
+            "enum": [
+              "main",
+              "body",
+              "thumbnail"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "ImageMediaAsset",
+        "type": "object"
+      },
+      "IngestRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "emotion": {
+            "default": "neutral",
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "pitch": {
+            "default": 0.0,
+            "maximum": 12.0,
+            "minimum": -12.0,
+            "title": "Pitch",
+            "type": "number"
+          },
+          "source": {
+            "discriminator": {
+              "mapping": {
+                "text": "#/components/schemas/TextSource",
+                "url": "#/components/schemas/UrlSource"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UrlSource"
+              },
+              {
+                "$ref": "#/components/schemas/TextSource"
+              }
+            ],
+            "title": "Source"
+          },
+          "speaker_id": {
+            "default": "narrator",
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "speed": {
+            "default": 1.0,
+            "maximum": 1.65,
+            "minimum": 0.6,
+            "title": "Speed",
+            "type": "number"
+          },
+          "style": {
+            "default": "clear, accurate short-video narration",
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "target_duration_seconds": {
+            "default": 90,
+            "maximum": 600.0,
+            "minimum": 15.0,
+            "title": "Target Duration Seconds",
+            "type": "integer"
+          },
+          "target_language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "IngestRequest",
+        "type": "object"
+      },
+      "Liveness": {
+        "additionalProperties": false,
+        "properties": {
+          "alive": {
+            "default": true,
+            "title": "Alive",
+            "type": "boolean"
+          }
+        },
+        "title": "Liveness",
+        "type": "object"
+      },
+      "NormalizedSourceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "$ref": "#/components/schemas/Attribution"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "canonical_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Canonical Url",
+            "type": "string"
+          },
+          "content_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Sha256",
+            "type": "string"
+          },
+          "content_text": {
+            "minLength": 1,
+            "title": "Content Text",
+            "type": "string"
+          },
+          "external_id": {
+            "minLength": 1,
+            "title": "External Id",
+            "type": "string"
+          },
+          "flags": {
+            "$ref": "#/components/schemas/ContentFlags"
+          },
+          "language": {
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "media": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "audio": "#/components/schemas/AudioMediaAsset",
+                  "image": "#/components/schemas/ImageMediaAsset",
+                  "video": "#/components/schemas/VideoMediaAsset"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ImageMediaAsset"
+                },
+                {
+                  "$ref": "#/components/schemas/VideoMediaAsset"
+                },
+                {
+                  "$ref": "#/components/schemas/AudioMediaAsset"
+                }
+              ]
+            },
+            "maxItems": 200,
+            "title": "Media",
+            "type": "array"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RightsMetadata"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_fields": {
+            "discriminator": {
+              "mapping": {
+                "dazhong": "#/components/schemas/DazhongSourceFields",
+                "guardian": "#/components/schemas/GuardianSourceFields",
+                "pikabu": "#/components/schemas/PikabuSourceFields",
+                "reddit": "#/components/schemas/RedditSourceFields"
+              },
+              "propertyName": "source"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DazhongSourceFields"
+              },
+              {
+                "$ref": "#/components/schemas/RedditSourceFields"
+              },
+              {
+                "$ref": "#/components/schemas/GuardianSourceFields"
+              },
+              {
+                "$ref": "#/components/schemas/PikabuSourceFields"
+              }
+            ],
+            "title": "Source Fields"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "external_id",
+          "canonical_url",
+          "title",
+          "content_text",
+          "content_sha256",
+          "language",
+          "published_at",
+          "attribution",
+          "rights",
+          "flags",
+          "source_fields"
+        ],
+        "title": "NormalizedSourceItem",
+        "type": "object"
+      },
+      "PikabuImageBlock": {
+        "additionalProperties": false,
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "const": "image",
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "PikabuImageBlock",
+        "type": "object"
+      },
+      "PikabuQuoteBlock": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "kind": {
+            "const": "quote",
+            "default": "quote",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PikabuQuoteBlock",
+        "type": "object"
+      },
+      "PikabuSourceFields": {
+        "additionalProperties": false,
+        "properties": {
+          "block_count": {
+            "minimum": 1.0,
+            "title": "Block Count",
+            "type": "integer"
+          },
+          "comments_count": {
+            "minimum": 0.0,
+            "title": "Comments Count",
+            "type": "integer"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          },
+          "source": {
+            "const": "pikabu",
+            "default": "pikabu",
+            "title": "Source",
+            "type": "string"
+          },
+          "story_id": {
+            "minLength": 1,
+            "title": "Story Id",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "story_id",
+          "rating",
+          "comments_count",
+          "block_count"
+        ],
+        "title": "PikabuSourceFields",
+        "type": "object"
+      },
+      "PikabuTextBlock": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "text",
+            "default": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PikabuTextBlock",
+        "type": "object"
+      },
+      "PikabuVideoBlock": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "PikabuVideoBlock",
+        "type": "object"
+      },
+      "PipelineFailure": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "title": "PipelineFailure",
+        "type": "object"
+      },
+      "ProblemDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "story_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Id"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "trace_id"
+        ],
+        "title": "ProblemDetail",
+        "type": "object"
+      },
+      "ProductionManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "script_revision": {
+            "minimum": 1.0,
+            "title": "Script Revision",
+            "type": "integer"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineSegment"
+            },
+            "minItems": 1,
+            "title": "Timeline",
+            "type": "array"
+          },
+          "total_duration_ms": {
+            "exclusiveMinimum": 0.0,
+            "title": "Total Duration Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "story_id",
+          "script_revision",
+          "language",
+          "total_duration_ms",
+          "timeline"
+        ],
+        "title": "ProductionManifest",
+        "type": "object"
+      },
+      "RawDazhongImage": {
+        "additionalProperties": false,
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "const": "image",
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "role": {
+            "default": "body",
+            "enum": [
+              "main",
+              "body",
+              "thumbnail"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawDazhongImage",
+        "type": "object"
+      },
+      "RawDazhongItem": {
+        "additionalProperties": false,
+        "properties": {
+          "article_id": {
+            "minLength": 1,
+            "title": "Article Id",
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "canonical_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Url"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "media": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "image": "#/components/schemas/RawDazhongImage",
+                  "video": "#/components/schemas/RawDazhongVideo"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RawDazhongImage"
+                },
+                {
+                  "$ref": "#/components/schemas/RawDazhongVideo"
+                }
+              ]
+            },
+            "maxItems": 100,
+            "title": "Media",
+            "type": "array"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "publisher": {
+            "default": "大众新闻",
+            "minLength": 1,
+            "title": "Publisher",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RawRightsDeclaration"
+          },
+          "source": {
+            "const": "dazhong",
+            "default": "dazhong",
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "article_id",
+          "url",
+          "title",
+          "body",
+          "published_at"
+        ],
+        "title": "RawDazhongItem",
+        "type": "object"
+      },
+      "RawDazhongVideo": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawDazhongVideo",
+        "type": "object"
+      },
+      "RawGuardianAudio": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "audio",
+            "default": "audio",
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawGuardianAudio",
+        "type": "object"
+      },
+      "RawGuardianImage": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "const": "image",
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "role": {
+            "default": "body",
+            "enum": [
+              "main",
+              "body",
+              "thumbnail"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawGuardianImage",
+        "type": "object"
+      },
+      "RawGuardianItem": {
+        "additionalProperties": false,
+        "properties": {
+          "article_id": {
+            "minLength": 1,
+            "title": "Article Id",
+            "type": "string"
+          },
+          "body_text": {
+            "minLength": 1,
+            "title": "Body Text",
+            "type": "string"
+          },
+          "byline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byline"
+          },
+          "language": {
+            "default": "en",
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "media": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "audio": "#/components/schemas/RawGuardianAudio",
+                  "image": "#/components/schemas/RawGuardianImage",
+                  "video": "#/components/schemas/RawGuardianVideo"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RawGuardianImage"
+                },
+                {
+                  "$ref": "#/components/schemas/RawGuardianVideo"
+                },
+                {
+                  "$ref": "#/components/schemas/RawGuardianAudio"
+                }
+              ]
+            },
+            "maxItems": 100,
+            "title": "Media",
+            "type": "array"
+          },
+          "pillar_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pillar Name"
+          },
+          "publisher": {
+            "default": "The Guardian",
+            "minLength": 1,
+            "title": "Publisher",
+            "type": "string"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RawRightsDeclaration"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "source": {
+            "const": "guardian",
+            "default": "guardian",
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Tags",
+            "type": "array"
+          },
+          "trail_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trail Text"
+          },
+          "web_publication_date": {
+            "format": "date-time",
+            "title": "Web Publication Date",
+            "type": "string"
+          },
+          "web_title": {
+            "minLength": 1,
+            "title": "Web Title",
+            "type": "string"
+          },
+          "web_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Web Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "article_id",
+          "web_url",
+          "web_title",
+          "body_text",
+          "web_publication_date"
+        ],
+        "title": "RawGuardianItem",
+        "type": "object"
+      },
+      "RawGuardianVideo": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawGuardianVideo",
+        "type": "object"
+      },
+      "RawPikabuItem": {
+        "additionalProperties": false,
+        "properties": {
+          "author_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Username"
+          },
+          "blocks": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "image": "#/components/schemas/PikabuImageBlock",
+                  "quote": "#/components/schemas/PikabuQuoteBlock",
+                  "text": "#/components/schemas/PikabuTextBlock",
+                  "video": "#/components/schemas/PikabuVideoBlock"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/PikabuTextBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/PikabuQuoteBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/PikabuImageBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/PikabuVideoBlock"
+                }
+              ]
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Blocks",
+            "type": "array"
+          },
+          "comments_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Comments Count",
+            "type": "integer"
+          },
+          "is_nsfw": {
+            "default": false,
+            "title": "Is Nsfw",
+            "type": "boolean"
+          },
+          "language": {
+            "default": "ru",
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "publisher": {
+            "default": "Pikabu",
+            "minLength": 1,
+            "title": "Publisher",
+            "type": "string"
+          },
+          "rating": {
+            "default": 0,
+            "title": "Rating",
+            "type": "integer"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RawRightsDeclaration"
+          },
+          "source": {
+            "const": "pikabu",
+            "default": "pikabu",
+            "title": "Source",
+            "type": "string"
+          },
+          "story_id": {
+            "minLength": 1,
+            "title": "Story Id",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "url",
+          "title",
+          "published_at",
+          "blocks"
+        ],
+        "title": "RawPikabuItem",
+        "type": "object"
+      },
+      "RawRedditItem": {
+        "description": "Sanitized Reddit adapter contract.\n\nReddit adds fields without notice. Unknown keys are intentionally ignored at\nthis boundary; every field used downstream remains explicitly declared.",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "created_utc": {
+            "format": "date-time",
+            "title": "Created Utc",
+            "type": "string"
+          },
+          "is_self": {
+            "default": true,
+            "title": "Is Self",
+            "type": "boolean"
+          },
+          "language": {
+            "default": "en",
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "link_flair_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Flair Text"
+          },
+          "locked": {
+            "default": false,
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "num_comments": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Num Comments",
+            "type": "integer"
+          },
+          "outbound_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outbound Url"
+          },
+          "over_18": {
+            "default": false,
+            "title": "Over 18",
+            "type": "boolean"
+          },
+          "permalink": {
+            "minLength": 1,
+            "title": "Permalink",
+            "type": "string"
+          },
+          "post_id": {
+            "minLength": 1,
+            "title": "Post Id",
+            "type": "string"
+          },
+          "preview_images": {
+            "items": {
+              "$ref": "#/components/schemas/RawRedditPreviewImage"
+            },
+            "maxItems": 20,
+            "title": "Preview Images",
+            "type": "array"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RawRightsDeclaration"
+          },
+          "score": {
+            "default": 0,
+            "title": "Score",
+            "type": "integer"
+          },
+          "selftext": {
+            "default": "",
+            "title": "Selftext",
+            "type": "string"
+          },
+          "source": {
+            "const": "reddit",
+            "default": "reddit",
+            "title": "Source",
+            "type": "string"
+          },
+          "spoiler": {
+            "default": false,
+            "title": "Spoiler",
+            "type": "boolean"
+          },
+          "subreddit": {
+            "minLength": 1,
+            "title": "Subreddit",
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RawRedditVideo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "post_id",
+          "permalink",
+          "title",
+          "created_utc",
+          "subreddit"
+        ],
+        "title": "RawRedditItem",
+        "type": "object"
+      },
+      "RawRedditPreviewImage": {
+        "properties": {
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawRedditPreviewImage",
+        "type": "object"
+      },
+      "RawRedditVideo": {
+        "properties": {
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "fallback_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Fallback Url",
+            "type": "string"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Url"
+          }
+        },
+        "required": [
+          "fallback_url"
+        ],
+        "title": "RawRedditVideo",
+        "type": "object"
+      },
+      "RawRightsDeclaration": {
+        "additionalProperties": false,
+        "properties": {
+          "allows_derivatives": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Derivatives"
+          },
+          "allows_republication": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Republication"
+          },
+          "copyright_holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copyright Holder"
+          },
+          "license_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Name"
+          },
+          "license_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Url"
+          },
+          "requires_attribution": {
+            "default": true,
+            "title": "Requires Attribution",
+            "type": "boolean"
+          },
+          "status": {
+            "default": "unknown",
+            "enum": [
+              "unknown",
+              "permission_required",
+              "attribution_license",
+              "public_domain"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "terms_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Url"
+          }
+        },
+        "title": "RawRightsDeclaration",
+        "type": "object"
+      },
+      "RedditSourceFields": {
+        "additionalProperties": false,
+        "properties": {
+          "flair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flair"
+          },
+          "is_self": {
+            "title": "Is Self",
+            "type": "boolean"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "num_comments": {
+            "minimum": 0.0,
+            "title": "Num Comments",
+            "type": "integer"
+          },
+          "outbound_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outbound Url"
+          },
+          "post_id": {
+            "minLength": 1,
+            "title": "Post Id",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          },
+          "source": {
+            "const": "reddit",
+            "default": "reddit",
+            "title": "Source",
+            "type": "string"
+          },
+          "subreddit": {
+            "minLength": 1,
+            "title": "Subreddit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "post_id",
+          "subreddit",
+          "score",
+          "num_comments",
+          "locked",
+          "is_self"
+        ],
+        "title": "RedditSourceFields",
+        "type": "object"
+      },
+      "ReviewDecision": {
+        "enum": [
+          "approve",
+          "request_changes"
+        ],
+        "title": "ReviewDecision",
+        "type": "string"
+      },
+      "ReviewRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "ai_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContentCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audio_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Sha256"
+          },
+          "classification_accepted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification Accepted"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "human_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContentCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "request_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Request Sha256",
+            "type": "string"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "reviewed_story_version": {
+            "minimum": 1.0,
+            "title": "Reviewed Story Version",
+            "type": "integer"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          },
+          "script_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script Revision"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ReviewStage"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "translation_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Translation Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "stage",
+          "decision",
+          "reviewer_id",
+          "reviewed_story_version",
+          "translation_sha256",
+          "request_sha256"
+        ],
+        "title": "ReviewRecord",
+        "type": "object"
+      },
+      "ReviewStage": {
+        "enum": [
+          "first",
+          "second"
+        ],
+        "title": "ReviewStage",
+        "type": "string"
+      },
+      "RightsMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "allows_derivatives": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Derivatives"
+          },
+          "allows_republication": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Republication"
+          },
+          "copyright_holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copyright Holder"
+          },
+          "license_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Name"
+          },
+          "license_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Url"
+          },
+          "requires_attribution": {
+            "title": "Requires Attribution",
+            "type": "boolean"
+          },
+          "requires_human_review": {
+            "title": "Requires Human Review",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "unknown",
+              "permission_required",
+              "attribution_license",
+              "public_domain"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "terms_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Url"
+          }
+        },
+        "required": [
+          "status",
+          "requires_attribution",
+          "requires_human_review"
+        ],
+        "title": "RightsMetadata",
+        "type": "object"
+      },
+      "ScriptDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptSegment"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Segments",
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "language",
+          "segments"
+        ],
+        "title": "ScriptDocument",
+        "type": "object"
+      },
+      "ScriptPreferences": {
+        "additionalProperties": false,
+        "properties": {
+          "emotion": {
+            "default": "neutral",
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "pitch": {
+            "default": 0.0,
+            "maximum": 12.0,
+            "minimum": -12.0,
+            "title": "Pitch",
+            "type": "number"
+          },
+          "speaker_id": {
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "speed": {
+            "default": 1.0,
+            "maximum": 1.65,
+            "minimum": 0.6,
+            "title": "Speed",
+            "type": "number"
+          },
+          "style": {
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "target_duration_seconds": {
+            "maximum": 600.0,
+            "minimum": 15.0,
+            "title": "Target Duration Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "style",
+          "target_duration_seconds",
+          "speaker_id"
+        ],
+        "title": "ScriptPreferences",
+        "type": "object"
+      },
+      "ScriptSegment": {
+        "additionalProperties": false,
+        "properties": {
+          "emotion": {
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "pitch": {
+            "maximum": 12.0,
+            "minimum": -12.0,
+            "title": "Pitch",
+            "type": "number"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "speaker_id": {
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "speed": {
+            "maximum": 1.65,
+            "minimum": 0.6,
+            "title": "Speed",
+            "type": "number"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "visual_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Hint"
+          }
+        },
+        "required": [
+          "sequence",
+          "text",
+          "speaker_id",
+          "emotion",
+          "speed",
+          "pitch"
+        ],
+        "title": "ScriptSegment",
+        "type": "object"
+      },
+      "SecondReviewSubmission": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "expected_story_version": {
+            "minimum": 1.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          },
+          "revised_script": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScriptDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_story_version",
+          "decision",
+          "reviewer_id"
+        ],
+        "title": "SecondReviewSubmission",
+        "type": "object"
+      },
+      "SourceHealth": {
+        "additionalProperties": false,
+        "properties": {
+          "access_method": {
+            "enum": [
+              "official_api",
+              "authorized_public_page",
+              "typed_contract_only"
+            ],
+            "title": "Access Method",
+            "type": "string"
+          },
+          "authorized": {
+            "title": "Authorized",
+            "type": "boolean"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "contract_ok": {
+            "title": "Contract Ok",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "reachable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reachable"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "configured",
+          "authorized",
+          "reachable",
+          "contract_ok",
+          "access_method"
+        ],
+        "title": "SourceHealth",
+        "type": "object"
+      },
+      "SourceHealthReport": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "network_probed": {
+            "title": "Network Probed",
+            "type": "boolean"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceHealth"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "network_probed",
+          "sources"
+        ],
+        "title": "SourceHealthReport",
+        "type": "object"
+      },
+      "SourceItemIngestRequest": {
+        "additionalProperties": false,
+        "description": "Trusted adapter boundary for one of the four fixed sources.\n\nNetwork-facing adapters must map their documented/authorized response into\n``RawSourceItem`` before calling this boundary. The core never consumes an\nupstream provider's unvalidated mapping.",
+        "properties": {
+          "emotion": {
+            "default": "neutral",
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "item": {
+            "discriminator": {
+              "mapping": {
+                "dazhong": "#/components/schemas/RawDazhongItem",
+                "guardian": "#/components/schemas/RawGuardianItem",
+                "pikabu": "#/components/schemas/RawPikabuItem",
+                "reddit": "#/components/schemas/RawRedditItem"
+              },
+              "propertyName": "source"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RawDazhongItem"
+              },
+              {
+                "$ref": "#/components/schemas/RawRedditItem"
+              },
+              {
+                "$ref": "#/components/schemas/RawGuardianItem"
+              },
+              {
+                "$ref": "#/components/schemas/RawPikabuItem"
+              }
+            ],
+            "title": "Item"
+          },
+          "pitch": {
+            "default": 0.0,
+            "maximum": 12.0,
+            "minimum": -12.0,
+            "title": "Pitch",
+            "type": "number"
+          },
+          "speaker_id": {
+            "default": "narrator",
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "speed": {
+            "default": 1.0,
+            "maximum": 1.65,
+            "minimum": 0.6,
+            "title": "Speed",
+            "type": "number"
+          },
+          "style": {
+            "default": "clear, accurate short-video narration",
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "target_duration_seconds": {
+            "default": 90,
+            "maximum": 600.0,
+            "minimum": 15.0,
+            "title": "Target Duration Seconds",
+            "type": "integer"
+          },
+          "target_language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item"
+        ],
+        "title": "SourceItemIngestRequest",
+        "type": "object"
+      },
+      "SourceKind": {
+        "enum": [
+          "url",
+          "text",
+          "fixed_source"
+        ],
+        "title": "SourceKind",
+        "type": "string"
+      },
+      "SourceSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "content_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Sha256",
+            "type": "string"
+          },
+          "detected_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Language"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "fetcher": {
+            "minLength": 1,
+            "title": "Fetcher",
+            "type": "string"
+          },
+          "final_uri": {
+            "title": "Final Uri",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "source_uri",
+          "final_uri",
+          "title",
+          "fetcher",
+          "content_sha256"
+        ],
+        "title": "SourceSnapshot",
+        "type": "object"
+      },
+      "StateTransition": {
+        "additionalProperties": false,
+        "properties": {
+          "from_status": {
+            "$ref": "#/components/schemas/StoryStatus"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "to_status": {
+            "$ref": "#/components/schemas/StoryStatus"
+          },
+          "transition_id": {
+            "format": "uuid",
+            "title": "Transition Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "from_status",
+          "to_status",
+          "reason"
+        ],
+        "title": "StateTransition",
+        "type": "object"
+      },
+      "Story": {
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AudioBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "last_failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineFailure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "original_text": {
+            "minLength": 1,
+            "title": "Original Text",
+            "type": "string"
+          },
+          "preferences": {
+            "$ref": "#/components/schemas/ScriptPreferences"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NormalizedSourceItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "script": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScriptDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceSnapshot"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StoryStatus"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "target_language": {
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          },
+          "trace_id": {
+            "format": "uuid",
+            "title": "Trace Id",
+            "type": "string"
+          },
+          "translation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TranslationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "original_text",
+          "target_language",
+          "preferences"
+        ],
+        "title": "Story",
+        "type": "object"
+      },
+      "StoryStatus": {
+        "enum": [
+          "FETCHED",
+          "TRANSLATED",
+          "PENDING_FIRST_REVIEW",
+          "PROCESSING_SCRIPT",
+          "SCRIPT_READY",
+          "PENDING_SECOND_REVIEW",
+          "DONE"
+        ],
+        "title": "StoryStatus",
+        "type": "string"
+      },
+      "SynthesisMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "gpt_weights_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Gpt Weights Sha256",
+            "type": "string"
+          },
+          "prompt_language": {
+            "minLength": 1,
+            "title": "Prompt Language",
+            "type": "string"
+          },
+          "reference_audio_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Reference Audio Sha256",
+            "type": "string"
+          },
+          "runtime_config_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Runtime Config Sha256",
+            "type": "string"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "sovits_weights_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sovits Weights Sha256",
+            "type": "string"
+          },
+          "text_language": {
+            "minLength": 1,
+            "title": "Text Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seed",
+          "reference_audio_sha256",
+          "runtime_config_sha256",
+          "gpt_weights_sha256",
+          "sovits_weights_sha256",
+          "prompt_language",
+          "text_language"
+        ],
+        "title": "SynthesisMetadata",
+        "type": "object"
+      },
+      "TextSource": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "text",
+            "default": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "text": {
+            "maxLength": 500000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "Uploaded text",
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextSource",
+        "type": "object"
+      },
+      "TimelineSegment": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_path": {
+            "minLength": 1,
+            "title": "Audio Path",
+            "type": "string"
+          },
+          "emotion": {
+            "minLength": 1,
+            "title": "Emotion",
+            "type": "string"
+          },
+          "end_ms": {
+            "exclusiveMinimum": 0.0,
+            "title": "End Ms",
+            "type": "integer"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "speaker_id": {
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "start_ms": {
+            "minimum": 0.0,
+            "title": "Start Ms",
+            "type": "integer"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "visual_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Hint"
+          }
+        },
+        "required": [
+          "segment_id",
+          "sequence",
+          "start_ms",
+          "end_ms",
+          "text",
+          "speaker_id",
+          "emotion",
+          "audio_path"
+        ],
+        "title": "TimelineSegment",
+        "type": "object"
+      },
+      "TranslationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "key_points": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Key Points",
+            "type": "array"
+          },
+          "screening": {
+            "$ref": "#/components/schemas/EditorialScreening"
+          },
+          "source_language": {
+            "minLength": 1,
+            "title": "Source Language",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "target_language": {
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          },
+          "translated_text": {
+            "minLength": 1,
+            "title": "Translated Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_language",
+          "target_language",
+          "translated_text",
+          "summary",
+          "screening"
+        ],
+        "title": "TranslationResult",
+        "type": "object"
+      },
+      "UrlSource": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "url",
+            "default": "url",
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "UrlSource",
+        "type": "object"
+      },
+      "VideoMediaAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "VideoMediaAsset",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Review-gated multilingual content-to-audio pipeline.",
+    "title": "god-news",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health/live": {
+      "get": {
+        "operationId": "getLiveness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Liveness"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Live",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReport"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Ready",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/metrics/classification": {
+      "get": {
+        "operationId": "getClassificationMetrics",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Classification Metrics",
+        "tags": [
+          "metrics"
+        ]
+      }
+    },
+    "/api/v1/sources/health": {
+      "get": {
+        "operationId": "getSourceHealth",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "probe_network",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Probe Network"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceHealthReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Source Health",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/api/v1/sources/items": {
+      "post": {
+        "operationId": "createStoryFromSourceItem",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceItemIngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Ingest Source Item",
+        "tags": [
+          "sources",
+          "stories"
+        ]
+      }
+    },
+    "/api/v1/stories": {
+      "get": {
+        "operationId": "listStories",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/StoryStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Story"
+                  },
+                  "title": "Response Liststories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "List Stories",
+        "tags": [
+          "stories"
+        ]
+      },
+      "post": {
+        "operationId": "createStory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Ingest Story",
+        "tags": [
+          "stories"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}": {
+      "get": {
+        "operationId": "getStory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Get Story",
+        "tags": [
+          "stories"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/audio/{segment_id}": {
+      "get": {
+        "operationId": "getAudioClip",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Audio Clip",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/production-manifest": {
+      "get": {
+        "operationId": "getProductionManifest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Production Manifest",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/resume": {
+      "post": {
+        "operationId": "resumeStory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Resume Story",
+        "tags": [
+          "stories"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/reviews": {
+      "get": {
+        "operationId": "listStoryReviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewRecord"
+                  },
+                  "title": "Response Liststoryreviews",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Review History",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/reviews/first": {
+      "post": {
+        "operationId": "submitFirstReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirstReviewSubmission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "First Review",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/reviews/second": {
+      "post": {
+        "operationId": "submitSecondReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecondReviewSubmission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Second Review",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/transitions": {
+      "get": {
+        "operationId": "listStoryTransitions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StateTransition"
+                  },
+                  "title": "Response Liststorytransitions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Transition History",
+        "tags": [
+          "stories"
+        ]
+      }
+    }
+  }
+}

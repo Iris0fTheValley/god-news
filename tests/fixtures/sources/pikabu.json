@@ -1,0 +1,38 @@
+{
+  "source": "pikabu",
+  "story_id": "story-9876",
+  "url": "https://pikabu.ru/story/dobrota_9876?utm_source=fixture#comments",
+  "title": "Добрая　история",
+  "author_username": "добрый_автор",
+  "published_at": "2026-07-10T15:00:00+03:00",
+  "language": "ru",
+  "publisher": "Pikabu",
+  "tags": ["добро", "люди", "Добро"],
+  "rating": 321,
+  "comments_count": 24,
+  "is_nsfw": false,
+  "blocks": [
+    {
+      "kind": "text",
+      "text": "Прохожий увидел, что нужна помощь."
+    },
+    {
+      "kind": "quote",
+      "text": "Спасибо за доброту!",
+      "author": "сосед"
+    },
+    {
+      "kind": "image",
+      "url": "https://cs.pikabu.ru/fixture.jpg",
+      "alt_text": "Добрые люди",
+      "width": 900,
+      "height": 600
+    },
+    {
+      "kind": "video",
+      "url": "https://cs.pikabu.ru/fixture.mp4",
+      "poster_url": "https://cs.pikabu.ru/fixture-poster.jpg",
+      "duration_ms": 9000
+    }
+  ]
+}

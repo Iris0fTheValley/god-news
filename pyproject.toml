@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "god-news"
+version = "0.1.0"
+description = "A deterministic, review-gated async content-to-audio pipeline."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "god-news contributors" }]
+dependencies = [
+  "aiosqlite>=0.21,<1",
+  "anyio>=4.9,<5",
+  "fastapi>=0.116,<1",
+  "httpx==0.28.1",
+  "openai>=2.45,<3",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "psutil>=7.0,<8",
+  "PyYAML>=6.0.2,<7",
+  "sqlalchemy[asyncio]>=2.0.41,<3",
+  "uvicorn[standard]>=0.35,<1",
+  "chromadb>=1.5,<2",
+]
+
+[project.optional-dependencies]
+fetchers = [
+  "DrissionPage==4.1.1.4",
+  "Scrapy==2.17.0",
+  "trafilatura==2.1.0",
+]
+dev = [
+  "mypy>=1.16,<2",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.0,<2",
+  "pytest-cov>=6.2,<7",
+  "ruff>=0.12,<1",
+  "types-psutil>=7.0,<8",
+  "types-PyYAML>=6.0,<7",
+]
+
+[project.scripts]
+god-news = "god_news.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/god_news"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+packages = ["god_news"]
+
+[[tool.mypy.overrides]]
+module = ["DrissionPage.*", "scrapy.*", "trafilatura.*"]
+ignore_missing_imports = true
