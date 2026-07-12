@@ -1,0 +1,17 @@
+{
+  "name": "god-news-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "ui:dev": "pnpm --filter @god-news/frontend dev",
+    "ui:build": "pnpm --filter @god-news/frontend build",
+    "ui:test": "pnpm --filter @god-news/frontend test",
+    "ui:check": "pnpm --filter @god-news/frontend check",
+    "video:studio": "pnpm --filter @god-news/video studio",
+    "video:check": "pnpm --filter @god-news/video check",
+    "check": "pnpm ui:check && pnpm video:check"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "manifest": {
+    "schema_version": "1.0",
+    "story_id": "71d68db3-f54d-48ca-882d-f04e6f083dcf",
+    "script_revision": 1,
+    "language": "zh-CN",
+    "total_duration_ms": 4200,
+    "timeline": [
+      {
+        "segment_id": "fb6447a9-073f-4594-9a60-b1ff8de7be10",
+        "sequence": 0,
+        "start_ms": 0,
+        "end_ms": 4200,
+        "text": "把后端生成的真实音频路径填到这里，就可以进行本地渲染。",
+        "speaker_id": "narrator",
+        "emotion": "neutral",
+        "visual_hint": "calm city morning",
+        "audio_path": "./audio/segment.wav"
+      }
+    ]
+  },
+  "title": "God News",
+  "subtitle": "A deterministic short-video render",
+  "intro_duration_ms": 700,
+  "transition_duration_ms": 180,
+  "theme": {
+    "background": "#101512",
+    "foreground": "#f3f1e8",
+    "accent": "#85a77d",
+    "signal": "#e4a853"
+  },
+  "bgm": {
+    "local_path": "./audio/bgm.wav",
+    "volume": 0.12,
+    "loop": true
+  },
+  "visual_reservations": {
+    "renderer": "placeholder"
+  },
+  "runtime_assets": {
+    "audio_by_segment_id": {}
+  }
+}

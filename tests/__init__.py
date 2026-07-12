@@ -1,0 +1,1 @@
+"""god-news test suite."""

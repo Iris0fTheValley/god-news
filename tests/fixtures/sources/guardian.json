@@ -1,0 +1,38 @@
+{
+  "source": "guardian",
+  "article_id": "lifeandstyle/2026/jul/10/kindness-fixture",
+  "web_url": "https://www.theguardian.com/lifeandstyle/2026/jul/10/kindness-fixture?utm_source=rss#maincontent",
+  "web_title": "The kindness　of strangers",
+  "body_text": "A neighbour noticed the problem.\r\n\r\nThey quietly helped.",
+  "byline": "Fixture Reporter",
+  "web_publication_date": "2026-07-10T08:15:00-04:00",
+  "section_id": "lifeandstyle",
+  "pillar_name": "Lifestyle",
+  "trail_text": "A small act with a large effect.",
+  "tags": ["kindness", "community"],
+  "language": "en-GB",
+  "publisher": "The Guardian",
+  "rights": {
+    "status": "permission_required",
+    "copyright_holder": "Guardian News & Media",
+    "allows_republication": false,
+    "requires_attribution": true
+  },
+  "media": [
+    {
+      "kind": "image",
+      "url": "https://media.guim.co.uk/fixture.jpg",
+      "role": "main",
+      "caption": "Neighbours meeting",
+      "credit": "Photograph: Fixture",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "kind": "audio",
+      "url": "https://media.guim.co.uk/fixture.mp3",
+      "caption": "Listen to the story",
+      "duration_ms": 30000
+    }
+  ]
+}

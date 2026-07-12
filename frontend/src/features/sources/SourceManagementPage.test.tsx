@@ -1,0 +1,70 @@
+import {screen} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
+
+import {renderWithApp} from '../../test/render';
+import {SourceManagementPage} from './SourceManagementPage';
+
+const apiMocks = vi.hoisted(() => ({getSourceHealth: vi.fn()}));
+
+vi.mock('../../api/client', () => ({getSourceHealth: apiMocks.getSourceHealth}));
+
+const report = {
+  checked_at: '2026-07-12T08:00:00Z',
+  network_probed: false,
+  sources: [
+    {
+      source: 'dazhong',
+      configured: true,
+      authorized: false,
+      reachable: null,
+      contract_ok: true,
+      access_method: 'authorized_public_page',
+      notes: ['operator_acknowledgement_required'],
+    },
+    {
+      source: 'reddit',
+      configured: true,
+      authorized: true,
+      reachable: null,
+      contract_ok: true,
+      access_method: 'official_api',
+      notes: [],
+    },
+    {
+      source: 'guardian',
+      configured: true,
+      authorized: true,
+      reachable: null,
+      contract_ok: true,
+      access_method: 'official_api',
+      notes: [],
+    },
+    {
+      source: 'pikabu',
+      configured: false,
+      authorized: false,
+      reachable: null,
+      contract_ok: true,
+      access_method: 'authorized_public_page',
+      notes: [],
+    },
+  ],
+} as const;
+
+describe('SourceManagementPage', () => {
+  beforeEach(() => apiMocks.getSourceHealth.mockResolvedValue(report));
+
+  it('keeps authorization separate from network reachability and can request a probe', async () => {
+    const user = userEvent.setup();
+    renderWithApp(<SourceManagementPage />, ['/sources']);
+
+    expect(await screen.findByText('大众新闻 · 开屏见好')).toBeVisible();
+    expect(screen.getByText('等待授权')).toBeVisible();
+    expect(screen.getByText('2/4 已授权')).toBeVisible();
+    expect(screen.getAllByText('网络尚未探测')).toHaveLength(4);
+
+    await user.click(screen.getByRole('button', {name: '核验网络'}));
+    expect(apiMocks.getSourceHealth).toHaveBeenLastCalledWith(true);
+  });
+});
