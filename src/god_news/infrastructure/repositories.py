@@ -49,6 +49,7 @@ class StoryRow(Base):
     story_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     trace_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_json: Mapped[str] = mapped_column(Text, nullable=False)
     provenance_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     canonical_url_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -137,6 +138,7 @@ def _story_values(story: Story, *, version: int) -> dict[str, object]:
     return {
         "trace_id": str(story.trace_id),
         "status": story.status.value,
+        "title": story.title,
         "source_json": story.source.model_dump_json(),
         "provenance_json": _json_or_none(story.provenance),
         "canonical_url_sha256": identity.canonical_url_sha256,
@@ -159,6 +161,7 @@ def _to_story(row: StoryRow) -> Story:
         story_id=UUID(row.story_id),
         trace_id=UUID(row.trace_id),
         status=StoryStatus(row.status),
+        title=row.title,
         source=SourceSnapshot.model_validate_json(row.source_json),
         provenance=(
             NormalizedSourceItem.model_validate_json(row.provenance_json)
@@ -246,12 +249,15 @@ class SqlAlchemyStoryRepository:
         status: StoryStatus | None = None,
         limit: int = 50,
         offset: int = 0,
+        include_archived: bool = False,
     ) -> Sequence[Story]:
         statement = (
             select(StoryRow).order_by(StoryRow.updated_at.desc()).limit(limit).offset(offset)
         )
         if status is not None:
             statement = statement.where(StoryRow.status == status.value)
+        elif not include_archived:
+            statement = statement.where(StoryRow.status != StoryStatus.ARCHIVED.value)
         async with self._sessions() as session:
             rows = (await session.scalars(statement)).all()
         return [_to_story(row) for row in rows]

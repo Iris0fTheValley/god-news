@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy import event, text
+from sqlalchemy import event, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
@@ -57,9 +58,60 @@ class Database:
     async def create_schema(self) -> None:
         # Importing registers ORM tables on Base.metadata.
         from god_news.infrastructure import repositories as _repositories  # noqa: F401
+        from god_news.infrastructure import role_profiles as _role_profiles  # noqa: F401
+        from god_news.infrastructure import source_runs as _source_runs  # noqa: F401
+        from god_news.infrastructure import video_repository as _video_repository  # noqa: F401
 
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            await self._apply_story_sqlite_additive_migrations(connection)
+            await self._apply_sqlite_additive_migrations(connection)
+
+    @staticmethod
+    async def _apply_story_sqlite_additive_migrations(connection: AsyncConnection) -> None:
+        """Keep the local SQLite development database forward-compatible.
+
+        The project intentionally has no migration runner yet.  This narrow,
+        idempotent migration only adds the nullable editorial-title column that
+        existing installations need for the story PATCH contract.
+        """
+
+        if connection.dialect.name != "sqlite":
+            return
+
+        column_names = {
+            column["name"]
+            for column in await connection.run_sync(
+                lambda sync_connection: inspect(sync_connection).get_columns("stories")
+            )
+        }
+        if "title" not in column_names:
+            await connection.execute(text("ALTER TABLE stories ADD COLUMN title VARCHAR(500)"))
+
+    @staticmethod
+    async def _apply_sqlite_additive_migrations(connection: AsyncConnection) -> None:
+        """Apply only backward-compatible SQLite schema additions.
+
+        ``metadata.create_all`` intentionally does not alter an already-created
+        table.  These nullable role fields therefore need an explicit additive
+        migration for existing local installations.  The definitions are fixed
+        constants, and the column check makes repeated application idempotent.
+        """
+
+        if connection.dialect.name != "sqlite":
+            return
+
+        result = await connection.exec_driver_sql("PRAGMA table_info(role_profiles)")
+        existing_columns = {str(row[1]) for row in result.all()}
+        additions = {
+            "gpt_weights_path": "TEXT NULL",
+            "sovits_weights_path": "TEXT NULL",
+        }
+        for column_name, definition in additions.items():
+            if column_name not in existing_columns:
+                await connection.exec_driver_sql(
+                    f"ALTER TABLE role_profiles ADD COLUMN {column_name} {definition}"
+                )
 
     async def healthcheck(self) -> None:
         async with self.sessions() as session:

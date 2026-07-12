@@ -8,11 +8,14 @@
                                              脚本 → 本地 TTS → 人工终审 → DONE
 ```
 
-固定状态机只有以下七个状态，不用额外“失败状态”污染业务语义。失败信息单独持久化，之后通过 `resume` 从安全检查点继续：
+生产主线保留以下七个状态；`ARCHIVED` 是显式软归档终态，不混入制作进度。失败信息单独持久化，之后通过 `resume` 从安全检查点继续：
 
 ```text
 FETCHED → TRANSLATED → PENDING_FIRST_REVIEW → PROCESSING_SCRIPT
         → SCRIPT_READY → PENDING_SECOND_REVIEW → DONE
+
+任一未归档状态 → ARCHIVED
+DONE → PENDING_SECOND_REVIEW  （重开终审）
 ```
 
 ## 已实现
@@ -27,8 +30,10 @@ FETCHED → TRANSLATED → PENDING_FIRST_REVIEW → PROCESSING_SCRIPT
 - 终审可请求修改脚本并重合成；`production-manifest` 输出未来视频模块可直接消费的时间轴。
 - 无网络、无 API Key、无 GPU 的确定性端到端测试适配器。
 - 大众新闻、Reddit、Guardian、Pikabu 四套独立强类型来源契约/清洗器，保留归因、权利、媒体与来源专属字段。
-- React/Vite 制作台：故事队列、源证据、AI 分类复核、两阶段审核、分段脚本编辑、逐段音频和审计时间轴。
-- Remotion 9:16 渲染包：消费 `ProductionManifest 1.0`，支持字幕、本地 BGM、黑屏片头/转场及 Live2D/差分图类型预留。
+- React/Vite 制作台：故事队列（搜索+分类筛选+删除归档）、源证据、AI 分类复核、两阶段审核（带二次确认对话框）、分段脚本编辑（Ctrl+Z/Y 撤销栈）、逐段音频、审计时间轴和 FSM 状态迁移日志。
+- 角色管理、采集运行日志、视频批次、BGM 离线目录浏览和运维操作页面均为完整 UI 壳，API 类型由 OpenAPI 自动生成。
+- 全局 Toast 通知（带撤销按钮）、不可逆操作确认对话框、? 键快捷键面板、统一空状态占位。
+- Remotion 9:16 渲染包：消费 `ProductionManifest 1.0`，支持字幕、本地 BGM、黑屏片头/转场及 Live2D/差分图类型预留；当前渲染器为桩，待 Remotion Node 子进程桥接。
 
 ## 目录
 
@@ -36,7 +41,7 @@ FETCHED → TRANSLATED → PENDING_FIRST_REVIEW → PROCESSING_SCRIPT
 src/god_news/
 ├── api/                 # HTTP 传输、错误边界、trace_id
 ├── application/         # 审核闸门与确定性用例编排
-├── domain/              # 强类型模型、7 状态 FSM、可替换端口
+├── domain/              # 强类型模型、制作主线 + 软归档 FSM、可替换端口
 ├── infrastructure/      # DB、抓取、LLM、记忆、TTS 适配器
 ├── sources/             # 四个固定来源的原始契约、清洗器与健康政策
 ├── workers/             # DrissionPage/Scrapy 一次性隔离进程
@@ -90,7 +95,7 @@ Copy-Item .env.example .env
 .\scripts\start.ps1 -OfflineDemo
 ```
 
-它仍走真实 HTTP、React、七状态 FSM、两次人工点击和 WAV 播放，只把抓取/LLM/TTS 换为确定性测试适配器。该模式不能作为真实来源或模型验收证据。
+它仍走真实 HTTP、React、制作主线状态机、两次人工点击和 WAV 播放，只把抓取/LLM/TTS 换为确定性测试适配器。该模式不能作为真实来源或模型验收证据。
 
 也可只运行后端：
 
@@ -110,7 +115,15 @@ god-news
 3. `POST /api/v1/stories/{id}/reviews/second`：再次携带最新 version；`approve` 后进入 `DONE`。
 4. `GET /api/v1/stories/{id}/production-manifest`：获取音频对齐时间轴。
 5. `POST /api/v1/stories/{id}/resume`：从 `FETCHED`、`PROCESSING_SCRIPT`、`SCRIPT_READY`，或缺音频的终审状态恢复。
-6. `GET /api/v1/metrics/classification`：返回人工初审后的分类接受数与准确率。
+6. `DELETE /api/v1/stories/{id}`：软归档，保留证据和审计；默认列表隐藏归档，按 ID 仍可读取。
+7. `POST /api/v1/stories/{id}/reopen`：仅将 `DONE` 重开至 `PENDING_SECOND_REVIEW`。
+8. `PATCH /api/v1/stories/{id}`：携带 `expected_story_version`，可编辑独立的 editorial title、style 与 target duration，不会改动来源证据。
+9. `GET /api/v1/metrics/classification`：返回人工初审后的分类接受数与准确率。
+10. `GET/POST /api/v1/roles`：管理旁白与主持人人设（名称、语速音高、TTS 权重路径）。
+11. `GET/POST /api/v1/source-runs`：查看采集运行记录与逐条目结果详情。
+12. `GET/POST /api/v1/video/batches`：创建视频批次、提交时间轴审阅、发起渲染（渲染器桩）。
+13. `GET /api/v1/video/bgm`：浏览本地 BGM 文件夹中可用音轨。
+14. `POST /api/v1/operations/retention/runs` + `GET /api/v1/operations/runs` + `GET /api/v1/operations/schedules`：手动清理过期媒体文件、查看运维历史和调度状态。
 
 文本数据源请求示例：
 
@@ -155,7 +168,7 @@ pnpm --filter @god-news/video check
 pnpm --filter @god-news/video render -- --input .\video\example\video-props.json --output .\out\story.mp4
 ```
 
-前端类型只从后端 OpenAPI 生成，禁止维护第二套 Story/FSM 类型。Remotion CLI 只接受本地资产，把音频/BGM 按 SHA-256 复制到一次性 public 目录，拒绝远程 URI，完成后清理临时目录。当前 Live2D 与差分图字段是明确的渲染器预留，不会假装已经实现角色驱动。
+前端类型只从后端 OpenAPI 生成，禁止维护第二套 Story/FSM 类型。前端接口映射与后端待实现项见 `docs/frontend-api-mapping.md`。Remotion CLI 只接受本地资产，把音频/BGM 按 SHA-256 复制到一次性 public 目录，拒绝远程 URI，完成后清理临时目录。当前 Live2D 与差分图字段是明确的渲染器预留，不会假装已经实现角色驱动。
 
 每次审核还应由客户端生成并发送稳定的 `review_id`。相同 ID 和相同请求可安全重试，不会重复启动 TTS；相同 ID 对应不同请求会返回 409。审核记录绑定 story version、译文哈希、脚本 revision 和音频 bundle 哈希，避免“批准的到底是哪一版”失去审计证据。
 
@@ -194,7 +207,7 @@ pnpm --filter @god-news/frontend check
 pnpm --filter @god-news/video check
 ```
 
-测试覆盖完整七状态路径、两道审核闸门、失败恢复、乐观并发、抓取降级、URL 安全政策、API 和未来视频 manifest。测试不会访问真实网络、DeepSeek、LM Studio 或 GPU。真实 GPT-SoVITS 验收会实际占用 GPU，默认不在自动测试中启动。
+测试覆盖完整制作路径、软归档/重开终审、两道审核闸门、失败恢复、乐观并发、抓取降级、URL 安全政策、API 和未来视频 manifest。测试不会访问真实网络、DeepSeek、LM Studio 或 GPU。真实 GPT-SoVITS 验收会实际占用 GPU，默认不在自动测试中启动。
 
 ## 已核对的上游契约
 

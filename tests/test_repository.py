@@ -71,3 +71,34 @@ async def test_sql_repository_uses_optimistic_concurrency_and_audit(tmp_path: Pa
             )
     finally:
         await database.aclose()
+
+
+@pytest.mark.asyncio
+async def test_sql_repository_hides_archived_stories_from_the_default_list(tmp_path: Path) -> None:
+    database = Database(f"sqlite+aiosqlite:///{(tmp_path / 'archive.db').as_posix()}")
+    await database.create_schema()
+    repository = SqlAlchemyStoryRepository(database.sessions)
+    try:
+        original = await repository.create(make_story())
+        archived = await repository.save(
+            transition_story(original, StoryStatus.ARCHIVED),
+            expected_version=original.version,
+            transition_reason="story archived",
+        )
+
+        assert (await repository.get(original.story_id)).status is StoryStatus.ARCHIVED
+        assert await repository.list() == []
+        assert [story.story_id for story in await repository.list(status=StoryStatus.ARCHIVED)] == [
+            original.story_id
+        ]
+        assert [story.story_id for story in await repository.list(include_archived=True)] == [
+            original.story_id
+        ]
+        transitions = await repository.list_transitions(original.story_id)
+        assert (transitions[-1].from_status, transitions[-1].to_status) == (
+            StoryStatus.FETCHED,
+            StoryStatus.ARCHIVED,
+        )
+        assert archived.version == original.version + 1
+    finally:
+        await database.aclose()

@@ -9,6 +9,7 @@ from god_news.domain.models import (
     AudioClip,
     EditorialScreening,
     FetchedDocument,
+    PipelineFailure,
     ScriptDocument,
     ScriptPreferences,
     ScriptSegment,
@@ -21,11 +22,19 @@ from god_news.errors import InvalidTransitionError
 
 EXPECTED = (
     (StoryStatus.FETCHED, StoryStatus.TRANSLATED),
+    (StoryStatus.FETCHED, StoryStatus.ARCHIVED),
     (StoryStatus.TRANSLATED, StoryStatus.PENDING_FIRST_REVIEW),
+    (StoryStatus.TRANSLATED, StoryStatus.ARCHIVED),
     (StoryStatus.PENDING_FIRST_REVIEW, StoryStatus.PROCESSING_SCRIPT),
+    (StoryStatus.PENDING_FIRST_REVIEW, StoryStatus.ARCHIVED),
     (StoryStatus.PROCESSING_SCRIPT, StoryStatus.SCRIPT_READY),
+    (StoryStatus.PROCESSING_SCRIPT, StoryStatus.ARCHIVED),
     (StoryStatus.SCRIPT_READY, StoryStatus.PENDING_SECOND_REVIEW),
+    (StoryStatus.SCRIPT_READY, StoryStatus.ARCHIVED),
     (StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.DONE),
+    (StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.ARCHIVED),
+    (StoryStatus.DONE, StoryStatus.PENDING_SECOND_REVIEW),
+    (StoryStatus.DONE, StoryStatus.ARCHIVED),
 )
 
 
@@ -103,9 +112,9 @@ def make_artifacts() -> tuple[TranslationResult, ScriptDocument, AudioBundle]:
     return translation, script, audio
 
 
-def test_fsm_contains_only_the_fixed_linear_transitions() -> None:
+def test_fsm_contains_the_pipeline_reopen_and_soft_archive_transitions() -> None:
     assert set(all_transitions()) == set(EXPECTED)
-    assert len(StoryStatus) == 7
+    assert len(StoryStatus) == 8
 
 
 def test_fsm_rejects_skipping_a_review_gate() -> None:
@@ -123,3 +132,39 @@ def test_fsm_walks_the_complete_path() -> None:
     story = transition_story(story, StoryStatus.PENDING_SECOND_REVIEW, audio=audio)
     story = transition_story(story, StoryStatus.DONE)
     assert story.status is StoryStatus.DONE
+
+
+def test_fsm_reopens_done_only_and_archives_from_every_live_state() -> None:
+    story = make_story()
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+
+    translation, script, audio = make_artifacts()
+    story = transition_story(story, StoryStatus.TRANSLATED, translation=translation)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.PENDING_FIRST_REVIEW)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.PROCESSING_SCRIPT)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.SCRIPT_READY, script=script)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.PENDING_SECOND_REVIEW, audio=audio)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.DONE)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    assert transition_story(story, StoryStatus.PENDING_SECOND_REVIEW).status is (
+        StoryStatus.PENDING_SECOND_REVIEW
+    )
+
+
+def test_archive_retains_failure_evidence() -> None:
+    failed = make_story().model_copy(
+        update={
+            "last_failure": PipelineFailure(
+                code="tts_generation_failed",
+                message="Fixture failure evidence.",
+                retryable=True,
+            )
+        }
+    )
+    archived = transition_story(failed, StoryStatus.ARCHIVED)
+    assert archived.last_failure == failed.last_failure

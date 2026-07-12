@@ -93,6 +93,7 @@ class StoryRepository(Protocol):
         status: StoryStatus | None = None,
         limit: int = 50,
         offset: int = 0,
+        include_archived: bool = False,
     ) -> Sequence[Story]: ...
 
     async def save(

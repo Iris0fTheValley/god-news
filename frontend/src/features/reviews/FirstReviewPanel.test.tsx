@@ -22,6 +22,9 @@ describe('FirstReviewPanel', () => {
     await user.clear(keyPoints);
     await user.type(keyPoints, '核对原始证据\n主人已确认接回');
     await user.click(screen.getByRole('button', {name: '批准并生成音频'}));
+    // ConfirmDialog opens — confirm the action
+    const confirmButtons = screen.getAllByRole('button', {name: '批准并生成音频'});
+    await user.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => expect(apiMocks.submitFirstReview).toHaveBeenCalledOnce());
     const [storyId, payload] = apiMocks.submitFirstReview.mock.calls[0] as [string, Record<string, unknown>];

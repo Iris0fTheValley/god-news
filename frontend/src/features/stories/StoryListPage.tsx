@@ -1,23 +1,41 @@
-import {useQuery} from '@tanstack/react-query';
-import {Filter} from 'lucide-react';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {Filter, Search} from 'lucide-react';
+import {useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 
-import {getClassificationMetrics, listStories} from '../../api/client';
+import {deleteStory, getClassificationMetrics, listStories} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {StoryStatus} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
-import {STATUS_LABELS, STORY_STATUSES} from '../../components/cueRailData';
+import {ConfirmDialog} from '../../components/ConfirmDialog';
+import {STATUS_LABELS, STORY_FILTER_STATUSES} from '../../components/cueRailData';
+import {useToast} from '../../components/Toast';
 import {CreateStoryForm} from './CreateStoryForm';
 import {StoryCard} from './StoryCard';
 
 function isStoryStatus(value: string | null): value is StoryStatus {
-  return value !== null && (STORY_STATUSES as readonly string[]).includes(value);
+  return value !== null && (STORY_FILTER_STATUSES as readonly string[]).includes(value);
 }
 
 export function StoryListPage() {
   const [params, setParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const {push: pushToast} = useToast();
   const requested = params.get('status');
   const status = isStoryStatus(requested) ? requested : undefined;
+  const [search, setSearch] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteStory,
+    onSettled: () => {
+      void queryClient.invalidateQueries({queryKey: queryKeys.stories()});
+      setDeleteTarget(null);
+    },
+    onError: (err) => {
+      pushToast({message: `归档失败：${err instanceof Error ? err.message : '未知错误'}`, variant: 'caution', durationMs: 5000});
+    },
+  });
   const query = useQuery({
     queryKey: queryKeys.stories(status),
     queryFn: () => listStories(status),
@@ -57,19 +75,30 @@ export function StoryListPage() {
             }}
           >
             <option value="">全部状态</option>
-            {STORY_STATUSES.map((item) => (
+            {STORY_FILTER_STATUSES.map((item) => (
               <option key={item} value={item}>
                 {STATUS_LABELS[item]}
               </option>
             ))}
           </select>
         </label>
+        <div className="search-control" style={{flex: '1 1 200px', maxWidth: 320}}>
+          <Search size={16} aria-hidden="true" />
+          <input
+            className="input"
+            type="search"
+            placeholder="搜索标题或来源…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="搜索故事"
+          />
+        </div>
         <div className="queue-count metadata">
           <span>{query.data === undefined ? '—' : String(query.data.length)} 条</span>
           <span>
             AI 分类接受率{' '}
             {metricsQuery.data?.accuracy == null
-              ? '待积累'
+              ? '少于 5 次复核'
               : `${Math.round(metricsQuery.data.accuracy * 100)}% / ${String(metricsQuery.data.reviewed_count)} 次复核`}
           </span>
         </div>
@@ -94,10 +123,24 @@ export function StoryListPage() {
       ) : (
         <div className="story-list">
           {query.data?.map((story) => (
-            <StoryCard key={story.story_id ?? story.trace_id} story={story} />
+            <StoryCard
+              key={story.story_id ?? story.trace_id}
+              story={story}
+              onDeleteRequest={(id) => setDeleteTarget(id)}
+            />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="归档故事"
+        message="归档会保留来源证据和审计记录，并从默认活跃列表中隐藏。"
+        variant="danger"
+        confirmLabel="确认归档"
+        onConfirm={() => { if (deleteTarget !== null) deleteMutation.mutate(deleteTarget); }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

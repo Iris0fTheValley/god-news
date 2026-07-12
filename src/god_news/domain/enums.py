@@ -9,6 +9,7 @@ class StoryStatus(StrEnum):
     SCRIPT_READY = "SCRIPT_READY"
     PENDING_SECOND_REVIEW = "PENDING_SECOND_REVIEW"
     DONE = "DONE"
+    ARCHIVED = "ARCHIVED"
 
 
 class SourceKind(StrEnum):

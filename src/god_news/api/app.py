@@ -9,8 +9,11 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from god_news.api.operations_routes import router as operations_router
 from god_news.api.routes import router
 from god_news.api.schemas import ProblemDetail
+from god_news.api.source_run_routes import router as source_run_router
+from god_news.api.video_routes import router as video_router
 from god_news.config import Settings, get_settings
 from god_news.container import AppContainer, build_container
 from god_news.errors import GodNewsError
@@ -33,6 +36,7 @@ def create_app(
         container = await container_factory(resolved_settings)
         app.state.container = container
         try:
+            await container.start()
             yield
         finally:
             await container.aclose()
@@ -96,4 +100,7 @@ def create_app(
         return JSONResponse(status_code=500, content=problem.model_dump(mode="json"))
 
     app.include_router(router, prefix="/api/v1")
+    app.include_router(operations_router, prefix="/api/v1")
+    app.include_router(source_run_router, prefix="/api/v1")
+    app.include_router(video_router, prefix="/api/v1")
     return app

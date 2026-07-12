@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import httpx
 
 from god_news.application.memory import MemoryCoordinator
+from god_news.application.source_runs import SourceRunService
+from god_news.application.video_batches import VideoBatchService
 from god_news.application.workflow import StoryWorkflow
 from god_news.config import MemoryProviderName, Settings
 from god_news.domain.models import HealthReport
@@ -28,14 +30,26 @@ from god_news.infrastructure.llm.openai_compatible import (
 )
 from god_news.infrastructure.memory import ChromaDBMemoryProvider, NoopMemoryProvider
 from god_news.infrastructure.repositories import SqlAlchemyStoryRepository
+from god_news.infrastructure.role_profiles import SqlAlchemyRoleProfileRepository
 from god_news.infrastructure.source_health import (
     HttpSourceReachabilityProbe,
     build_source_policies,
 )
+from god_news.infrastructure.source_runs import SqlAlchemySourceRunRepository
 from god_news.infrastructure.tts.gpt_sovits import (
     GPTSoVITSSpeechSynthesizer,
     UnavailableSpeechSynthesizer,
 )
+from god_news.infrastructure.video_assets import LocalBgmCatalog
+from god_news.infrastructure.video_host import (
+    PlaceholderHostRenderer,
+    UnavailableBatchVideoRenderer,
+)
+from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
+from god_news.operations.retention import RetentionCleanupHandler
+from god_news.operations.roles import RoleProfileService
+from god_news.operations.scheduler import IntervalScheduler, OperationDispatcher
+from god_news.sources.collectors.factory import create_source_collectors
 from god_news.sources.health import SourceHealthMonitor
 from god_news.sources.registry import SourceNormalizerRegistry, create_default_source_registry
 
@@ -51,8 +65,19 @@ class AppContainer:
     workflow: StoryWorkflow
     source_normalizers: SourceNormalizerRegistry
     source_health: SourceHealthMonitor
+    source_runs: SourceRunService | None = None
+    video_batches: VideoBatchService | None = None
+    role_profiles: RoleProfileService | None = None
+    operations: OperationDispatcher | None = None
+    operation_scheduler: IntervalScheduler | None = None
     database: Database | None = None
     http_client: httpx.AsyncClient | None = None
+
+    async def start(self) -> None:
+        if self.source_runs is not None:
+            await self.source_runs.recover_interrupted()
+        if self.operation_scheduler is not None:
+            await self.operation_scheduler.start()
 
     async def readiness(self) -> HealthReport:
         checks: list[str] = []
@@ -116,6 +141,10 @@ class AppContainer:
         return HealthReport(ready=ready, checks=checks)
 
     async def aclose(self) -> None:
+        if self.operation_scheduler is not None:
+            await self.operation_scheduler.aclose()
+        if self.source_runs is not None:
+            await self.source_runs.aclose()
         await asyncio.gather(
             self.fetcher.aclose(),
             self.generator.aclose(),
@@ -138,6 +167,30 @@ async def build_container(settings: Settings) -> AppContainer:
     if settings.database_auto_create:
         await database.create_schema()
     repository = SqlAlchemyStoryRepository(database.sessions)
+    role_profile_repository = SqlAlchemyRoleProfileRepository(database.sessions)
+    role_profiles = RoleProfileService(role_profile_repository)
+    asset_lifecycle_lock = asyncio.Lock()
+    video_batch_repository = SqlAlchemyVideoBatchRepository(database.sessions)
+    retention_handler = RetentionCleanupHandler(
+        media_root=settings.output_dir,
+        uploaded_mp4_root=settings.uploaded_video_dir,
+        media_retention_days=settings.retention_media_days,
+        uploaded_mp4_retention_days=settings.retention_uploaded_mp4_days,
+        media_extensions=settings.retention_media_extensions,
+        asset_protector=video_batch_repository,
+        asset_lifecycle_lock=asset_lifecycle_lock,
+    )
+    operations = OperationDispatcher(
+        [retention_handler],
+        history_limit=settings.operations_history_limit,
+    )
+    operation_scheduler = IntervalScheduler(
+        operations,
+        enabled=settings.operations_scheduler_enabled,
+        interval_seconds=settings.operations_scheduler_interval_seconds,
+        poll_interval_seconds=settings.operations_scheduler_poll_seconds,
+        retention_dry_run=settings.operations_scheduler_retention_dry_run,
+    )
 
     timeout = httpx.Timeout(
         connect=settings.fetch_connect_timeout_seconds,
@@ -291,6 +344,27 @@ async def build_container(settings: Settings) -> AppContainer:
         synthesizer=synthesizer,
         source_normalizer=source_normalizers,
     )
+    source_runs = SourceRunService(
+        repository=SqlAlchemySourceRunRepository(database.sessions),
+        collectors=create_source_collectors(
+            settings=settings,
+            client=http_client,
+            fetcher=fetcher,
+        ),
+        normalizer=source_normalizers,
+        ingestor=workflow,
+        max_pending_runs=settings.source_run_max_pending,
+    )
+    video_batches = VideoBatchService(
+        story_pool=workflow,
+        repository=video_batch_repository,
+        host_renderer=PlaceholderHostRenderer(),
+        video_renderer=UnavailableBatchVideoRenderer(),
+        bgm_catalog=LocalBgmCatalog(settings.video_bgm_directory),
+        audio_root=settings.output_dir,
+        candidate_scan_limit=settings.video_candidate_scan_limit,
+        asset_lifecycle_lock=asset_lifecycle_lock,
+    )
     return AppContainer(
         settings=settings,
         repository=repository,
@@ -301,6 +375,11 @@ async def build_container(settings: Settings) -> AppContainer:
         workflow=workflow,
         source_normalizers=source_normalizers,
         source_health=source_health,
+        source_runs=source_runs,
+        video_batches=video_batches,
+        role_profiles=role_profiles,
+        operations=operations,
+        operation_scheduler=operation_scheduler,
         database=database,
         http_client=http_client,
     )

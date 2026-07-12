@@ -57,6 +57,28 @@ class Settings(BaseSettings):
     database_auto_create: bool = True
     database_busy_timeout_ms: int = Field(default=5_000, ge=0, le=60_000)
     output_dir: Path = Path("./outputs")
+    uploaded_video_dir: Path = Path("./uploads/videos")
+    video_bgm_directory: Path = Path("./assets/bgm")
+    video_candidate_scan_limit: int = Field(default=1_000, ge=15, le=100_000)
+    retention_media_days: int = Field(default=7, ge=1, le=3_650)
+    retention_uploaded_mp4_days: int = Field(default=3, ge=1, le=3_650)
+    retention_media_extensions: tuple[str, ...] = (
+        ".wav",
+        ".mp3",
+        ".flac",
+        ".aac",
+        ".ogg",
+        ".m4a",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+    )
+    operations_history_limit: int = Field(default=100, ge=1, le=10_000)
+    operations_scheduler_enabled: bool = False
+    operations_scheduler_interval_seconds: float = Field(default=86_400, ge=60)
+    operations_scheduler_poll_seconds: float = Field(default=5, gt=0, le=60)
+    operations_scheduler_retention_dry_run: bool = True
 
     llm_provider: LLMProvider = LLMProvider.DEEPSEEK
     deepseek_api_key: SecretStr | None = None
@@ -124,22 +146,40 @@ class Settings(BaseSettings):
     # Fixed source adapter policies. Network-facing code may only target these
     # configured endpoints and must first map data into the typed raw contracts.
     source_health_network_probes_enabled: bool = False
+    source_run_max_pending: int = Field(default=8, ge=1, le=100)
     source_dazhong_enabled: bool = True
     source_dazhong_endpoint: str = "https://m.dzplus.dzng.com/"
     source_dazhong_public_page_use_authorized: bool = False
+    source_dazhong_collection_limit: int = Field(default=10, ge=1, le=50)
+    source_dazhong_allowed_host_suffixes: tuple[str, ...] = ("dzng.com",)
     source_reddit_enabled: bool = True
     source_reddit_endpoint: str = "https://oauth.reddit.com/"
+    source_reddit_token_endpoint: str = "https://www.reddit.com/api/v1/access_token"
     source_reddit_client_id: SecretStr | None = None
     source_reddit_client_secret: SecretStr | None = None
     source_reddit_user_agent: str | None = None
     source_reddit_api_use_authorized: bool = False
+    source_reddit_subreddit: str = Field(
+        default="HumansBeingBros",
+        min_length=1,
+        max_length=21,
+        pattern=r"^[A-Za-z0-9_]+$",
+    )
+    source_reddit_collection_limit: int = Field(default=25, ge=1, le=100)
     source_guardian_enabled: bool = True
     source_guardian_endpoint: str = "https://content.guardianapis.com/"
     source_guardian_api_key: SecretStr | None = None
     source_guardian_ai_use_authorized: bool = False
+    source_guardian_query: str = Field(default="kindness", min_length=1, max_length=200)
+    source_guardian_section: str | None = Field(default=None, max_length=100)
+    source_guardian_collection_limit: int = Field(default=25, ge=1, le=50)
     source_pikabu_enabled: bool = True
-    source_pikabu_endpoint: str = "https://pikabu.ru/"
+    source_pikabu_endpoint: str = (
+        "https://pikabu.ru/tag/%D0%94%D0%BE%D0%B1%D1%80%D0%BE%D1%82%D0%B0"
+    )
     source_pikabu_public_page_use_authorized: bool = False
+    source_pikabu_collection_limit: int = Field(default=10, ge=1, le=50)
+    source_pikabu_allowed_host_suffixes: tuple[str, ...] = ("pikabu.ru",)
 
     tts_enabled: bool = True
     gpt_sovits_root: Path = Path("J:/AI friend/GPT-SoVITS-v2pro-20250604")
@@ -194,6 +234,23 @@ class Settings(BaseSettings):
             raise ValueError("allowed_source_ports must contain valid TCP ports")
         return value
 
+    @field_validator("retention_media_extensions")
+    @classmethod
+    def validate_retention_extensions(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(suffix.strip().casefold() for suffix in value)
+        if (
+            not normalized
+            or len(normalized) != len(set(normalized))
+            or any(
+                len(suffix) < 2
+                or not suffix.startswith(".")
+                or not suffix[1:].isalnum()
+                for suffix in normalized
+            )
+        ):
+            raise ValueError("retention_media_extensions must be unique file suffixes")
+        return normalized
+
     @field_validator("memory_chroma_collection")
     @classmethod
     def validate_chroma_collection_name(cls, value: str) -> str:
@@ -224,9 +281,28 @@ class Settings(BaseSettings):
             return None
         return value
 
+    @field_validator("source_guardian_section", mode="before")
+    @classmethod
+    def blank_section_is_unset(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator(
+        "source_dazhong_allowed_host_suffixes",
+        "source_pikabu_allowed_host_suffixes",
+    )
+    @classmethod
+    def validate_source_host_suffixes(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(suffix.casefold().strip().lstrip(".") for suffix in value)
+        if not normalized or any(not suffix or "/" in suffix for suffix in normalized):
+            raise ValueError("source host suffix allowlists must contain DNS suffixes")
+        return normalized
+
     @field_validator(
         "source_dazhong_endpoint",
         "source_reddit_endpoint",
+        "source_reddit_token_endpoint",
         "source_guardian_endpoint",
         "source_pikabu_endpoint",
     )
@@ -238,6 +314,39 @@ class Settings(BaseSettings):
         if parts.username is not None or parts.password is not None:
             raise ValueError("fixed source endpoints cannot contain credentials")
         return value
+
+    @model_validator(mode="after")
+    def require_official_source_hosts(self) -> Settings:
+        endpoints = {
+            "source_reddit_endpoint": (self.source_reddit_endpoint, {"oauth.reddit.com"}),
+            "source_reddit_token_endpoint": (
+                self.source_reddit_token_endpoint,
+                {"www.reddit.com"},
+            ),
+            "source_guardian_endpoint": (
+                self.source_guardian_endpoint,
+                {"content.guardianapis.com"},
+            ),
+        }
+        for field_name, (value, allowed_hosts) in endpoints.items():
+            host = (urlsplit(value).hostname or "").casefold()
+            if host not in allowed_hosts:
+                raise ValueError(f"{field_name} must use its official provider host")
+        public_pages = {
+            "source_dazhong_endpoint": (
+                self.source_dazhong_endpoint,
+                self.source_dazhong_allowed_host_suffixes,
+            ),
+            "source_pikabu_endpoint": (
+                self.source_pikabu_endpoint,
+                self.source_pikabu_allowed_host_suffixes,
+            ),
+        }
+        for field_name, (value, suffixes) in public_pages.items():
+            host = (urlsplit(value).hostname or "").casefold()
+            if not any(host == suffix or host.endswith(f".{suffix}") for suffix in suffixes):
+                raise ValueError(f"{field_name} must match its configured host allowlist")
+        return self
 
     @field_validator("tts_gpt_weights", "tts_sovits_weights", mode="before")
     @classmethod
@@ -264,6 +373,25 @@ class Settings(BaseSettings):
             raise ValueError("tts_gpt_weights and tts_sovits_weights must be set together")
         if self.fetch_max_keepalive_connections > self.fetch_max_connections:
             raise ValueError("fetch_max_keepalive_connections cannot exceed fetch_max_connections")
+        media_root = self.output_dir.expanduser().resolve(strict=False)
+        upload_root = self.uploaded_video_dir.expanduser().resolve(strict=False)
+        workspace_root = Path.cwd().resolve()
+        for field_name, root in {
+            "output_dir": media_root,
+            "uploaded_video_dir": upload_root,
+        }.items():
+            if root.parent == root:
+                raise ValueError(f"{field_name} cannot be a filesystem root")
+            if root == workspace_root or root in workspace_root.parents:
+                raise ValueError(
+                    f"{field_name} must be a child of the workspace or another data directory"
+                )
+        if (
+            media_root == upload_root
+            or media_root in upload_root.parents
+            or upload_root in media_root.parents
+        ):
+            raise ValueError("output_dir and uploaded_video_dir must not overlap")
         if (
             self.environment is Environment.PRODUCTION
             and self.enable_drission_fetcher

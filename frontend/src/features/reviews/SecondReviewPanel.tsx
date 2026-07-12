@@ -6,6 +6,7 @@ import {submitSecondReview} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {ScriptDocument, SecondReviewSubmission, Story} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
+import {ConfirmDialog} from '../../components/ConfirmDialog';
 
 interface SecondReviewPanelProps {
   story: Story;
@@ -15,6 +16,7 @@ interface SecondReviewPanelProps {
 export function SecondReviewPanel({story, revisedScript}: SecondReviewPanelProps) {
   const [reviewerId, setReviewerId] = useState('local-editor');
   const [note, setNote] = useState('');
+  const [pendingDecision, setPendingDecision] = useState<'approve' | 'request_changes' | null>(null);
   const retryReviewId = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const storyId = story.story_id;
@@ -58,11 +60,11 @@ export function SecondReviewPanel({story, revisedScript}: SecondReviewPanelProps
       </label>
       {mutation.error === null ? null : <ApiErrorNotice error={mutation.error} />}
       <div className="review-actions stacked">
-        <button className="button secondary" type="button" disabled={mutation.isPending} onClick={() => mutation.mutate({decision: 'request_changes'})}>
+        <button className="button secondary" type="button" disabled={mutation.isPending} onClick={() => setPendingDecision('request_changes')}>
           <Mic2 size={17} aria-hidden="true" />
           {mutation.isPending ? '重新合成中…' : '保存脚本并重新合成'}
         </button>
-        <button className="button primary" type="button" disabled={mutation.isPending} onClick={() => mutation.mutate({decision: 'approve'})}>
+        <button className="button primary" type="button" disabled={mutation.isPending} onClick={() => setPendingDecision('approve')}>
           <CheckCircle2 size={18} aria-hidden="true" /> 终审批准
         </button>
       </div>
@@ -71,6 +73,21 @@ export function SecondReviewPanel({story, revisedScript}: SecondReviewPanelProps
           本地语音正在合成。请求不会自动重试，避免重复占用 GPU。
         </p>
       ) : null}
+      <ConfirmDialog
+        open={pendingDecision !== null}
+        title={pendingDecision === 'approve' ? '终审批准' : '重新合成'}
+        message={
+          pendingDecision === 'approve'
+            ? '批准后脚本与音频将永久冻结。此操作不可撤销，确认继续？'
+            : '保存修改后的脚本并重新触发 TTS 合成。'
+        }
+        confirmLabel={pendingDecision === 'approve' ? '批准并冻结' : '保存并合成'}
+        onConfirm={() => {
+          if (pendingDecision !== null) mutation.mutate({decision: pendingDecision});
+          setPendingDecision(null);
+        }}
+        onCancel={() => setPendingDecision(null)}
+      />
     </div>
   );
 }

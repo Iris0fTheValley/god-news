@@ -1,20 +1,24 @@
-import {useQuery} from '@tanstack/react-query';
-import {ArrowLeft, CheckCircle2, ExternalLink, FileClock, Hash, Languages} from 'lucide-react';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {ArrowLeft, CheckCircle2, ExternalLink, FileClock, Hash, Languages, RotateCcw, Trash2} from 'lucide-react';
 import {useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
 
 import {
+  deleteStory,
   getProductionManifest,
   getStory,
   listReviews,
   listTransitions,
+  reopenStory,
 } from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
-import type {ScriptDocument} from '../../api/types';
+import type {ScriptDocument, StateTransition} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
+import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {CueRail} from '../../components/CueRail';
 import {STATUS_LABELS} from '../../components/cueRailData';
 import {ScreeningBadge} from '../../components/ScreeningBadge';
+import {useToast} from '../../components/Toast';
 import {AudioPanel} from '../audio/AudioPanel';
 import {HistoryPanel} from '../history/HistoryPanel';
 import {FirstReviewPanel} from '../reviews/FirstReviewPanel';
@@ -24,6 +28,10 @@ import {ScriptEditor} from '../script/ScriptEditor';
 
 export function StoryWorkbenchPage() {
   const {storyId = ''} = useParams();
+  const queryClient = useQueryClient();
+  const {push: pushToast} = useToast();
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const storyQuery = useQuery({
     queryKey: queryKeys.story(storyId),
     queryFn: () => getStory(storyId),
@@ -53,6 +61,28 @@ export function StoryWorkbenchPage() {
     script: ScriptDocument;
   } | null>(null);
 
+  const reopenMutation = useMutation({
+    mutationFn: reopenStory,
+    onSettled: () => setShowReopenConfirm(false),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({queryKey: queryKeys.story(storyId)});
+      pushToast({message: '故事已重开审核。', durationMs: 3000});
+    },
+    onError: (err) => {
+      pushToast({message: `重开失败：${err instanceof Error ? err.message : '未知错误'}`, variant: 'caution', durationMs: 5000});
+    },
+  });
+  const deleteStoryMutation = useMutation({
+    mutationFn: deleteStory,
+    onSettled: () => setShowDeleteConfirm(false),
+    onSuccess: () => {
+      pushToast({message: '故事已归档。', durationMs: 3000});
+    },
+    onError: (err) => {
+      pushToast({message: `归档失败：${err instanceof Error ? err.message : '未知错误'}`, variant: 'caution', durationMs: 5000});
+    },
+  });
+
   if (storyQuery.isLoading) {
     return <div className="page loading-state" role="status">正在读取故事工作台…</div>;
   }
@@ -64,6 +94,7 @@ export function StoryWorkbenchPage() {
     );
   }
   const story = storyQuery.data;
+  const displayTitle = story.title ?? story.source.title;
   const serverScript = story.script ?? null;
   const scriptDraft = (
     scriptEdit?.storyId === storyId
@@ -73,6 +104,7 @@ export function StoryWorkbenchPage() {
     setScriptEdit({storyId, script});
   };
   const sourceIsUrl = story.source.kind === 'url';
+  const isArchived = story.status === 'ARCHIVED';
   const recoverable = ['FETCHED', 'TRANSLATED', 'PROCESSING_SCRIPT', 'SCRIPT_READY'].includes(story.status)
     || (story.status === 'PENDING_SECOND_REVIEW' && story.audio == null);
 
@@ -84,7 +116,7 @@ export function StoryWorkbenchPage() {
       <header className="workbench-header">
         <div>
           <p className="eyebrow">{story.source.fetcher} · {STATUS_LABELS[story.status]}</p>
-          <h1>{story.source.title}</h1>
+          <h1>{displayTitle}</h1>
           <div className="header-meta metadata">
             <span><Hash size={14} aria-hidden="true" /> {story.story_id}</span>
             <span>trace {story.trace_id}</span>
@@ -92,12 +124,67 @@ export function StoryWorkbenchPage() {
           </div>
         </div>
         {sourceIsUrl ? (
-          <a className="button" href={story.source.final_uri} target="_blank" rel="noreferrer">
-            查看原始页面 <ExternalLink size={16} aria-hidden="true" />
-          </a>
-        ) : null}
+          <div className="header-actions">
+            <a className="button" href={story.source.final_uri} target="_blank" rel="noreferrer">
+              查看原始页面 <ExternalLink size={16} aria-hidden="true" />
+            </a>
+            {story.status === 'DONE' ? (
+              <button className="button secondary" type="button" onClick={() => setShowReopenConfirm(true)}>
+                <RotateCcw size={16} aria-hidden="true" /> 重开审核
+              </button>
+            ) : null}
+            {isArchived ? null : (
+              <button className="icon-button danger" type="button" onClick={() => setShowDeleteConfirm(true)} aria-label="归档故事">
+                <Trash2 size={17} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="header-actions">
+            {story.status === 'DONE' ? (
+              <button className="button secondary" type="button" onClick={() => setShowReopenConfirm(true)}>
+                <RotateCcw size={16} aria-hidden="true" /> 重开审核
+              </button>
+            ) : null}
+            {isArchived ? null : (
+              <button className="icon-button danger" type="button" onClick={() => setShowDeleteConfirm(true)} aria-label="归档故事">
+                <Trash2 size={17} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        )}
       </header>
       <CueRail status={story.status} />
+
+      {(transitionQuery.data ?? []).length > 0 ? (
+        <details className="panel audit-timeline" open={(transitionQuery.data ?? []).length <= 5}>
+          <summary className="panel-header" style={{cursor: 'pointer'}}>
+            <div>
+              <p className="eyebrow">TRANSITION LOG</p>
+              <h2>状态迁移记录</h2>
+            </div>
+            <span className="metadata">{(transitionQuery.data ?? []).length} 步</span>
+          </summary>
+          <ol className="transition-timeline">
+            {(transitionQuery.data ?? []).map((transition: StateTransition, index: number) => {
+              const fromLabel = STATUS_LABELS[transition.from_status];
+              const toLabel = STATUS_LABELS[transition.to_status];
+              const occurredAt = transition.occurred_at ?? '';
+              return (
+                <li key={transition.transition_id ?? `t-${String(index)}`}>
+                  <time dateTime={occurredAt} className="metadata">
+                    {occurredAt ? new Intl.DateTimeFormat('zh-CN', {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'}).format(new Date(occurredAt)) : '—'}
+                  </time>
+                  <span className="transition-badge from">{fromLabel}</span>
+                  <span className="transition-arrow" aria-hidden="true">→</span>
+                  <span className="transition-badge to">{toLabel}</span>
+                  <span className="metadata transition-reason">{transition.reason}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </details>
+      ) : null}
 
       <div className="workbench-grid">
         <div className="workbench-content">
@@ -226,6 +313,23 @@ export function StoryWorkbenchPage() {
           )}
         </aside>
       </div>
+      <ConfirmDialog
+        open={showReopenConfirm}
+        title="重开审核"
+        message="将把此故事从 DONE 状态回退到终审门前（PENDING_SECOND_REVIEW），允许重新编辑脚本并重新进行终审。"
+        confirmLabel="确认重开"
+        onConfirm={() => reopenMutation.mutate(storyId)}
+        onCancel={() => setShowReopenConfirm(false)}
+      />
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="归档故事"
+        message="归档会保留来源证据和审计记录，并从默认活跃列表中隐藏。"
+        variant="danger"
+        confirmLabel="确认归档"
+        onConfirm={() => deleteStoryMutation.mutate(storyId)}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

@@ -305,6 +305,9 @@ class Story(DomainModel):
     story_id: UUID = Field(default_factory=uuid4)
     trace_id: UUID = Field(default_factory=uuid4)
     status: StoryStatus
+    # This is the editable editorial headline.  ``source.title`` remains the
+    # immutable title captured with the source evidence/provenance.
+    title: NonBlankStr | None = None
     source: SourceSnapshot
     provenance: NormalizedSourceItem | None = None
     original_text: NonBlankStr
@@ -349,6 +352,29 @@ class Story(DomainModel):
         if self.source.kind is SourceKind.URL:
             return self.source.final_uri
         return None
+
+
+class StoryUpdate(DomainModel):
+    """Concurrent-safe edits to mutable editorial settings only.
+
+    The source snapshot, normalized provenance, original text, target language,
+    and voice controls intentionally are not part of this public write model.
+    """
+
+    expected_story_version: int = Field(ge=1)
+    title: NonBlankStr | None = None
+    style: NonBlankStr | None = None
+    target_duration_seconds: int | None = Field(default=None, ge=15, le=600)
+
+    @model_validator(mode="after")
+    def require_edit(self) -> StoryUpdate:
+        if (
+            self.title is None
+            and self.style is None
+            and self.target_duration_seconds is None
+        ):
+            raise ValueError("at least one mutable story field must be supplied")
+        return self
 
 
 class ReviewRecord(DomainModel):

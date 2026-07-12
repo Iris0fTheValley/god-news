@@ -112,11 +112,14 @@ class InMemoryStoryRepository:
         status: StoryStatus | None = None,
         limit: int = 50,
         offset: int = 0,
+        include_archived: bool = False,
     ) -> Sequence[Story]:
         async with self._lock:
             stories = sorted(self._stories.values(), key=lambda item: item.updated_at, reverse=True)
             if status is not None:
                 stories = [story for story in stories if story.status is status]
+            elif not include_archived:
+                stories = [story for story in stories if story.status is not StoryStatus.ARCHIVED]
             return copy.deepcopy(stories[offset : offset + limit])
 
     async def save(

@@ -67,9 +67,18 @@ async def test_fetcher_chain_falls_back_in_order() -> None:
     second = FailingFetcher("second")
     success = SuccessfulFetcher()
     chain = FetcherChain([first, second, success])
-    result = await chain.fetch(UrlSource(url="https://8.8.8.8/article"))
+    traced = await chain.fetch_with_trace(UrlSource(url="https://8.8.8.8/article"))
+    result = traced.document
     assert result.content == "Recovered article body."
     assert [first.calls, second.calls, success.calls] == [1, 1, 1]
+    assert [attempt.layer for attempt in traced.attempts] == ["first", "second", "success"]
+    assert [attempt.outcome for attempt in traced.attempts] == [
+        "failed",
+        "failed",
+        "succeeded",
+    ]
+    assert all(attempt.duration_ms >= 0 for attempt in traced.attempts)
+    assert traced.attempts[0].retryable is False
 
     text_result = await chain.fetch(TextSource(text="Direct uploaded text", title="Direct"))
     assert text_result.source.fetcher == "text"

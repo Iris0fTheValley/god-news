@@ -1,4 +1,4 @@
-import {ArrowRight, Clock3, FileWarning} from 'lucide-react';
+import {ArrowRight, Clock3, FileWarning, Trash2} from 'lucide-react';
 import {Link} from 'react-router-dom';
 
 import type {Story} from '../../api/types';
@@ -8,6 +8,7 @@ import {ScreeningBadge} from '../../components/ScreeningBadge';
 
 interface StoryCardProps {
   story: Story;
+  onDeleteRequest?: (id: string) => void;
 }
 
 function formatDate(value?: string): string {
@@ -20,8 +21,9 @@ function formatDate(value?: string): string {
   }).format(new Date(value));
 }
 
-export function StoryCard({story}: StoryCardProps) {
+export function StoryCard({story, onDeleteRequest}: StoryCardProps) {
   const storyId = story.story_id;
+  const displayTitle = story.title ?? story.source.title;
   const summary = story.translation?.summary ?? story.original_text.slice(0, 180);
   return (
     <article className="story-cue">
@@ -32,7 +34,7 @@ export function StoryCard({story}: StoryCardProps) {
         </div>
         <div className="story-copy">
           <div className="story-title-line">
-            <h2>{story.source.title}</h2>
+            <h2>{displayTitle}</h2>
             <span className="status-chip">{STATUS_LABELS[story.status]}</span>
           </div>
           <p>{summary}</p>
@@ -54,15 +56,29 @@ export function StoryCard({story}: StoryCardProps) {
             </div>
           )}
         </div>
-        {storyId === undefined ? (
-          <span className="button" aria-disabled="true">
-            缺少 ID
-          </span>
-        ) : (
-          <Link className="button cue-action" to={`/stories/${storyId}`}>
-            打开工作台 <ArrowRight size={17} aria-hidden="true" />
-          </Link>
-        )}
+        <div className="story-actions">
+          {storyId === undefined ? (
+            <span className="button" aria-disabled="true">
+              缺少 ID
+            </span>
+          ) : (
+            <>
+              <Link className="button cue-action" to={`/stories/${storyId}`}>
+                打开工作台 <ArrowRight size={17} aria-hidden="true" />
+              </Link>
+              {onDeleteRequest !== undefined && story.status !== 'ARCHIVED' ? (
+                <button
+                  className="icon-button danger"
+                  type="button"
+                  aria-label={`删除 ${displayTitle}`}
+                  onClick={() => onDeleteRequest(storyId)}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
       <CueRail compact status={story.status} />
     </article>

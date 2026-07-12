@@ -22,6 +22,7 @@ from god_news.domain.models import (
     SourceItemIngestRequest,
     StateTransition,
     Story,
+    StoryUpdate,
 )
 from god_news.errors import ArtifactNotReadyError
 from god_news.logging import trace_id_var
@@ -127,8 +128,14 @@ async def list_stories(
     status: StoryStatus | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: bool = False,
 ) -> list[Story]:
-    stories = await container.workflow.list(status=status, limit=limit, offset=offset)
+    stories = await container.workflow.list(
+        status=status,
+        limit=limit,
+        offset=offset,
+        include_archived=include_archived,
+    )
     return list(stories)
 
 
@@ -140,6 +147,40 @@ async def list_stories(
 )
 async def get_story(story_id: UUID, container: ContainerDependency) -> Story:
     return await container.workflow.get(story_id)
+
+
+@router.patch(
+    "/stories/{story_id}",
+    response_model=Story,
+    operation_id="updateStory",
+    tags=["stories"],
+)
+async def update_story(
+    story_id: UUID,
+    request: StoryUpdate,
+    container: ContainerDependency,
+) -> Story:
+    return await container.workflow.update(story_id, request)
+
+
+@router.delete(
+    "/stories/{story_id}",
+    response_model=Story,
+    operation_id="archiveStory",
+    tags=["stories"],
+)
+async def archive_story(story_id: UUID, container: ContainerDependency) -> Story:
+    return await container.workflow.archive(story_id)
+
+
+@router.post(
+    "/stories/{story_id}/reopen",
+    response_model=Story,
+    operation_id="reopenStory",
+    tags=["stories"],
+)
+async def reopen_story(story_id: UUID, container: ContainerDependency) -> Story:
+    return await container.workflow.reopen(story_id)
 
 
 @router.post(

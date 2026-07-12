@@ -8,6 +8,15 @@ export const STORY_STATUSES = [
   'SCRIPT_READY',
   'PENDING_SECOND_REVIEW',
   'DONE',
+] as const satisfies readonly Exclude<StoryStatus, 'ARCHIVED'>[];
+
+/**
+ * The cue rail visualizes only the production path.  List filters also need
+ * the terminal archival state, without making it look like a pipeline step.
+ */
+export const STORY_FILTER_STATUSES = [
+  ...STORY_STATUSES,
+  'ARCHIVED',
 ] as const satisfies readonly StoryStatus[];
 
 export const STATUS_LABELS: Record<StoryStatus, string> = {
@@ -18,4 +27,5 @@ export const STATUS_LABELS: Record<StoryStatus, string> = {
   SCRIPT_READY: '脚本就绪',
   PENDING_SECOND_REVIEW: '等待终审',
   DONE: '已完成',
+  ARCHIVED: '已归档',
 };

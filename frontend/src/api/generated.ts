@@ -55,6 +55,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operations/retention/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Retention */
+        post: operations["run_retention_api_v1_operations_retention_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operations/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Operation Runs */
+        get: operations["list_operation_runs_api_v1_operations_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operations/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Operation Schedules */
+        get: operations["list_operation_schedules_api_v1_operations_schedules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Roles */
+        get: operations["list_roles_api_v1_roles_get"];
+        put?: never;
+        /** Create Role */
+        post: operations["create_role_api_v1_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roles/{profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Role */
+        get: operations["get_role_api_v1_roles__profile_id__get"];
+        /** Replace Role */
+        put: operations["replace_role_api_v1_roles__profile_id__put"];
+        post?: never;
+        /** Delete Role */
+        delete: operations["delete_role_api_v1_roles__profile_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Source Runs */
+        get: operations["listSourceRuns"];
+        put?: never;
+        /** Start Source Run */
+        post: operations["startSourceRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Source Run */
+        get: operations["getSourceRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Source Run */
+        post: operations["cancelSourceRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/collectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Collector Readiness */
+        get: operations["getSourceCollectorReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources/health": {
         parameters: {
             query?: never;
@@ -118,10 +275,12 @@ export interface paths {
         get: operations["getStory"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Archive Story */
+        delete: operations["archiveStory"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Story */
+        patch: operations["updateStory"];
         trace?: never;
     };
     "/api/v1/stories/{story_id}/audio/{segment_id}": {
@@ -152,6 +311,23 @@ export interface paths {
         get: operations["getProductionManifest"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Story */
+        post: operations["reopenStory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -235,6 +411,110 @@ export interface paths {
         };
         /** Transition History */
         get: operations["listStoryTransitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Video Batches */
+        get: operations["listVideoBatches"];
+        put?: never;
+        /** Create Video Batch */
+        post: operations["createVideoBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Video Batch */
+        get: operations["getVideoBatch"];
+        put?: never;
+        post?: never;
+        /** Delete Video Batch */
+        delete: operations["deleteVideoBatch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches/{batch_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Video Render */
+        post: operations["cancelVideoRender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches/{batch_id}/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render Video Batch */
+        post: operations["renderVideoBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches/{batch_id}/timeline-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Video Timeline Review */
+        post: operations["submitVideoTimelineReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/bgm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Bgm */
+        get: operations["listLocalBgmTracks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -327,6 +607,49 @@ export interface components {
              */
             url: string;
         };
+        /** BgmRenderSpec */
+        BgmRenderSpec: {
+            /** Local Path */
+            local_path: string;
+            /**
+             * Loop
+             * @default true
+             */
+            loop: boolean;
+            /**
+             * Volume
+             * @default 0.12
+             */
+            volume: number;
+        };
+        /** BgmSelection */
+        BgmSelection: {
+            /** Local Path */
+            local_path: string;
+            /**
+             * Loop
+             * @default true
+             */
+            loop: boolean;
+            /** Track Id */
+            track_id: string;
+            /**
+             * Volume
+             * @default 0.12
+             */
+            volume: number;
+        };
+        /** BgmTrack */
+        BgmTrack: {
+            /** Display Name */
+            display_name: string;
+            /** Relative Path */
+            relative_path: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Track Id */
+            track_id: string;
+        };
         /** ClassificationMetrics */
         ClassificationMetrics: {
             /** Accepted Count */
@@ -335,6 +658,72 @@ export interface components {
             accuracy?: number | null;
             /** Reviewed Count */
             reviewed_count: number;
+        };
+        /**
+         * CollectionAttempt
+         * @description Sanitized telemetry for one provider or fallback-layer attempt.
+         */
+        CollectionAttempt: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** Error Code */
+            error_code?: string | null;
+            /** Http Status */
+            http_status?: number | null;
+            /**
+             * Item Count
+             * @default 0
+             */
+            item_count: number;
+            /** Layer */
+            layer: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "authenticate" | "discover" | "listing" | "item";
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "succeeded" | "failed" | "stopped";
+            /** Retryable */
+            retryable?: boolean | null;
+            /** Sequence */
+            sequence: number;
+        };
+        /** CollectionErrorEvidence */
+        CollectionErrorEvidence: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Retryable
+             * @default false
+             */
+            retryable: boolean;
+        };
+        /** CollectorReadiness */
+        CollectorReadiness: {
+            /** Authorized */
+            authorized: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Notes */
+            notes?: string[];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "disabled" | "unconfigured" | "unauthorized" | "ready";
         };
         /**
          * ContentCategory
@@ -376,6 +765,32 @@ export interface components {
              */
             requires_rights_review: boolean;
         };
+        /** CreateVideoBatch */
+        CreateVideoBatch: {
+            /**
+             * Bgm Loop
+             * @default true
+             */
+            bgm_loop: boolean;
+            /** Bgm Track Id */
+            bgm_track_id?: string | null;
+            /**
+             * Bgm Volume
+             * @default 0.12
+             */
+            bgm_volume: number;
+            /**
+             * Max Stories
+             * @default 15
+             */
+            max_stories: number;
+            /** Story Ids */
+            story_ids?: string[];
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Title */
+            title: string;
+        };
         /** DazhongSourceFields */
         DazhongSourceFields: {
             /** Article Id */
@@ -391,6 +806,34 @@ export interface components {
             source: "dazhong";
             /** Tags */
             tags?: string[];
+        };
+        /**
+         * DifferentialArtAsset
+         * @description One expression/pose in a differential-art character set.
+         */
+        DifferentialArtAsset: {
+            /** Asset Ref */
+            asset_ref: string;
+            /** Emotion */
+            emotion?: string | null;
+            /** State Id */
+            state_id: string;
+        };
+        /** DifferentialArtLayer */
+        DifferentialArtLayer: {
+            /** Image Path */
+            image_path: string;
+            /** Layer Id */
+            layer_id: string;
+            /** Z Index */
+            z_index: number;
+        };
+        /** DifferentialArtReservation */
+        DifferentialArtReservation: {
+            /** Base Image Path */
+            base_image_path: string;
+            /** Layers */
+            layers?: components["schemas"]["DifferentialArtLayer"][];
         };
         /**
          * EditorialScreening
@@ -458,12 +901,35 @@ export interface components {
             /** Trail Text */
             trail_text?: string | null;
         };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** HealthReport */
         HealthReport: {
             /** Checks */
             checks: string[];
             /** Ready */
             ready: boolean;
+        };
+        /**
+         * HostVisualReservations
+         * @description Current Remotion host contract with typed future asset reservations.
+         *
+         *     The renderer remains ``placeholder`` until a concrete Live2D or
+         *     differential-art composition is installed. Assets can already be described
+         *     without leaking provider-specific mappings into the orchestration service.
+         */
+        HostVisualReservations: {
+            differential_art?: components["schemas"]["DifferentialArtReservation"] | null;
+            live2d?: components["schemas"]["Live2DReservation"] | null;
+            /**
+             * Renderer
+             * @default placeholder
+             * @constant
+             */
+            renderer: "placeholder";
         };
         /** ImageMediaAsset */
         ImageMediaAsset: {
@@ -532,6 +998,15 @@ export interface components {
              */
             target_language: string;
         };
+        /** Live2DReservation */
+        Live2DReservation: {
+            /** Character Id */
+            character_id: string;
+            /** Idle Motion Group */
+            idle_motion_group?: string | null;
+            /** Model Json Path */
+            model_json_path: string;
+        };
         /** Liveness */
         Liveness: {
             /**
@@ -583,6 +1058,46 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * OperationKind
+         * @enum {string}
+         */
+        OperationKind: "retention_cleanup";
+        /** OperationRun */
+        OperationRun: {
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            operation: components["schemas"]["OperationKind"];
+            origin: components["schemas"]["TriggerOrigin"];
+            /** Requested By */
+            requested_by: string;
+            result?: components["schemas"]["RetentionCleanupReport"] | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id?: string;
+            /** Schedule Id */
+            schedule_id?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            status: components["schemas"]["OperationRunStatus"];
+            /**
+             * Trace Id
+             * Format: uuid
+             */
+            trace_id?: string;
+        };
+        /**
+         * OperationRunStatus
+         * @enum {string}
+         */
+        OperationRunStatus: "running" | "succeeded" | "failed";
         /** PikabuImageBlock */
         PikabuImageBlock: {
             /** Alt Text */
@@ -1127,6 +1642,105 @@ export interface components {
             subreddit: string;
         };
         /**
+         * RemotionVideoProps
+         * @description Backend-owned subset of ``video/src/schema.ts``.
+         *
+         *     ``runtime_assets`` is intentionally absent: the local Remotion CLI stages
+         *     files by content hash and owns those transient browser bindings.
+         */
+        RemotionVideoProps: {
+            bgm?: components["schemas"]["BgmRenderSpec"] | null;
+            /**
+             * Intro Duration Ms
+             * @default 700
+             */
+            intro_duration_ms: number;
+            manifest: components["schemas"]["ProductionManifest"];
+            /** Subtitle */
+            subtitle?: string | null;
+            theme?: components["schemas"]["VideoTheme"];
+            /** Title */
+            title: string;
+            /**
+             * Transition Duration Ms
+             * @default 180
+             */
+            transition_duration_ms: number;
+            visual_reservations?: components["schemas"]["HostVisualReservations"];
+        };
+        /** RenderVideoBatch */
+        RenderVideoBatch: {
+            /** Expected Batch Version */
+            expected_batch_version: number;
+        };
+        /**
+         * RetentionAction
+         * @enum {string}
+         */
+        RetentionAction: "would_delete" | "deleted" | "skipped" | "failed";
+        /**
+         * RetentionArtifactKind
+         * @enum {string}
+         */
+        RetentionArtifactKind: "media" | "uploaded_mp4";
+        /** RetentionCleanupCommand */
+        RetentionCleanupCommand: {
+            /**
+             * Dry Run
+             * @default true
+             */
+            dry_run: boolean;
+            /**
+             * Operation
+             * @default retention_cleanup
+             * @constant
+             */
+            operation: "retention_cleanup";
+            /** Requested By */
+            requested_by: string;
+        };
+        /** RetentionCleanupReport */
+        RetentionCleanupReport: {
+            /** Deleted Count */
+            deleted_count: number;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Eligible Count */
+            eligible_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /**
+             * Finished At
+             * Format: date-time
+             */
+            finished_at: string;
+            /** Items */
+            items: components["schemas"]["RetentionItemResult"][];
+            /** Reclaimed Bytes */
+            reclaimed_bytes: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+        };
+        /** RetentionItemResult */
+        RetentionItemResult: {
+            action: components["schemas"]["RetentionAction"];
+            artifact_kind: components["schemas"]["RetentionArtifactKind"];
+            /** Modified At */
+            modified_at?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Relative Path */
+            relative_path: string;
+            /**
+             * Size Bytes
+             * @default 0
+             */
+            size_bytes: number;
+        };
+        /**
          * ReviewDecision
          * @enum {string}
          */
@@ -1197,6 +1811,172 @@ export interface components {
             status: "unknown" | "permission_required" | "attribution_license" | "public_domain";
             /** Terms Url */
             terms_url?: string | null;
+        };
+        /**
+         * RoleKind
+         * @enum {string}
+         */
+        RoleKind: "narrator" | "host";
+        /** RoleProfile */
+        RoleProfile: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /**
+             * Default Emotion
+             * @default neutral
+             */
+            default_emotion: string;
+            /**
+             * Default Pitch
+             * @default 0
+             */
+            default_pitch: number;
+            /**
+             * Default Speed
+             * @default 1
+             */
+            default_speed: number;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Gpt Weights Path */
+            gpt_weights_path?: string | null;
+            kind: components["schemas"]["RoleKind"];
+            /**
+             * Profile Id
+             * Format: uuid
+             */
+            profile_id?: string;
+            /** Slug */
+            slug: string;
+            /** Sovits Weights Path */
+            sovits_weights_path?: string | null;
+            /** Speaker Id */
+            speaker_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            visual_assets?: components["schemas"]["RoleVisualAssets"];
+        };
+        /** RoleProfileCreate */
+        RoleProfileCreate: {
+            /**
+             * Default Emotion
+             * @default neutral
+             */
+            default_emotion: string;
+            /**
+             * Default Pitch
+             * @default 0
+             */
+            default_pitch: number;
+            /**
+             * Default Speed
+             * @default 1
+             */
+            default_speed: number;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Gpt Weights Path */
+            gpt_weights_path?: string | null;
+            kind: components["schemas"]["RoleKind"];
+            /** Slug */
+            slug: string;
+            /** Sovits Weights Path */
+            sovits_weights_path?: string | null;
+            /** Speaker Id */
+            speaker_id: string;
+            visual_assets?: components["schemas"]["RoleVisualAssets"];
+        };
+        /** RoleProfileDelete */
+        RoleProfileDelete: {
+            /** Expected Version */
+            expected_version: number;
+        };
+        /** RoleProfileReplace */
+        RoleProfileReplace: {
+            /**
+             * Default Emotion
+             * @default neutral
+             */
+            default_emotion: string;
+            /**
+             * Default Pitch
+             * @default 0
+             */
+            default_pitch: number;
+            /**
+             * Default Speed
+             * @default 1
+             */
+            default_speed: number;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Expected Version */
+            expected_version: number;
+            /** Gpt Weights Path */
+            gpt_weights_path?: string | null;
+            kind: components["schemas"]["RoleKind"];
+            /** Slug */
+            slug: string;
+            /** Sovits Weights Path */
+            sovits_weights_path?: string | null;
+            /** Speaker Id */
+            speaker_id: string;
+            visual_assets?: components["schemas"]["RoleVisualAssets"];
+        };
+        /**
+         * RoleVisualAssets
+         * @description Renderer-neutral character asset references.
+         *
+         *     References are identifiers only. Resolving and reading an asset belongs to a
+         *     future renderer adapter, so the profile service never guesses a filesystem
+         *     or URL contract.
+         */
+        RoleVisualAssets: {
+            /** Differential Art */
+            differential_art?: components["schemas"]["DifferentialArtAsset"][];
+            /** Live2D Asset Ref */
+            live2d_asset_ref?: string | null;
+        };
+        /** ScheduleSnapshot */
+        ScheduleSnapshot: {
+            /** Enabled */
+            enabled: boolean;
+            /** Interval Seconds */
+            interval_seconds: number;
+            /** Last Run Id */
+            last_run_id?: string | null;
+            last_run_status?: components["schemas"]["OperationRunStatus"] | null;
+            /** Next Run At */
+            next_run_at?: string | null;
+            operation: components["schemas"]["OperationKind"];
+            /** Schedule Id */
+            schedule_id: string;
         };
         /** ScriptDocument */
         ScriptDocument: {
@@ -1357,10 +2137,142 @@ export interface components {
             target_language: string;
         };
         /**
+         * SourceItemIngestionOutcome
+         * @enum {string}
+         */
+        SourceItemIngestionOutcome: "ingested" | "duplicate" | "failed";
+        /** SourceItemIngestionResult */
+        SourceItemIngestionResult: {
+            /** Error Code */
+            error_code?: string | null;
+            /** External Id */
+            external_id: string;
+            outcome: components["schemas"]["SourceItemIngestionOutcome"];
+            /** Story Id */
+            story_id?: string | null;
+        };
+        /**
          * SourceKind
          * @enum {string}
          */
         SourceKind: "url" | "text" | "fixed_source";
+        /** SourceRun */
+        SourceRun: {
+            /** Attempts */
+            attempts?: components["schemas"]["CollectionAttempt"][];
+            /** Collection Errors */
+            collection_errors?: components["schemas"]["CollectionErrorEvidence"][];
+            /** Collector Outcome */
+            collector_outcome?: ("disabled" | "unconfigured" | "unauthorized" | "succeeded" | "partial" | "failed" | "stopped_captcha") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /** Duplicate Count */
+            readonly duplicate_count: number;
+            /** Failed Count */
+            readonly failed_count: number;
+            /** Failure Rate */
+            readonly failure_rate: number | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Ingested Count */
+            readonly ingested_count: number;
+            /** Item Results */
+            item_results?: components["schemas"]["SourceItemIngestionResult"][];
+            /**
+             * Items Discovered
+             * @default 0
+             */
+            items_discovered: number;
+            request: components["schemas"]["SourceRunRequest"];
+            run_error?: components["schemas"]["CollectionErrorEvidence"] | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id?: string;
+            /** Started At */
+            started_at?: string | null;
+            /** @default queued */
+            status: components["schemas"]["SourceRunStatus"];
+            /**
+             * Trace Id
+             * Format: uuid
+             */
+            trace_id?: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /** SourceRunReadiness */
+        SourceRunReadiness: {
+            /** Collectors */
+            collectors: components["schemas"]["CollectorReadiness"][];
+        };
+        /** SourceRunRequest */
+        SourceRunRequest: {
+            /**
+             * Emotion
+             * @default neutral
+             */
+            emotion: string;
+            /**
+             * Limit
+             * @default 10
+             */
+            limit: number;
+            /**
+             * Pitch
+             * @default 0
+             */
+            pitch: number;
+            /** Requested By */
+            requested_by: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            /**
+             * Speaker Id
+             * @default narrator
+             */
+            speaker_id: string;
+            /**
+             * Speed
+             * @default 1
+             */
+            speed: number;
+            /**
+             * Style
+             * @default clear, accurate short-video narration
+             */
+            style: string;
+            /**
+             * Target Duration Seconds
+             * @default 90
+             */
+            target_duration_seconds: number;
+            /**
+             * Target Language
+             * @default zh-CN
+             */
+            target_language: string;
+        };
+        /**
+         * SourceRunStatus
+         * @enum {string}
+         */
+        SourceRunStatus: "queued" | "collecting" | "ingesting" | "completed" | "failed" | "cancelled";
         /** SourceSnapshot */
         SourceSnapshot: {
             /** Author */
@@ -1431,6 +2343,8 @@ export interface components {
             story_id?: string;
             /** Target Language */
             target_language: string;
+            /** Title */
+            title?: string | null;
             /**
              * Trace Id
              * Format: uuid
@@ -1452,7 +2366,36 @@ export interface components {
          * StoryStatus
          * @enum {string}
          */
-        StoryStatus: "FETCHED" | "TRANSLATED" | "PENDING_FIRST_REVIEW" | "PROCESSING_SCRIPT" | "SCRIPT_READY" | "PENDING_SECOND_REVIEW" | "DONE";
+        StoryStatus: "FETCHED" | "TRANSLATED" | "PENDING_FIRST_REVIEW" | "PROCESSING_SCRIPT" | "SCRIPT_READY" | "PENDING_SECOND_REVIEW" | "DONE" | "ARCHIVED";
+        /**
+         * StoryUpdate
+         * @description Concurrent-safe edits to mutable editorial settings only.
+         *
+         *     The source snapshot, normalized provenance, original text, target language,
+         *     and voice controls intentionally are not part of this public write model.
+         */
+        StoryUpdate: {
+            /** Expected Story Version */
+            expected_story_version: number;
+            /** Style */
+            style?: string | null;
+            /** Target Duration Seconds */
+            target_duration_seconds?: number | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** SubmitTimelineReview */
+        SubmitTimelineReview: {
+            decision: components["schemas"]["TimelineReviewDecision"];
+            /** Expected Batch Version */
+            expected_batch_version: number;
+            /** Note */
+            note?: string | null;
+            /** Reviewer Id */
+            reviewer_id: string;
+            /** Story Order */
+            story_order?: string[] | null;
+        };
         /** SynthesisMetadata */
         SynthesisMetadata: {
             /** Gpt Weights Sha256 */
@@ -1487,6 +2430,28 @@ export interface components {
              */
             title: string;
         };
+        /** TimelineReview */
+        TimelineReview: {
+            decision: components["schemas"]["TimelineReviewDecision"];
+            /** Note */
+            note?: string | null;
+            /**
+             * Reviewed At
+             * Format: date-time
+             */
+            reviewed_at?: string;
+            /** Reviewed Batch Version */
+            reviewed_batch_version: number;
+            /** Reviewer Id */
+            reviewer_id: string;
+            /** Story Order */
+            story_order: string[];
+        };
+        /**
+         * TimelineReviewDecision
+         * @enum {string}
+         */
+        TimelineReviewDecision: "approve" | "reject";
         /** TimelineSegment */
         TimelineSegment: {
             /** Audio Path */
@@ -1525,6 +2490,11 @@ export interface components {
             /** Translated Text */
             translated_text: string;
         };
+        /**
+         * TriggerOrigin
+         * @enum {string}
+         */
+        TriggerOrigin: "manual" | "schedule";
         /** UrlSource */
         UrlSource: {
             /**
@@ -1538,6 +2508,109 @@ export interface components {
              */
             url: string;
         };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
+        /** VideoBatch */
+        VideoBatch: {
+            artifact?: components["schemas"]["VideoRenderArtifact"] | null;
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id?: string;
+            bgm?: components["schemas"]["BgmSelection"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /** Input Assets */
+            input_assets: components["schemas"]["VideoInputAsset"][];
+            last_failure?: components["schemas"]["VideoRenderFailure"] | null;
+            remotion_props: components["schemas"]["RemotionVideoProps"];
+            /** Render Input Sha256 */
+            render_input_sha256: string;
+            /** @default PENDING_TIMELINE_REVIEW */
+            status: components["schemas"]["VideoBatchStatus"];
+            /** Stories */
+            stories: components["schemas"]["VideoBatchStory"][];
+            /** Subtitle */
+            subtitle?: string | null;
+            timeline_review?: components["schemas"]["TimelineReview"] | null;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /**
+         * VideoBatchStatus
+         * @enum {string}
+         */
+        VideoBatchStatus: "PENDING_TIMELINE_REVIEW" | "READY_TO_RENDER" | "RENDERING" | "RENDERED" | "REJECTED" | "CANCELLED" | "FAILED";
+        /** VideoBatchStory */
+        VideoBatchStory: {
+            category: components["schemas"]["ContentCategory"];
+            /** Chapter End Ms */
+            chapter_end_ms: number;
+            /** Chapter Start Ms */
+            chapter_start_ms: number;
+            manifest: components["schemas"]["ProductionManifest"];
+            /**
+             * Reserved At
+             * Format: date-time
+             */
+            reserved_at?: string;
+            /** Sequence */
+            sequence: number;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Story Version */
+            story_version: number;
+            /** Title */
+            title: string;
+            /** Used At */
+            used_at?: string | null;
+        };
+        /**
+         * VideoInputAsset
+         * @description Immutable evidence for a local file approved for a render.
+         */
+        VideoInputAsset: {
+            kind: components["schemas"]["VideoInputAssetKind"];
+            /** Local Path */
+            local_path: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /**
+         * VideoInputAssetKind
+         * @enum {string}
+         */
+        VideoInputAssetKind: "audio" | "bgm";
         /** VideoMediaAsset */
         VideoMediaAsset: {
             /** Caption */
@@ -1558,6 +2631,60 @@ export interface components {
              * Format: uri
              */
             url: string;
+        };
+        /** VideoRenderArtifact */
+        VideoRenderArtifact: {
+            /** Local Path */
+            local_path: string;
+            /**
+             * Rendered At
+             * Format: date-time
+             */
+            rendered_at?: string;
+            /** Renderer */
+            renderer: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** VideoRenderFailure */
+        VideoRenderFailure: {
+            /** Message */
+            message: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at?: string;
+            /**
+             * Retryable
+             * @default true
+             */
+            retryable: boolean;
+        };
+        /** VideoTheme */
+        VideoTheme: {
+            /**
+             * Accent
+             * @default #85a77d
+             */
+            accent: string;
+            /**
+             * Background
+             * @default #101512
+             */
+            background: string;
+            /**
+             * Foreground
+             * @default #f3f1e8
+             */
+            foreground: string;
+            /**
+             * Signal
+             * @default #e4a853
+             */
+            signal: string;
         };
     };
     responses: never;
@@ -1790,6 +2917,809 @@ export interface operations {
             };
         };
     };
+    run_retention_api_v1_operations_retention_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetentionCleanupCommand"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationRun"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_operation_runs_api_v1_operations_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationRun"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_operation_schedules_api_v1_operations_schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleSnapshot"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_roles_api_v1_roles_get: {
+        parameters: {
+            query?: {
+                enabled?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleProfile"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_role_api_v1_roles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleProfileCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleProfile"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_role_api_v1_roles__profile_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleProfile"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    replace_role_api_v1_roles__profile_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleProfileReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleProfile"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    delete_role_api_v1_roles__profile_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleProfileDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleProfile"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listSourceRuns: {
+        parameters: {
+            query?: {
+                source?: ("dazhong" | "reddit" | "guardian" | "pikabu") | null;
+                run_status?: components["schemas"]["SourceRunStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRun"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    startSourceRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRun"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getSourceRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRun"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    cancelSourceRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRun"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getSourceCollectorReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRunReadiness"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     getSourceHealth: {
         parameters: {
             query?: {
@@ -1950,6 +3880,7 @@ export interface operations {
                 status?: components["schemas"]["StoryStatus"] | null;
                 limit?: number;
                 offset?: number;
+                include_archived?: boolean;
             };
             header?: never;
             path?: never;
@@ -2176,6 +4107,162 @@ export interface operations {
             };
         };
     };
+    archiveStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    updateStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     getAudioClip: {
         parameters: {
             query?: never;
@@ -2269,6 +4356,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductionManifest"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    reopenStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
                 };
             };
             /** @description Requested story was not found. */
@@ -2711,6 +4874,253 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listVideoBatches: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["VideoBatchStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createVideoBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVideoBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getVideoBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteVideoBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelVideoRender: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    renderVideoBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenderVideoBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submitVideoTimelineReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitTimelineReview"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLocalBgmTracks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BgmTrack"][];
                 };
             };
         };

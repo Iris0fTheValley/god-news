@@ -1,4 +1,5 @@
-import {ArrowDown, ArrowUp, Plus, Trash2} from 'lucide-react';
+import {ArrowDown, ArrowUp, Plus, Redo2, Trash2, Undo2} from 'lucide-react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
 import type {ScriptDocument, ScriptSegment} from '../../api/types';
 
@@ -12,11 +13,70 @@ function resequence(segments: ScriptSegment[]): ScriptSegment[] {
   return segments.map((segment, index) => ({...segment, sequence: index}));
 }
 
+/** Deep-clone segments for undo history — avoids shared reference mutation. */
+function cloneSegments(segments: ScriptSegment[]): ScriptSegment[] {
+  return segments.map((s) => ({...s, segment_id: s.segment_id ?? crypto.randomUUID()}));
+}
+
 export function ScriptEditor({script, onChange, readOnly = false}: ScriptEditorProps) {
+  /* ── Undo/redo history stack ── */
+  const [past, setPast] = useState<ScriptSegment[][]>([]);
+  const [future, setFuture] = useState<ScriptSegment[][]>([]);
+  const skipHistory = useRef(false);
+
+  const pushHistory = useCallback(() => {
+    if (skipHistory.current) {
+      skipHistory.current = false;
+      return;
+    }
+    setPast((prev) => [...prev.slice(-49), cloneSegments(script.segments)]);
+    setFuture([]);
+  }, [script.segments]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0) return;
+    const prev = past[past.length - 1];
+    setPast((p) => p.slice(0, -1));
+    setFuture((f) => [...f, cloneSegments(script.segments)]);
+    skipHistory.current = true;
+    onChange({...script, segments: cloneSegments(prev)});
+  }, [past, script, onChange]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[future.length - 1];
+    setFuture((f) => f.slice(0, -1));
+    setPast((p) => [...p, cloneSegments(script.segments)]);
+    skipHistory.current = true;
+    onChange({...script, segments: cloneSegments(next)});
+  }, [future, script, onChange]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [readOnly, undo, redo]);
+
+  /* ── Original functional code (unchanged) ── */
   const updateSegment = (index: number, patch: Partial<ScriptSegment>) => {
     const segments = script.segments.map((segment, itemIndex) =>
       itemIndex === index ? {...segment, ...patch} : segment,
     );
+    pushHistory();
     onChange({...script, segments});
   };
   const move = (index: number, direction: -1 | 1) => {
@@ -24,11 +84,15 @@ export function ScriptEditor({script, onChange, readOnly = false}: ScriptEditorP
     if (target < 0 || target >= script.segments.length) return;
     const segments = [...script.segments];
     [segments[index], segments[target]] = [segments[target], segments[index]];
-    onChange({...script, segments: resequence(segments)});
+    const resequenced = resequence(segments);
+    pushHistory();
+    onChange({...script, segments: resequenced});
   };
   const remove = (index: number) => {
     if (script.segments.length <= 1) return;
-    onChange({...script, segments: resequence(script.segments.filter((_, item) => item !== index))});
+    const resequenced = resequence(script.segments.filter((_, item) => item !== index));
+    pushHistory();
+    onChange({...script, segments: resequenced});
   };
   const add = () => {
     const template = script.segments.at(-1);
@@ -42,7 +106,9 @@ export function ScriptEditor({script, onChange, readOnly = false}: ScriptEditorP
       pitch: template?.pitch ?? 0,
       visual_hint: null,
     };
-    onChange({...script, segments: [...script.segments, segment]});
+    const next = [...script.segments, segment];
+    pushHistory();
+    onChange({...script, segments: next});
   };
 
   return (
@@ -54,10 +120,26 @@ export function ScriptEditor({script, onChange, readOnly = false}: ScriptEditorP
             className="input"
             value={script.title}
             readOnly={readOnly}
-            onChange={(event) => onChange({...script, title: event.target.value})}
+            onChange={(event) => {
+              pushHistory();
+              onChange({...script, title: event.target.value});
+            }}
           />
         </label>
         <span className="metadata">revision {String(script.revision ?? 1)}</span>
+        {readOnly ? null : (past.length > 0 || future.length > 0) ? (
+          <div className="undo-bar">
+            <button className="icon-button" type="button" onClick={undo} disabled={past.length === 0} aria-label="撤销 Ctrl+Z">
+              <Undo2 size={15} aria-hidden="true" />
+            </button>
+            <button className="icon-button" type="button" onClick={redo} disabled={future.length === 0} aria-label="重做 Ctrl+Shift+Z">
+              <Redo2 size={15} aria-hidden="true" />
+            </button>
+            <span>
+              <kbd>Ctrl+Z</kbd> 撤销 · <kbd>Ctrl+Shift+Z</kbd> 重做
+            </span>
+          </div>
+        ) : null}
       </div>
       <ol className="segment-list">
         {script.segments.map((segment, index) => (

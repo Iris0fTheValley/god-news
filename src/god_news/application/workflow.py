@@ -26,6 +26,7 @@ from god_news.domain.models import (
     SourceItemIngestRequest,
     StateTransition,
     Story,
+    StoryUpdate,
     TimelineSegment,
     TranslationResult,
     utc_now,
@@ -37,6 +38,7 @@ from god_news.errors import (
     GodNewsError,
     IdempotencyConflictError,
     InvalidTransitionError,
+    StoryInvariantError,
     TTSGenerationError,
 )
 from god_news.logging import story_log_context
@@ -103,6 +105,7 @@ class StoryWorkflow:
         story = Story(
             trace_id=trace_id or uuid4(),
             status=StoryStatus.FETCHED,
+            title=document.source.title,
             source=document.source,
             provenance=provenance,
             original_text=document.content,
@@ -121,11 +124,17 @@ class StoryWorkflow:
     async def list(
         self,
         *,
-        status: StoryStatus | None,
-        limit: int,
-        offset: int,
+        status: StoryStatus | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        include_archived: bool = False,
     ) -> Sequence[Story]:
-        return await self._repository.list(status=status, limit=limit, offset=offset)
+        return await self._repository.list(
+            status=status,
+            limit=limit,
+            offset=offset,
+            include_archived=include_archived,
+        )
 
     async def reviews(self, story_id: UUID) -> Sequence[ReviewRecord]:
         await self._repository.get(story_id)
@@ -164,6 +173,85 @@ class StoryWorkflow:
                 ):
                     return await self._resynthesize_in_second_review(story)
                 raise InvalidTransitionError(story_id, story.status, story.status)
+
+    async def archive(self, story_id: UUID) -> Story:
+        """Soft-delete a story while retaining evidence and audit history."""
+
+        async with self._lock_for(story_id):
+            story = await self._repository.get(story_id)
+            if story.status is StoryStatus.ARCHIVED:
+                raise InvalidTransitionError(story_id, story.status, StoryStatus.ARCHIVED)
+            archived = transition_story(story, StoryStatus.ARCHIVED)
+            return await self._repository.save(
+                archived,
+                expected_version=story.version,
+                transition_reason="story archived",
+            )
+
+    async def reopen(self, story_id: UUID) -> Story:
+        """Return a completed story to the final-review gate for another pass."""
+
+        async with self._lock_for(story_id):
+            story = await self._repository.get(story_id)
+            if story.status is not StoryStatus.DONE:
+                raise InvalidTransitionError(
+                    story_id,
+                    story.status,
+                    StoryStatus.PENDING_SECOND_REVIEW,
+                )
+            reopened = transition_story(story, StoryStatus.PENDING_SECOND_REVIEW)
+            return await self._repository.save(
+                reopened,
+                expected_version=story.version,
+                transition_reason="story reopened for final review",
+            )
+
+    async def update(self, story_id: UUID, request: StoryUpdate) -> Story:
+        """Apply an optimistic-concurrency edit without touching source evidence.
+
+        Style and duration are input to script generation.  Once a script exists,
+        changing either would make approved artifacts misleading, so callers must
+        revise the script through the second-review flow instead.
+        """
+
+        async with self._lock_for(story_id):
+            story = await self._repository.get(story_id)
+            if story.status is StoryStatus.ARCHIVED:
+                raise InvalidTransitionError(story_id, story.status, story.status)
+            if request.expected_story_version != story.version:
+                raise ConcurrentWriteError(story_id)
+
+            changes_preferences = (
+                request.style is not None or request.target_duration_seconds is not None
+            )
+            if changes_preferences and story.script is not None:
+                raise StoryInvariantError(
+                    story_id,
+                    "Style and target duration cannot change after script generation. "
+                    "Submit a revised script during final review instead.",
+                )
+
+            preferences = story.preferences.model_copy(
+                update={
+                    "style": request.style
+                    if request.style is not None
+                    else story.preferences.style,
+                    "target_duration_seconds": request.target_duration_seconds
+                    if request.target_duration_seconds is not None
+                    else story.preferences.target_duration_seconds,
+                }
+            )
+            updated = story.model_copy(
+                update={
+                    "title": request.title if request.title is not None else story.title,
+                    "preferences": preferences,
+                    "updated_at": utc_now(),
+                }
+            )
+            return await self._repository.save(
+                updated,
+                expected_version=story.version,
+            )
 
     async def submit_first_review(
         self,

@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import asyncio
+import copy
+import hashlib
+from collections.abc import Sequence
+from pathlib import Path
+from uuid import UUID
+
+from god_news.application.video_batches import require_video_transition
+from god_news.domain.models import utc_now
+from god_news.domain.video import (
+    RemotionVideoProps,
+    VideoBatch,
+    VideoBatchStatus,
+    VideoRenderArtifact,
+)
+from god_news.video_errors import (
+    VideoBatchConflictError,
+    VideoBatchNotFoundError,
+    VideoStoryUnavailableError,
+)
+
+
+class InMemoryVideoBatchRepository:
+    def __init__(self) -> None:
+        self._batches: dict[UUID, VideoBatch] = {}
+        self._claims: dict[UUID, UUID] = {}
+        self._lock = asyncio.Lock()
+
+    async def create(self, batch: VideoBatch) -> VideoBatch:
+        batch = VideoBatch.model_validate(batch.model_dump())
+        async with self._lock:
+            unavailable = [
+                story.story_id for story in batch.stories if story.story_id in self._claims
+            ]
+            if unavailable:
+                raise VideoStoryUnavailableError(unavailable)
+            if batch.batch_id in self._batches:
+                raise VideoBatchConflictError("Video batch ID already exists.")
+            self._batches[batch.batch_id] = copy.deepcopy(batch)
+            for story in batch.stories:
+                self._claims[story.story_id] = batch.batch_id
+            return copy.deepcopy(batch)
+
+    async def get(self, batch_id: UUID) -> VideoBatch:
+        async with self._lock:
+            batch = self._batches.get(batch_id)
+            if batch is None:
+                raise VideoBatchNotFoundError(batch_id)
+            return copy.deepcopy(batch)
+
+    async def list(
+        self,
+        *,
+        status: VideoBatchStatus | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Sequence[VideoBatch]:
+        async with self._lock:
+            batches = sorted(
+                self._batches.values(),
+                key=lambda item: (item.created_at, str(item.batch_id)),
+                reverse=True,
+            )
+            if status is not None:
+                batches = [batch for batch in batches if batch.status is status]
+            return copy.deepcopy(batches[offset : offset + limit])
+
+    async def unavailable_story_ids(self, story_ids: Sequence[UUID]) -> frozenset[UUID]:
+        async with self._lock:
+            return frozenset(story_id for story_id in story_ids if story_id in self._claims)
+
+    async def save(self, batch: VideoBatch, *, expected_version: int) -> VideoBatch:
+        batch = VideoBatch.model_validate(batch.model_dump())
+        async with self._lock:
+            current = self._batches.get(batch.batch_id)
+            if current is None:
+                raise VideoBatchNotFoundError(batch.batch_id)
+            if current.version != expected_version:
+                raise VideoBatchConflictError(
+                    "Video batch changed concurrently; reload it and retry."
+                )
+            require_video_transition(current.status, batch.status)
+            saved = VideoBatch.model_validate(
+                batch.model_copy(update={"version": expected_version + 1}).model_dump()
+            )
+            if saved.status in {VideoBatchStatus.REJECTED, VideoBatchStatus.CANCELLED}:
+                for story in saved.stories:
+                    if self._claims.get(story.story_id) == saved.batch_id:
+                        del self._claims[story.story_id]
+            elif saved.status is VideoBatchStatus.RENDERED:
+                for story in saved.stories:
+                    if self._claims.get(story.story_id) != saved.batch_id:
+                        raise VideoBatchConflictError("Video story claim was lost during render.")
+            self._batches[saved.batch_id] = copy.deepcopy(saved)
+            return copy.deepcopy(saved)
+
+    async def delete(self, batch_id: UUID) -> None:
+        async with self._lock:
+            batch = self._batches.get(batch_id)
+            if batch is None:
+                raise VideoBatchNotFoundError(batch_id)
+            if batch.status in {VideoBatchStatus.RENDERING, VideoBatchStatus.RENDERED}:
+                raise VideoBatchConflictError(
+                    "A rendering or rendered batch cannot be deleted because its claims are "
+                    "audit evidence."
+                )
+            for story in batch.stories:
+                if self._claims.get(story.story_id) == batch.batch_id:
+                    del self._claims[story.story_id]
+            del self._batches[batch_id]
+
+    async def protected_asset_paths(self) -> Sequence[Path]:
+        active = {
+            VideoBatchStatus.PENDING_TIMELINE_REVIEW,
+            VideoBatchStatus.READY_TO_RENDER,
+            VideoBatchStatus.RENDERING,
+            VideoBatchStatus.FAILED,
+        }
+        async with self._lock:
+            return [
+                Path(asset.local_path)
+                for batch in self._batches.values()
+                if batch.status in active
+                for asset in batch.input_assets
+            ]
+
+    async def healthcheck(self) -> None:
+        return None
+
+
+class DeterministicBatchVideoRenderer:
+    def __init__(self, output_dir: Path) -> None:
+        self._output_dir = output_dir.expanduser().resolve()
+        self.calls = 0
+        self.fail_next = False
+
+    @property
+    def name(self) -> str:
+        return "deterministic-offline-video"
+
+    async def render(self, batch_id: UUID, props: RemotionVideoProps) -> VideoRenderArtifact:
+        self.calls += 1
+        if self.fail_next:
+            self.fail_next = False
+            raise RuntimeError("injected deterministic render failure")
+        payload = b"god-news-deterministic-video\n" + props.model_dump_json().encode("utf-8")
+        path = self._output_dir / f"{batch_id}.mp4"
+        await asyncio.to_thread(path.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(path.write_bytes, payload)
+        return VideoRenderArtifact(
+            local_path=str(path),
+            size_bytes=len(payload),
+            sha256=hashlib.sha256(payload).hexdigest(),
+            renderer=self.name,
+            rendered_at=utc_now(),
+        )

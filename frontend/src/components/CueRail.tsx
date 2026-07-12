@@ -9,11 +9,13 @@ interface CueRailProps {
 }
 
 export function CueRail({status, compact = false}: CueRailProps) {
-  const current = STORY_STATUSES.indexOf(status);
+  const current = status === 'ARCHIVED' ? -1 : STORY_STATUSES.indexOf(status);
   return (
     <ol className={compact ? 'cue-rail compact' : 'cue-rail'} aria-label="故事制作进度">
       {STORY_STATUSES.map((item, index) => {
-        const state = index < current ? 'complete' : index === current ? 'current' : 'future';
+        const state = current < 0
+          ? 'future'
+          : index < current ? 'complete' : index === current ? 'current' : 'future';
         return (
           <li key={item} className={state} aria-current={state === 'current' ? 'step' : undefined}>
             <span className="cue-dot" aria-hidden="true">

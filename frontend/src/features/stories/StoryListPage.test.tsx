@@ -9,12 +9,14 @@ import {StoryListPage} from './StoryListPage';
 const apiMocks = vi.hoisted(() => ({
   listStories: vi.fn(),
   createStory: vi.fn(),
+  deleteStory: vi.fn(),
   getClassificationMetrics: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
   listStories: apiMocks.listStories,
   createStory: apiMocks.createStory,
+  deleteStory: apiMocks.deleteStory,
   getClassificationMetrics: apiMocks.getClassificationMetrics,
 }));
 

@@ -1,12 +1,13 @@
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {CheckCircle2, RotateCcw} from 'lucide-react';
-import {useRef} from 'react';
+import {useRef, useState} from 'react';
 import {useForm} from 'react-hook-form';
 
 import {submitFirstReview} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {FirstReviewSubmission, Story} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
+import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {CATEGORY_LABELS} from '../../components/contentCategories';
 
 interface ReviewForm {
@@ -29,6 +30,7 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
   const storyId = story.story_id;
   const queryClient = useQueryClient();
   const retryReviewId = useRef<string | null>(null);
+  const [pendingDecision, setPendingDecision] = useState<'approve' | 'request_changes' | null>(null);
   const {register, getValues, formState} = useForm<ReviewForm>({
     defaultValues: {
       reviewerId: 'local-editor',
@@ -137,7 +139,7 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           className="button secondary"
           type="button"
           disabled={mutation.isPending || formState.isSubmitting}
-          onClick={() => mutation.mutate({decision: 'request_changes'})}
+          onClick={() => setPendingDecision('request_changes')}
         >
           <RotateCcw size={17} aria-hidden="true" /> 保存修改，暂不生成
         </button>
@@ -145,7 +147,7 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           className="button primary"
           type="button"
           disabled={mutation.isPending || formState.isSubmitting}
-          onClick={() => mutation.mutate({decision: 'approve'})}
+          onClick={() => setPendingDecision('approve')}
         >
           <CheckCircle2 size={18} aria-hidden="true" />
           {mutation.isPending ? '正在生成脚本与音频…' : '批准并生成音频'}
@@ -156,6 +158,21 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           首次模型加载约需一分钟。请保持页面打开；中断后可用“恢复生成”继续。
         </p>
       ) : null}
+      <ConfirmDialog
+        open={pendingDecision !== null}
+        title={pendingDecision === 'approve' ? '批准初审' : '保存修改'}
+        message={
+          pendingDecision === 'approve'
+            ? '批准后将触发脚本生成 + 语音合成（约 1 分钟）。此操作不可撤销，确认继续？'
+            : '保存修改后将更新初审记录，但不会推进到脚本生成阶段。'
+        }
+        confirmLabel={pendingDecision === 'approve' ? '批准并生成音频' : '确认保存'}
+        onConfirm={() => {
+          if (pendingDecision !== null) mutation.mutate({decision: pendingDecision});
+          setPendingDecision(null);
+        }}
+        onCancel={() => setPendingDecision(null)}
+      />
     </form>
   );
 }
