@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from god_news.api.dependencies import get_container
+from god_news.api.schemas import ProblemDetail
 from god_news.application.video_batches import VideoBatchService
 from god_news.container import AppContainer
 from god_news.domain.video import (
@@ -18,7 +19,21 @@ from god_news.domain.video import (
 )
 from god_news.video_errors import VideoRendererUnavailableError
 
-router = APIRouter(prefix="/video", tags=["video"])
+PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
+    404: {
+        "model": ProblemDetail,
+        "description": "Requested video batch or BGM track was not found.",
+    },
+    409: {
+        "model": ProblemDetail,
+        "description": "Video batch state, input evidence, or version conflict.",
+    },
+    422: {"model": ProblemDetail, "description": "Request validation failed."},
+    502: {"model": ProblemDetail, "description": "Local video rendering failed."},
+    503: {"model": ProblemDetail, "description": "Video orchestration or renderer is unavailable."},
+}
+
+router = APIRouter(prefix="/video", tags=["video"], responses=PROBLEM_RESPONSES)
 ContainerDependency = Annotated[AppContainer, Depends(get_container)]
 
 

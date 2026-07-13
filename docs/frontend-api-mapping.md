@@ -1,254 +1,75 @@
-# god-news 前端接口映射表
+# god-news 前后端接口契约
 
-> 生成时间: 2026-07-12
-> 状态: ✅ TypeScript 编译通过 · ✅ 4/4 测试通过
-> 用法: 按表去后端对着实现缺失的接口。前端 UI 已就绪。
+更新时间：2026-07-13
 
-## 使用说明
+本文件描述工作台实际调用的后端能力。`frontend/openapi.json` 与
+`frontend/src/api/generated.ts` 由 FastAPI 导出，是可生成的唯一事实来源；本文件只补充业务语义和使用边界。
 
-- ✅ = 后端已有完整实现，前端可正常调用
-- ⚠️ = 后端接口存在，但实现为桩代码（如 Remotion 渲染器）
-- ❌ = 后端无此接口，需要新建路由 + FSM 改造
-
----
-
-## 一、故事管线
-
-| 前端组件 | 调用的 API 函数 | 后端端点 | 方法 | 状态 |
-|---------|---------------|---------|------|------|
-| StoryListPage | `listStories()` | `/api/v1/stories` | GET | ✅ |
-| StoryWorkbenchPage | `getStory(id)` | `/api/v1/stories/{story_id}` | GET | ✅ |
-| CreateStoryForm | `createStory(body)` | `/api/v1/stories` | POST | ✅ |
-| StoryWorkbenchPage | `resumeStory(id)` | `/api/v1/stories/{story_id}/resume` | POST | ✅ |
-| FirstReviewPanel | `submitFirstReview(id, body)` | `/api/v1/stories/{story_id}/reviews/first` | POST | ✅ |
-| SecondReviewPanel | `submitSecondReview(id, body)` | `/api/v1/stories/{story_id}/reviews/second` | POST | ✅ |
-| StoryWorkbenchPage | `listReviews(id)` | `/api/v1/stories/{story_id}/reviews` | GET | ✅ |
-| StoryWorkbenchPage | `listTransitions(id)` | `/api/v1/stories/{story_id}/transitions` | GET | ✅ |
-| StoryWorkbenchPage | `getProductionManifest(id)` | `/api/v1/stories/{story_id}/production-manifest` | GET | ✅ |
-| AudioPanel | `audioClipUrl(id, segId)` | `/api/v1/stories/{story_id}/audio/{segment_id}` | GET | ✅ |
-| StoryListPage | `getClassificationMetrics()` | `/api/v1/metrics/classification` | GET | ✅ |
-| **StoryCard 删除按钮** | `deleteStory(id)` | `/api/v1/stories/{story_id}` | DELETE | ✅ 软归档 |
-| **工作台「重开审核」按钮** | `reopenStory(id)` | `/api/v1/stories/{story_id}/reopen` | POST | ✅ 仅 DONE 可重开 |
-| **工作台「编辑故事」** | `updateStory(id, body)` | `/api/v1/stories/{story_id}` | PATCH | ✅ 需版本号 |
-
-### 已实现的后端契约
-
-```python
-# 1. ARCHIVED 是显式的软归档状态；任一非 ARCHIVED 状态均可迁移到它。
-# 2. DELETE /api/v1/stories/{story_id}  → status=ARCHIVED，保留证据、版本和状态审计。
-# 3. GET /stories 默认隐藏归档；按 ID 仍可读取，GET ?status=ARCHIVED 可显式列出。
-# 4. 仅 DONE → PENDING_SECOND_REVIEW 可重开审核；ARCHIVED 不能 resume/reopen。
-# 5. PATCH 体为 {expected_story_version, title?, style?, target_duration_seconds?}。
-#    title 独立保存，不会修改 source.title 或固定来源 provenance。
+```powershell
+pnpm --dir frontend generate:openapi
+pnpm --dir frontend check
 ```
 
----
+## 故事与审核
 
-## 二、角色管理
+| 前端能力 | API | 语义 |
+| --- | --- | --- |
+| 队列与状态筛选 | `GET /api/v1/stories` | 默认不返回归档故事；`status=ARCHIVED` 显式查看归档。 |
+| 工作台 | `GET /api/v1/stories/{story_id}` | 可读取归档故事及其历史证据。 |
+| 创建 | `POST /api/v1/stories` | URL 或上传文本进入抓取、翻译和初审管线。 |
+| 编辑元数据 | `PATCH /api/v1/stories/{story_id}` | 需要 `expected_story_version`；只允许标题、风格与目标时长，不能篡改来源快照。 |
+| 归档 | `DELETE /api/v1/stories/{story_id}` | 软归档为 `ARCHIVED`，保留来源、版本、审核和状态迁移证据。 |
+| 重开终审 | `POST /api/v1/stories/{story_id}/reopen` | 仅 `DONE → PENDING_SECOND_REVIEW`。 |
+| 初审/终审 | `POST /api/v1/stories/{id}/reviews/first`、`POST /api/v1/stories/{id}/reviews/second` | 两道人工门禁仍是高能耗脚本与 TTS 的前置条件。 |
 
-| 前端组件 | 调用的 API 函数 | 后端端点 | 方法 | 状态 |
-|---------|---------------|---------|------|------|
-| RolesPage 列表 | `listRoles()` | `/api/v1/roles` | GET | ✅ |
-| RolesPage 新建表单 | `createRole(body)` | `/api/v1/roles` | POST | ✅ |
-| RolesPage 编辑表单 | `updateRole(id, body)` | `/api/v1/roles/{profile_id}` | PUT | ✅ |
-| RolesPage 删除按钮 | `deleteRole(id)` | `/api/v1/roles/{profile_id}` | DELETE | ⚠️ **硬删除** |
+生产状态路径为 `FETCHED → TRANSLATED → PENDING_FIRST_REVIEW → PROCESSING_SCRIPT → SCRIPT_READY → PENDING_SECOND_REVIEW → DONE`。
+`ARCHIVED` 是不参与生产进度条的显式终态，可从任一非归档状态进入。
 
-### 需要后端修改的
+## 角色
 
-```python
-# 1. DELETE 改为软删：set enabled=False 而非 DELETE FROM
-# 当前是物理删除行，无法恢复
-```
+| 前端能力 | API | 语义 |
+| --- | --- | --- |
+| 列表/详情 | `GET /api/v1/roles`、`GET /api/v1/roles/{profile_id}` | 支持 `enabled` 筛选。 |
+| 新建 | `POST /api/v1/roles` | 创建旁白或主持人档案。 |
+| 替换 | `PUT /api/v1/roles/{profile_id}` | 需要 `expected_version` 乐观锁。 |
+| 停用 | `DELETE /api/v1/roles/{profile_id}` | 软停用并返回新版本；历史故事和成片保留引用。 |
 
-### 🔧 多角色独立 TTS 语音（需求规格）
+`gpt_weights_path`、`sovits_weights_path` 和视觉资产只是受校验的角色元数据。当前 GPT-SoVITS 适配器仍为单语音实例；多角色/多权重调度必须通过新的合成器适配器实现，不能把档案字段误认为已生效的推理配置。
 
-> **状态**: 前端表单已就绪 · 后端未实现 · 见下方改造方案
->
-> 前端 RolesPage 已将 `TTS 模型标识` 字段拆为两个输入框：
-> - **GPT 权重路径** → `gpt_weights_path`（如 `J:\models\gpt-narrator.pth`）
-> - **SoVITS 权重路径** → `sovits_weights_path`（如 `J:\models\sovits-narrator.pth`）
->
-> 提交时前端将这两个字段放入请求体。当前后端 `RoleProfileCreate` 使用 `extra="forbid"`，会拒绝未知字段返回 422。
+## 采集运行
 
-#### 后端改造方案
+| 前端能力 | API | 语义 |
+| --- | --- | --- |
+| 可用采集器 | `GET /api/v1/sources/collectors` | 返回四个源的配置与授权就绪度。 |
+| 启动 | `POST /api/v1/source-runs` | 返回 `202` 和持久化 run；请求包含 source、limit、语言、风格、语音控制及 requested_by。 |
+| 列表/详情 | `GET /api/v1/source-runs`、`GET /api/v1/source-runs/{run_id}` | 包含降级层尝试、标准化导入结果和错误证据。 |
+| 取消 | `POST /api/v1/source-runs/{run_id}/cancel` | 协作式停止；记录 `operator_cancelled`，不删除已完成项目。 |
 
-**1. `operations/models.py` — RoleProfile 新增字段**
+服务关闭导致的停止会独立记录为 `service_shutdown`，不能与操作员取消混淆。
 
-```python
-class RoleProfileCreate(OperationsModel):
-    # ... 现有字段 ...
-    gpt_weights_path: AssetRef | None = None    # 新增
-    sovits_weights_path: AssetRef | None = None  # 新增
-```
+## 视频批次与 BGM
 
-同样在 `RoleProfile` / `RoleProfileReplace` / `_row_values()` 中都加上。
+| 前端能力 | API | 语义 |
+| --- | --- | --- |
+| 本地 BGM 目录 | `GET /api/v1/video/bgm` | 仅返回 `track_id`、`display_name`、`relative_path`、`size_bytes`；当前没有媒体流/试听接口。 |
+| 新建批次 | `POST /api/v1/video/batches` | 自动从未占用的 `DONE` 故事中选择，或使用显式 `story_ids`；可选择本地 BGM。 |
+| 列表/详情 | `GET /api/v1/video/batches`、`GET /api/v1/video/batches/{batch_id}` | 返回时间轴、审核、输入资产快照和版本。 |
+| 审阅时间轴 | `POST /api/v1/video/batches/{batch_id}/timeline-review` | 需要 `expected_batch_version` 与 reviewer；批准后进入 `READY_TO_RENDER`。 |
+| 渲染 | `POST /api/v1/video/batches/{batch_id}/render` | 需要 `expected_batch_version`。当前生产渲染器是明确的不可用占位适配器，接口会诚实返回不可用错误，直到替换为 Remotion 进程适配器。 |
+| 取消/删除 | `POST /api/v1/video/batches/{batch_id}/cancel`、`DELETE /api/v1/video/batches/{batch_id}` | 未渲染批次可释放故事；渲染中无安全取消契约，已渲染批次是不可变审计证据。 |
 
-**2. `infrastructure/role_profiles.py` — 数据表加两列**
+批次在创建时记录音频和 BGM 的内容哈希。审阅后发现输入文件变化时不能直接复用旧审批；应取消/删除该批次并创建新批次重新审阅。
 
-```python
-class RoleProfileRow(Base):
-    # ... 现有列 ...
-    gpt_weights_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-    sovits_weights_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-```
+## 运维
 
-**3. `infrastructure/tts/multi_voice.py` — 新建多路合成器**
+| 前端能力 | API | 语义 |
+| --- | --- | --- |
+| 操作历史 | `GET /api/v1/operations/runs` | 返回 `running`、`succeeded` 或 `failed` 的留存清理记录及结果。 |
+| 调度状态 | `GET /api/v1/operations/schedules` | 返回启用状态、间隔、下次运行与最近状态。 |
+| 手动留存清理 | `POST /api/v1/operations/retention/runs` | 请求为 `{operation: "retention_cleanup", dry_run, requested_by}`。前端的确认操作使用 `dry_run: false`，会物理删除符合保留规则的文件。 |
 
-```
-MultiVoiceSpeechSynthesizer
-├── 构造函数接收 RoleProfile 列表
-├── synthesize() 按 speaker_id 分组脚本段落
-├── 每个 speaker_id 用自己的权重路径起一个 GPT-SoVITS server (不同 loopback 端口)
-├── 串行执行: 先跑完 speaker A 的所有段落 → 关闭 server → 再跑 speaker B
-└── 合并所有 AudioClip 成一个 AudioBundle 返回
-```
+## 已知边界
 
-关键点：
-- 同一时刻只有一个 GPT-SoVITS 进程占用 GPU（串行合成，避免显存溢出）
-- 权重切换时每次需重新启动 GPT-SoVITS api_v2 server（有启动耗时）
-- 保留现有 `GPTSoVITSSpeechSynthesizer` 不动，新建 `MultiVoiceSpeechSynthesizer` 包装它
-
-**4. `container.py` — 更换 TTS 实例**
-
-```python
-# 旧: 单一 synthesizer，固定一套权重
-tts = GPTSoVITSSpeechSynthesizer(
-    gpt_weights=settings.tts_gpt_weights,
-    sovits_weights=settings.tts_sovits_weights,
-    ...
-)
-
-# 新: 多路合成器，启动时拉取所有启用的角色
-tts = MultiVoiceSpeechSynthesizer(
-    role_profiles=role_profiles,  # 注入 RoleProfileRepository
-    base_config=...,              # 共享的 tts_infer.yaml 和通用参数
-)
-```
-
-**5. 移除 `_validate_capabilities` 中的 speaker_id 单例校验**
-
-当前硬编码了 `speaker_id must equal default_speaker_id`。改为按 speaker_id 查找对应角色的权重路径，找不到才报错。
-
----
-
-## 三、采集运行
-
-| 前端组件 | 调用的 API 函数 | 后端端点 | 方法 | 状态 |
-|---------|---------------|---------|------|------|
-| SourceRunsPage 列表 | `listSourceRuns()` | `/api/v1/source-runs` | GET | ✅ |
-| SourceRunsPage 详情 | `getSourceRun(id)` | `/api/v1/source-runs/{run_id}` | GET | ✅ |
-| SourceManagementPage | `getSourceCollectors()` | `/api/v1/sources/collectors` | GET | ✅ |
-| SourceRunsPage「开始采集」 | `startSourceRun(body)` | `/api/v1/source-runs` | POST | ✅ |
-| **SourceRunsPage「取消运行」** | `cancelSourceRun(id)` | `/api/v1/source-runs/{run_id}/cancel` | POST | ❌ **需新建** |
-
-### 需要后端实现的
-
-```python
-# POST /api/v1/source-runs/{run_id}/cancel
-# 调用 SourceRunService 中已有的 _mark_cancelled() 逻辑
-# 目前 CANCELLED 状态只在服务关闭时内部调用，无外部 API
-```
-
----
-
-## 四、视频批次
-
-| 前端组件 | 调用的 API 函数 | 后端端点 | 方法 | 状态 |
-|---------|---------------|---------|------|------|
-| VideoBatchesPage 列表 | `listVideoBatches()` | `/api/v1/video/batches` | GET | ✅ |
-| VideoBatchesPage 详情 | `getVideoBatch(id)` | `/api/v1/video/batches/{batch_id}` | GET | ✅ |
-| VideoBatchesPage 新建 | `createVideoBatch(body)` | `/api/v1/video/batches` | POST | ✅ |
-| 批次详情「审阅时间轴」 | `submitTimelineReview(id, body)` | `/api/v1/video/batches/{batch_id}/timeline-review` | POST | ⚠️ |
-| 批次详情「开始渲染」 | `renderVideoBatch(id, body)` | `/api/v1/video/batches/{batch_id}/render` | POST | ⚠️ **桩** |
-| **批次详情「取消渲染」** | `cancelVideoRender(id)` | `/api/v1/video/batches/{batch_id}/cancel` | POST | ❌ **需新建** |
-| **批次详情「删除批次」** | `deleteVideoBatch(id)` | `/api/v1/video/batches/{batch_id}` | DELETE | ❌ **需新建** |
-
-### 需要后端实现的
-
-```python
-# 1. POST /api/v1/video/batches/{batch_id}/cancel — 取消渲染中批次
-# 2. DELETE /api/v1/video/batches/{batch_id} — 删除批次（释放故事占用）
-# 3. renderVideoBatch 实现 Remotion 桥接（当前是 UnavailableBatchVideoRenderer 桩）
-```
-
----
-
-## 五、BGM 管理
-
-| 前端组件 | 调用的 API 函数 | 后端端点 | 方法 | 状态 |
-|---------|---------------|---------|------|------|
-| BgmPage 列表 + 试听 | `listBgmTracks()` | `/api/v1/video/bgm` | GET | ✅ |
-
-### 需确认
-
-```python
-# LocalBgmCatalog 已完整实现（扫描本地文件夹 + 格式校验）
-# 确认 bgm/ 目录路径在 .env 中正确配置
-```
-
----
-
-## 六、运维操作
-
-| 前端组件 | 调用的 API 函数 | 后端端点 | 方法 | 状态 |
-|---------|---------------|---------|------|------|
-| OpsPage 操作历史 | `listOperationRuns()` | `/api/v1/operations/runs` | GET | ✅ |
-| OpsPage 调度状态 | `listSchedules()` | `/api/v1/operations/schedules` | GET | ✅ |
-| OpsPage 手动清理 | `triggerRetention(body)` | `/api/v1/operations/retention/runs` | POST | ✅ |
-
-### 需确认
-
-```python
-# RetentionCleanupHandler 已完整实现
-# 在 .env 中配置 retention_media_days / retention_uploaded_mp4_days
-# 确认 operations_scheduler_enabled=true 使定时清理运行
-```
-
----
-
-## 七、前端新增组件清单
-
-| 组件 | 文件 | 作用 |
-|------|------|------|
-| ToastProvider + useToast | `components/Toast.tsx` | 操作反馈通知（支持撤销按钮） |
-| ConfirmDialog | `components/ConfirmDialog.tsx` | 不可逆操作前的二次确认 |
-| KeyboardShortcuts | `components/KeyboardShortcuts.tsx` | `?` 键打开快捷键参考面板 |
-| EmptyState | `components/EmptyState.tsx` | 统一空状态占位组件 |
-
----
-
-## 八、修改过的已有文件（功能代码未动）
-
-| 文件 | 改了什么 | 功能代码 |
-|------|---------|---------|
-| `ScriptEditor.tsx` | 包了 undo history stack + Ctrl+Z/Y 快捷键 | `resequence()`/`updateSegment()`/`move()`/`remove()`/`add()` 全部原样保留 |
-| `FirstReviewPanel.tsx` | 按钮 onClick 从直接调用改为先开 ConfirmDialog | `retryReviewId`/`mutation.mutate`/`onSuccess` 全部原样保留 |
-| `SecondReviewPanel.tsx` | 同上 | 同上 |
-| `StoryCard.tsx` | 加了 `onDeleteRequest` prop 和删除按钮 | 原有渲染逻辑原样保留 |
-| `StoryListPage.tsx` | 加了搜索框 + 删除确认 | 原有 `useQuery`/`refetchInterval` 全部原样保留 |
-| `StoryWorkbenchPage.tsx` | 加了重开/删除按钮 + ConfirmDialog | 原有 `scriptEdit`/`recoverable`/所有状态机逻辑原样保留 |
-| `RolesPage.tsx` | `ttsModel` 字段拆为 `gptWeightsPath` + `sovitsWeightsPath` | 原有 `createMutation`/`updateMutation`/`deleteMutation` 全部原样保留 |
-| `App.tsx` | 加了 6 条路由 + 7 项导航 | 原有 3 条路由原样保留 |
-| `render.tsx` | 包了 `ToastProvider` | 原有 render 逻辑原样保留 |
-| `queryKeys.ts` | 加了 8 组新的 query key | 原有 7 组原样保留 |
-| `client.ts` | 加了 19 个 API 函数（14 真实 + 5 桩） | 原有 12 个函数签名原样保留 |
-
----
-
-## 九、备份
-
-原始前端文件已备份到：
-```
-.backups/frontend-20260712-114524/
-```
-
----
-
-## 十、音频合成管线重构方向
-
-> 参考项目：`J:\\AI friend\\DSakiko3.10`
-> 核心思路：同一套 GPT/SoVITS 权重，按脚本段落的情绪切换参考音频，实现多情绪语音合成。
->
-> 关键文件参考：`emotion_enum.py`（7 情绪枚举）、`character.py:get_reference_materials_for_emotion()`（按情绪选参考音频）、`reference_audio_and_text.json`（每情绪一条 `{audio_path, text}`）。
->
-> 当前 god-news 的 `gpt_sovits.py` 里 `_validate_capabilities` 把 `emotion != "neutral"` 直接拒了，`openai_compatible.py` 第 230 行把 LLM 输出的 emotion 覆盖成了 `preferences.emotion`——这是情绪管线断掉的根因。
+- 真实四源采集仍取决于合法授权、凭据和站点条款；离线测试不替代现场运行证据。
+- GPT-SoVITS 多角色、情绪参考音频选择和真正的 Remotion 批量渲染仍是可替换的后续适配器工作。
+- 任何前端请求应通过 `frontend/src/api/client.ts`，不得自行拼接未写入 OpenAPI 的接口。

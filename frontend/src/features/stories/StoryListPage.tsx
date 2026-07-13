@@ -9,7 +9,7 @@ import type {StoryStatus} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {STATUS_LABELS, STORY_FILTER_STATUSES} from '../../components/cueRailData';
-import {useToast} from '../../components/Toast';
+import {useToast} from '../../components/toastContext';
 import {CreateStoryForm} from './CreateStoryForm';
 import {StoryCard} from './StoryCard';
 

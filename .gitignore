@@ -12,6 +12,7 @@ build/
 *.egg-info/
 data/
 outputs/
+uploads/
 logs/
 *.db
 *.db-shm

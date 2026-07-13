@@ -54,6 +54,10 @@ class SourceRunService:
         self._ingestor = ingestor
         self._max_pending_runs = max_pending_runs
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
+        # `Task.cancel()` carries no domain reason. Keep the operator intent
+        # alongside the supervised task so persisted evidence distinguishes a
+        # user cancellation from application shutdown.
+        self._operator_cancellations: set[UUID] = set()
         self._task_lock = asyncio.Lock()
         sources: tuple[SourceName, ...] = ("dazhong", "reddit", "guardian", "pikabu")
         self._source_locks: dict[SourceName, asyncio.Lock] = {
@@ -97,6 +101,7 @@ class SourceRunService:
         async with self._task_lock:
             task = self._tasks.get(run_id)
             if task is not None and not task.done():
+                self._operator_cancellations.add(run_id)
                 task.cancel()
         if task is not None:
             try:
@@ -112,7 +117,7 @@ class SourceRunService:
             SourceRunStatus.CANCELLED,
         }:
             return run
-        await self._mark_cancelled(run_id)
+        await self._mark_cancelled(run_id, operator_initiated=True)
         return await self._repository.get(run_id)
 
     async def list(
@@ -143,6 +148,7 @@ class SourceRunService:
 
     def _task_finished(self, run_id: UUID, task: asyncio.Task[None]) -> None:
         self._tasks.pop(run_id, None)
+        self._operator_cancellations.discard(run_id)
         if not task.cancelled():
             exception = task.exception()
             if exception is not None:
@@ -159,7 +165,10 @@ class SourceRunService:
             async with self._source_locks[run.request.source]:
                 await self._execute_locked(run_id)
         except asyncio.CancelledError:
-            await self._mark_cancelled(run_id)
+            await self._mark_cancelled(
+                run_id,
+                operator_initiated=run_id in self._operator_cancellations,
+            )
             raise
         except Exception:
             logger.exception("source collection run failed run_id=%s", run_id)
@@ -290,7 +299,7 @@ class SourceRunService:
         )
         logger.info("source collection completed run_id=%s", run_id)
 
-    async def _mark_cancelled(self, run_id: UUID) -> None:
+    async def _mark_cancelled(self, run_id: UUID, *, operator_initiated: bool = False) -> None:
         try:
             run = await self._repository.get(run_id)
             if run.status in {
@@ -307,8 +316,12 @@ class SourceRunService:
                 finished_at=now,
                 updated_at=now,
                 run_error=CollectionErrorEvidence(
-                    code="service_shutdown",
-                    message="The service stopped before this source run finished.",
+                    code=("operator_cancelled" if operator_initiated else "service_shutdown"),
+                    message=(
+                        "An operator cancelled this source run before it finished."
+                        if operator_initiated
+                        else "The service stopped before this source run finished."
+                    ),
                     retryable=True,
                 ),
             )

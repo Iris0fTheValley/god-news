@@ -1,7 +1,7 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {ArrowLeft, CheckCircle2, ExternalLink, FileClock, Hash, Languages, RotateCcw, Trash2} from 'lucide-react';
 import {useState} from 'react';
-import {Link, useParams} from 'react-router-dom';
+import {Link, useNavigate, useParams} from 'react-router-dom';
 
 import {
   deleteStory,
@@ -18,7 +18,7 @@ import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {CueRail} from '../../components/CueRail';
 import {STATUS_LABELS} from '../../components/cueRailData';
 import {ScreeningBadge} from '../../components/ScreeningBadge';
-import {useToast} from '../../components/Toast';
+import {useToast} from '../../components/toastContext';
 import {AudioPanel} from '../audio/AudioPanel';
 import {HistoryPanel} from '../history/HistoryPanel';
 import {FirstReviewPanel} from '../reviews/FirstReviewPanel';
@@ -28,6 +28,7 @@ import {ScriptEditor} from '../script/ScriptEditor';
 
 export function StoryWorkbenchPage() {
   const {storyId = ''} = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const {push: pushToast} = useToast();
   const [showReopenConfirm, setShowReopenConfirm] = useState(false);
@@ -76,6 +77,9 @@ export function StoryWorkbenchPage() {
     mutationFn: deleteStory,
     onSettled: () => setShowDeleteConfirm(false),
     onSuccess: () => {
+      void queryClient.invalidateQueries({queryKey: queryKeys.story(storyId)});
+      void queryClient.invalidateQueries({queryKey: queryKeys.stories()});
+      void navigate('/stories');
       pushToast({message: '故事已归档。', durationMs: 3000});
     },
     onError: (err) => {
@@ -295,6 +299,13 @@ export function StoryWorkbenchPage() {
             <FirstReviewPanel story={story} />
           ) : story.status === 'PENDING_SECOND_REVIEW' && story.audio !== null && story.audio !== undefined && scriptDraft !== null ? (
             <SecondReviewPanel story={story} revisedScript={scriptDraft} />
+          ) : story.status === 'ARCHIVED' ? (
+            <div className="done-panel">
+              <FileClock size={32} aria-hidden="true" />
+              <p className="eyebrow">ARCHIVED</p>
+              <h2>故事已归档</h2>
+              <p>来源证据、版本和审核记录仍可查阅，但此故事不会继续进入制作管线。</p>
+            </div>
           ) : story.status === 'DONE' ? (
             <div className="done-panel">
               <CheckCircle2 size={32} aria-hidden="true" />

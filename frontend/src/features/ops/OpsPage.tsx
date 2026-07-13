@@ -4,10 +4,24 @@ import {Clock, RefreshCw, Trash2} from 'lucide-react';
 
 import {listOperationRuns, listSchedules, triggerRetention} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
+import type {OperationRun} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {EmptyState} from '../../components/EmptyState';
-import {useToast} from '../../components/Toast';
+import {useToast} from '../../components/toastContext';
+
+function formatDuration(run: OperationRun): string {
+  if (run.finished_at === undefined || run.finished_at === null) return '进行中';
+  const elapsed = new Date(run.finished_at).getTime() - new Date(run.started_at).getTime();
+  return Number.isFinite(elapsed) && elapsed >= 0 ? `${(elapsed / 1000).toFixed(1)}s` : '—';
+}
+
+function runSummary(run: OperationRun): string {
+  if (run.error !== undefined && run.error !== null) return run.error;
+  if (run.result === undefined || run.result === null) return '—';
+  const action = run.result.dry_run ? '演练' : '已清理';
+  return `${action} ${String(run.result.deleted_count)} 个文件，回收 ${String(run.result.reclaimed_bytes)} 字节`;
+}
 
 export function OpsPage() {
   const queryClient = useQueryClient();
@@ -28,11 +42,14 @@ export function OpsPage() {
     mutationFn: triggerRetention,
     onSuccess: (data) => {
       void queryClient.invalidateQueries({queryKey: queryKeys.operationRuns()});
-      const r = data as any;
-      pushToast({
-        message: `留存清理完成：删除 ${String(r['deleted_count'] ?? 0)} 个文件，回收 ${String(Number(r['reclaimed_bytes'] ?? 0))} 字节。`,
-        durationMs: 5000,
-      });
+      if (data.result !== undefined && data.result !== null) {
+        pushToast({
+          message: `留存清理完成：删除 ${String(data.result.deleted_count)} 个文件，回收 ${String(data.result.reclaimed_bytes)} 字节。`,
+          durationMs: 5000,
+        });
+      } else {
+        pushToast({message: `留存清理未完成：${data.error ?? '请检查后端日志。'}`, variant: 'danger', durationMs: 5000});
+      }
     },
     onError: () => {
       pushToast({message: '留存清理失败，请检查后端日志。', variant: 'danger', durationMs: 5000});
@@ -63,7 +80,7 @@ export function OpsPage() {
             <div className="loading-state">正在加载调度状态…</div>
           ) : schedulesQuery.error !== null ? (
             <ApiErrorNotice error={schedulesQuery.error} onRetry={() => void schedulesQuery.refetch()} />
-          ) : (schedulesQuery.data as unknown[]) !== undefined && (schedulesQuery.data as unknown[]).length === 0 ? (
+          ) : schedulesQuery.data !== undefined && schedulesQuery.data.length === 0 ? (
             <EmptyState title="无定时调度" description="调度器未启用或未配置任何定时任务。在 .env 中设置 operations_scheduler_enabled=true。" />
           ) : (
             <div className="table-container">
@@ -78,15 +95,15 @@ export function OpsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(schedulesQuery.data as unknown[])?.map((schedule: any, i: number) => (
-                    <tr key={i}>
-                      <td><strong>{String(schedule['kind'] ?? '—')}</strong></td>
-                      <td className="metadata">{String(schedule['interval_seconds'] ?? '—')}s</td>
-                      <td className="metadata">{String(schedule['last_run_at'] ?? '从未运行')}</td>
-                      <td className="metadata">{String(schedule['next_run_at'] ?? '—')}</td>
+                  {schedulesQuery.data?.map((schedule) => (
+                    <tr key={schedule.schedule_id}>
+                      <td><strong>{schedule.operation}</strong></td>
+                      <td className="metadata">{String(schedule.interval_seconds)}s</td>
+                      <td className="metadata">{schedule.last_run_status ?? '从未运行'}</td>
+                      <td className="metadata">{schedule.next_run_at ?? '—'}</td>
                       <td>
-                        <span className={`badge ${schedule['enabled'] !== false ? 'success' : 'muted'}`}>
-                          {schedule['enabled'] !== false ? '运行中' : '已停用'}
+                        <span className={`badge ${schedule.enabled ? 'success' : 'muted'}`}>
+                          {schedule.enabled ? '运行中' : '已停用'}
                         </span>
                       </td>
                     </tr>
@@ -141,7 +158,7 @@ export function OpsPage() {
             <div className="loading-state">正在加载操作记录…</div>
           ) : runsQuery.error !== null ? (
             <ApiErrorNotice error={runsQuery.error} onRetry={() => void runsQuery.refetch()} />
-          ) : (runsQuery.data as unknown[]) !== undefined && (runsQuery.data as unknown[]).length === 0 ? (
+          ) : runsQuery.data !== undefined && runsQuery.data.length === 0 ? (
             <EmptyState title="暂无操作记录" description="手动触发一次留存清理后，记录将显示在此处。" />
           ) : (
             <div className="table-container">
@@ -157,18 +174,18 @@ export function OpsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(runsQuery.data as unknown[])?.map((r: any, i: number) => (
-                    <tr key={i}>
-                      <td><strong>{String(r['operation'] ?? '—')}</strong></td>
-                      <td className="metadata">{String(r['origin'] ?? '—')}</td>
+                  {runsQuery.data?.map((run) => (
+                    <tr key={run.run_id ?? `${run.operation}-${run.started_at}`}>
+                      <td><strong>{run.operation}</strong></td>
+                      <td className="metadata">{run.origin}</td>
                       <td>
-                        <span className={`badge ${r['status'] === 'completed' ? 'success' : r['status'] === 'failed' ? 'danger' : 'info'}`}>
-                          {String(r['status'] ?? '—')}
+                        <span className={`badge ${run.status === 'succeeded' ? 'success' : run.status === 'failed' ? 'danger' : 'info'}`}>
+                          {run.status}
                         </span>
                       </td>
-                      <td className="metadata">{String(r['started_at'] ?? '—')}</td>
-                      <td className="metadata">{r['duration_ms'] != null ? `${(Number(r['duration_ms']) / 1000).toFixed(1)}s` : '—'}</td>
-                      <td className="metadata">{String(r['result_summary'] ?? '—')}</td>
+                      <td className="metadata">{run.started_at}</td>
+                      <td className="metadata">{formatDuration(run)}</td>
+                      <td className="metadata">{runSummary(run)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,7 +202,11 @@ export function OpsPage() {
         confirmLabel="执行清理"
         onConfirm={() => {
           setShowConfirmRetention(false);
-          retentionMutation.mutate({dry_run: false});
+          retentionMutation.mutate({
+            operation: 'retention_cleanup',
+            dry_run: false,
+            requested_by: 'web-operator',
+          });
         }}
         onCancel={() => setShowConfirmRetention(false)}
       />

@@ -492,7 +492,8 @@ class VideoBatchService:
             current = VideoBatchService._snapshot_asset(asset.kind, asset.local_path)
             if current.sha256 != asset.sha256 or current.size_bytes != asset.size_bytes:
                 raise VideoBatchConflictError(
-                    "A reviewed video input changed; submit the timeline for review again."
+                    "A reviewed video input changed; cancel or delete this batch and create a "
+                    "replacement so the changed input receives a fresh review."
                 )
 
     @staticmethod

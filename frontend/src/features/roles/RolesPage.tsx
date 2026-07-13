@@ -4,10 +4,11 @@ import {useState} from 'react';
 
 import {createRole, deleteRole, listRoles, updateRole} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
+import type {RoleProfileCreate, RoleProfileReplace, RoleVisualAssets} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {EmptyState} from '../../components/EmptyState';
-import {useToast} from '../../components/Toast';
+import {useToast} from '../../components/toastContext';
 
 function slugify(name: string): string {
   return name
@@ -32,7 +33,7 @@ interface RoleFormState {
   speakerId: string;
   gptWeightsPath: string;
   sovitsWeightsPath: string;
-  visualAssets: Record<string, unknown>;
+  visualAssets: RoleVisualAssets;
   defaultSpeed: number;
   defaultPitch: number;
   enabled: boolean;
@@ -74,7 +75,7 @@ export function RolesPage() {
     },
   });
   const updateMutation = useMutation({
-    mutationFn: ({id, body}: {id: string; body: any}) => updateRole(id, body),
+    mutationFn: ({id, body}: {id: string; body: RoleProfileReplace}) => updateRole(id, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({queryKey: queryKeys.roles()});
       setEditing(null);
@@ -137,36 +138,36 @@ export function RolesPage() {
               </tr>
             </thead>
             <tbody>
-              {query.data?.map((role: any) => (
-                <tr key={String(role['slug'] ?? role['profile_id'])}>
-                  <td><strong>{String(role['display_name'] ?? role['slug'] ?? '—')}</strong></td>
-                  <td className="metadata file-path-cell" title={String(role['gpt_weights_path'] ?? '')}>{String(role['gpt_weights_path'] ?? '—')}</td>
-                  <td className="metadata file-path-cell" title={String(role['sovits_weights_path'] ?? '')}>{String(role['sovits_weights_path'] ?? '—')}</td>
+              {query.data?.map((role) => (
+                <tr key={role.profile_id ?? role.slug}>
+                  <td><strong>{role.display_name}</strong></td>
+                  <td className="metadata file-path-cell" title={role.gpt_weights_path ?? ''}>{role.gpt_weights_path ?? '—'}</td>
+                  <td className="metadata file-path-cell" title={role.sovits_weights_path ?? ''}>{role.sovits_weights_path ?? '—'}</td>
                   <td className="metadata">
-                    {String(role['default_speed'] ?? 1)}x / {String(role['default_pitch'] ?? 0)}
+                    {String(role.default_speed)}x / {String(role.default_pitch)}
                   </td>
                   <td>
-                    <span className={`badge ${role['enabled'] !== false ? 'success' : 'muted'}`}>
-                      {role['enabled'] !== false ? '已启用' : '已停用'}
+                    <span className={`badge ${role.enabled ? 'success' : 'muted'}`}>
+                      {role.enabled ? '已启用' : '已停用'}
                     </span>
                   </td>
                   <td className="actions-cell">
                     <button
                       className="icon-button"
                       type="button"
-                      aria-label={`编辑 ${String(role['display_name'] ?? role['slug'])}`}
+                      aria-label={`编辑 ${role.display_name}`}
                       onClick={() => setEditing({
-                        profileId: String(role['profile_id']),
-                        name: String(role['display_name'] ?? ''),
-                        kind: role['kind'] === 'host' ? 'host' : 'narrator',
-                        speakerId: String(role['speaker_id'] ?? role['slug'] ?? ''),
-                        gptWeightsPath: String(role['gpt_weights_path'] ?? ''),
-                        sovitsWeightsPath: String(role['sovits_weights_path'] ?? ''),
-                        visualAssets: (role['visual_assets'] ?? {}) as Record<string, unknown>,
-                        defaultSpeed: Number(role['default_speed'] ?? 1),
-                        defaultPitch: Number(role['default_pitch'] ?? 0),
-                        enabled: role['enabled'] !== false,
-                        expectedVersion: Number(role['version'] ?? 0),
+                        profileId: role.profile_id ?? null,
+                        name: role.display_name,
+                        kind: role.kind,
+                        speakerId: role.speaker_id,
+                        gptWeightsPath: role.gpt_weights_path ?? '',
+                        sovitsWeightsPath: role.sovits_weights_path ?? '',
+                        visualAssets: role.visual_assets ?? {},
+                        defaultSpeed: role.default_speed,
+                        defaultPitch: role.default_pitch,
+                        enabled: role.enabled,
+                        expectedVersion: role.version,
                       })}
                     >
                       <Pencil size={16} aria-hidden="true" />
@@ -174,11 +175,13 @@ export function RolesPage() {
                     <button
                       className="icon-button danger"
                       type="button"
-                      aria-label={`删除 ${String(role['display_name'] ?? role['slug'])}`}
-                      onClick={() => setDeleteTarget({
-                        id: String(role['profile_id']),
-                        version: Number(role['version']),
-                      })}
+                      aria-label={`停用 ${role.display_name}`}
+                      disabled={role.profile_id === undefined || !role.enabled}
+                      onClick={() => {
+                        if (role.profile_id !== undefined) {
+                          setDeleteTarget({id: role.profile_id, version: role.version});
+                        }
+                      }}
                     >
                       <Trash2 size={16} aria-hidden="true" />
                     </button>
@@ -209,7 +212,7 @@ export function RolesPage() {
             className="panel-body form-grid"
             onSubmit={(e) => {
               e.preventDefault();
-              const body: Record<string, unknown> = {
+              const body: RoleProfileCreate = {
                 display_name: editing.name,
                 slug: slugify(editing.name),
                 kind: editing.kind,
@@ -220,15 +223,13 @@ export function RolesPage() {
                 visual_assets: editing.visualAssets,
                 enabled: editing.enabled,
               };
-              if (editing.gptWeightsPath.trim() !== '') {
-                body['gpt_weights_path'] = editing.gptWeightsPath.trim();
-              }
-              if (editing.sovitsWeightsPath.trim() !== '') {
-                body['sovits_weights_path'] = editing.sovitsWeightsPath.trim();
-              }
+              if (editing.gptWeightsPath.trim() !== '') body.gpt_weights_path = editing.gptWeightsPath.trim();
+              if (editing.sovitsWeightsPath.trim() !== '') body.sovits_weights_path = editing.sovitsWeightsPath.trim();
               if (editing.profileId !== null) {
-                body['expected_version'] = editing.expectedVersion;
-                updateMutation.mutate({id: editing.profileId, body});
+                updateMutation.mutate({
+                  id: editing.profileId,
+                  body: {...body, expected_version: editing.expectedVersion},
+                });
               } else {
                 createMutation.mutate(body);
               }
@@ -309,10 +310,10 @@ export function RolesPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="删除角色"
-        message="删除角色后，关联的故事可能失去旁白引用。此操作不可撤销（后端当前为硬删除）。"
+        title="停用角色"
+        message="停用后，新任务不能再选择此角色；既有故事、脚本与成片会保留历史引用。"
         variant="danger"
-        confirmLabel="确认删除"
+        confirmLabel="确认停用"
         onConfirm={() => {
           if (deleteTarget !== null) deleteMutation.mutate(deleteTarget);
         }}

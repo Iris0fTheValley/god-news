@@ -217,5 +217,34 @@ async def test_source_run_can_be_cancelled_without_losing_terminal_evidence(stac
     cancelled = await service.cancel(started.run_id)
     assert cancelled.status is SourceRunStatus.CANCELLED
     assert cancelled.run_error is not None
-    assert cancelled.run_error.code == "service_shutdown"
+    assert cancelled.run_error.code == "operator_cancelled"
     await service.aclose()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancellation_is_distinct_from_operator_cancellation(stack: Stack) -> None:
+    collection = SourceCollectionRun(
+        source="guardian",
+        outcome="succeeded",
+        duration_ms=1,
+        items=[GUARDIAN_FIXTURE],
+    )
+    collectors = BlockingCollectorGateway(collection)
+    repository = InMemorySourceRunRepository()
+    service = SourceRunService(
+        repository=repository,
+        collectors=collectors,
+        normalizer=stack.container.source_normalizers,
+        ingestor=stack.workflow,
+    )
+    started = await service.start(
+        SourceRunRequest(source="guardian", requested_by="test-editor"),
+        trace_id=uuid4(),
+    )
+    await collectors.started.wait()
+    await service.aclose()
+
+    cancelled = await repository.get(started.run_id)
+    assert cancelled.status is SourceRunStatus.CANCELLED
+    assert cancelled.run_error is not None
+    assert cancelled.run_error.code == "service_shutdown"

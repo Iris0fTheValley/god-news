@@ -1,28 +1,7 @@
 import {X} from 'lucide-react';
-import {createContext, useCallback, useContext, useEffect, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 
-interface ToastItem {
-  id: string;
-  message: string;
-  variant?: 'default' | 'danger' | 'caution';
-  action?: {label: string; onClick: () => void};
-  durationMs: number;
-  createdAt: number;
-}
-
-interface ToastContextValue {
-  toasts: ToastItem[];
-  push: (toast: Omit<ToastItem, 'id' | 'createdAt'>) => string;
-  dismiss: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextValue | null>(null);
-
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (ctx === null) throw new Error('useToast must be used within ToastProvider');
-  return ctx;
-}
+import {ToastContext, type ToastItem} from './toastContext';
 
 export function ToastProvider({children}: {children: React.ReactNode}) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
