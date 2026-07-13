@@ -7,11 +7,18 @@ import struct
 import wave
 from collections.abc import Sequence
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from god_news.domain.deduplication import story_identity
-from god_news.domain.enums import AudioFormat, ContentCategory, SourceKind, StoryStatus
+from god_news.domain.enums import (
+    AudioFormat,
+    ContentCategory,
+    SourceKind,
+    SpeechEmotion,
+    StoryStatus,
+)
 from god_news.domain.fsm import validate_story_invariants, validate_transition_evidence
+from god_news.domain.language import should_preserve_chinese_source
 from god_news.domain.models import (
     AudioBundle,
     AudioClip,
@@ -40,6 +47,7 @@ from god_news.errors import (
     StoryNotFoundError,
     TTSGenerationError,
 )
+from god_news.voice_profiles import ResolvedVoiceProfile, VoiceReference
 
 
 class DeterministicFetcher:
@@ -71,6 +79,35 @@ class DeterministicFetcher:
         )
 
     async def aclose(self) -> None:
+        return None
+
+
+class DeterministicVoiceProfileResolver:
+    """Offline voice-catalogue adapter for tests and the browser demo.
+
+    It accepts one fully configured synthetic narrator. This keeps the
+    workflow's first-review boundary active in deterministic environments
+    without coupling those environments to the role repository.
+    """
+
+    def __init__(self, asset_root: Path, *, speaker_id: str = "narrator") -> None:
+        reference = VoiceReference(
+            audio_path=asset_root / "offline-reference.wav",
+            text="Offline deterministic voice reference.",
+        )
+        self._profile = ResolvedVoiceProfile(
+            profile_id=uuid4(),
+            speaker_id=speaker_id,
+            model_profile="deterministic-offline",
+            gpt_weights_path=asset_root / "offline-gpt.ckpt",
+            sovits_weights_path=asset_root / "offline-sovits.pth",
+            emotion_refs={emotion: reference for emotion in SpeechEmotion},
+            default_emotion=SpeechEmotion.HAPPINESS,
+        )
+
+    async def resolve_voice(self, speaker_id: str) -> ResolvedVoiceProfile | None:
+        if speaker_id == self._profile.speaker_id:
+            return self._profile
         return None
 
 
@@ -253,6 +290,7 @@ class DeterministicTextGenerator:
         del story_id, memories
         self.translation_calls += 1
         normalized = " ".join(content.split())
+        chinese_source = should_preserve_chinese_source(content, source_language)
         lowered = normalized.casefold()
         if any(word in lowered for word in ("cat", "dog", "猫", "狗")):
             category = ContentCategory.CATS_DOGS
@@ -263,9 +301,9 @@ class DeterministicTextGenerator:
         else:
             category = ContentCategory.KINDNESS
         return TranslationResult(
-            source_language=source_language or "und",
+            source_language=source_language or ("zh" if chinese_source else "und"),
             target_language=target_language,
-            translated_text=f"[offline translation] {normalized}",
+            translated_text=content if chinese_source else f"[offline translation] {normalized}",
             summary=normalized[:240],
             key_points=[normalized[:120]],
             screening=EditorialScreening(

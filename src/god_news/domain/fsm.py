@@ -16,17 +16,19 @@ from god_news.errors import InvalidTransitionError, StoryInvariantError
 _TRANSITIONS = MappingProxyType(
     {
         StoryStatus.FETCHED: frozenset({StoryStatus.TRANSLATED, StoryStatus.ARCHIVED}),
-        StoryStatus.TRANSLATED: frozenset(
-            {StoryStatus.PENDING_FIRST_REVIEW, StoryStatus.ARCHIVED}
-        ),
+        StoryStatus.TRANSLATED: frozenset({StoryStatus.PENDING_FIRST_REVIEW, StoryStatus.ARCHIVED}),
         StoryStatus.PENDING_FIRST_REVIEW: frozenset(
             {StoryStatus.PROCESSING_SCRIPT, StoryStatus.ARCHIVED}
         ),
         StoryStatus.PROCESSING_SCRIPT: frozenset({StoryStatus.SCRIPT_READY, StoryStatus.ARCHIVED}),
-        StoryStatus.SCRIPT_READY: frozenset(
-            {StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.ARCHIVED}
+        StoryStatus.SCRIPT_READY: frozenset({StoryStatus.PENDING_TTS, StoryStatus.ARCHIVED}),
+        StoryStatus.PENDING_TTS: frozenset({StoryStatus.PROCESSING_TTS, StoryStatus.ARCHIVED}),
+        StoryStatus.PROCESSING_TTS: frozenset(
+            {StoryStatus.PENDING_TTS, StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.ARCHIVED}
         ),
-        StoryStatus.PENDING_SECOND_REVIEW: frozenset({StoryStatus.DONE, StoryStatus.ARCHIVED}),
+        StoryStatus.PENDING_SECOND_REVIEW: frozenset(
+            {StoryStatus.SCRIPT_READY, StoryStatus.DONE, StoryStatus.ARCHIVED}
+        ),
         StoryStatus.DONE: frozenset({StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.ARCHIVED}),
         StoryStatus.ARCHIVED: frozenset(),
     }
@@ -94,8 +96,18 @@ def validate_story_invariants(story: Story) -> None:
         if story.audio is not None:
             raise StoryInvariantError(story.story_id, "SCRIPT_READY cannot contain audio.")
         return
-    if story.status is StoryStatus.DONE and story.audio is None:
-        raise StoryInvariantError(story.story_id, "DONE requires an audio bundle.")
+    if story.status in {StoryStatus.PENDING_TTS, StoryStatus.PROCESSING_TTS}:
+        if story.audio is not None:
+            raise StoryInvariantError(story.story_id, f"{story.status} cannot contain audio.")
+        return
+    if (
+        story.status in {StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.DONE}
+        and story.audio is None
+    ):
+        raise StoryInvariantError(
+            story.story_id,
+            f"{story.status} requires an audio bundle.",
+        )
     if story.audio is not None:
         script_ids = {segment.segment_id for segment in story.script.segments}
         audio_ids = {clip.segment_id for clip in story.audio.clips}
@@ -126,9 +138,23 @@ def validate_transition_evidence(
             or review.decision is not ReviewDecision.APPROVE
         ):
             raise InvalidTransitionError(story.story_id, current, target)
-    if current is StoryStatus.SCRIPT_READY and target is StoryStatus.PENDING_SECOND_REVIEW:
+    if current is StoryStatus.SCRIPT_READY and target is StoryStatus.PENDING_TTS:
+        if (
+            review is None
+            or review.stage is not ReviewStage.SCRIPT
+            or review.decision is not ReviewDecision.APPROVE
+        ):
+            raise InvalidTransitionError(story.story_id, current, target)
+    if current is StoryStatus.PROCESSING_TTS and target is StoryStatus.PENDING_SECOND_REVIEW:
         if story.audio is None:
             raise StoryInvariantError(story.story_id, "Second review requires generated audio.")
+    if current is StoryStatus.PENDING_SECOND_REVIEW and target is StoryStatus.SCRIPT_READY:
+        if (
+            review is None
+            or review.stage is not ReviewStage.SECOND
+            or review.decision is not ReviewDecision.REQUEST_CHANGES
+        ):
+            raise InvalidTransitionError(story.story_id, current, target)
     if current is StoryStatus.PENDING_SECOND_REVIEW and target is StoryStatus.DONE:
         if (
             review is None

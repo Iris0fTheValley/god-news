@@ -8,11 +8,12 @@ from pathlib import Path
 from uuid import UUID
 
 from god_news.application.video_batches import require_video_transition
-from god_news.domain.models import utc_now
+from god_news.domain.models import ScriptDocument, ScriptSegment, utc_now
 from god_news.domain.video import (
     RemotionVideoProps,
     VideoBatch,
     VideoBatchStatus,
+    VideoBatchStory,
     VideoRenderArtifact,
 )
 from god_news.video_errors import (
@@ -101,10 +102,14 @@ class InMemoryVideoBatchRepository:
             batch = self._batches.get(batch_id)
             if batch is None:
                 raise VideoBatchNotFoundError(batch_id)
-            if batch.status in {VideoBatchStatus.RENDERING, VideoBatchStatus.RENDERED}:
+            if batch.status in {
+                VideoBatchStatus.PROCESSING_BATCH_TTS,
+                VideoBatchStatus.RENDERING,
+                VideoBatchStatus.RENDERED,
+            }:
                 raise VideoBatchConflictError(
-                    "A rendering or rendered batch cannot be deleted because its claims are "
-                    "audit evidence."
+                    "A batch with active synthesis, rendering, or rendered output cannot be "
+                    "deleted because its claims are audit evidence."
                 )
             for story in batch.stories:
                 if self._claims.get(story.story_id) == batch.batch_id:
@@ -128,6 +133,56 @@ class InMemoryVideoBatchRepository:
 
     async def healthcheck(self) -> None:
         return None
+
+
+class DeterministicBatchNarrationComposer:
+    """Offline fixture that proves merged narration is a separate artifact."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.fail_next = False
+
+    @property
+    def name(self) -> str:
+        return "deterministic-offline-batch-narration"
+
+    async def compose(
+        self,
+        *,
+        batch_id: UUID,
+        title: str,
+        sources: Sequence[VideoBatchStory],
+    ) -> ScriptDocument:
+        del batch_id
+        self.calls += 1
+        if self.fail_next:
+            self.fail_next = False
+            raise RuntimeError("injected deterministic batch narration failure")
+        if not sources:
+            raise ValueError("batch narration needs at least one source")
+        languages = {source.script.language for source in sources}
+        segments: list[ScriptSegment] = []
+        for sequence, source in enumerate(sources):
+            anchor = source.script.segments[0]
+            bridge = "" if sequence == 0 else "Next, "
+            segments.append(
+                ScriptSegment(
+                    sequence=sequence,
+                    text=f"{bridge}{source.title}: {anchor.text}",
+                    speaker_id=anchor.speaker_id,
+                    emotion=anchor.emotion,
+                    scene_transition=anchor.scene_transition,
+                    speed=anchor.speed,
+                    pitch=anchor.pitch,
+                    visual_hint=anchor.visual_hint,
+                )
+            )
+        return ScriptDocument(
+            revision=1,
+            title=title,
+            language=next(iter(languages)) if len(languages) == 1 else "multilingual",
+            segments=segments,
+        )
 
 
 class DeterministicBatchVideoRenderer:

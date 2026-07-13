@@ -20,12 +20,29 @@ from god_news.domain.enums import (
     ContentCategory,
     ReviewDecision,
     ReviewStage,
+    SceneTransition,
     SourceKind,
+    SpeechEmotion,
     StoryStatus,
 )
 from god_news.sources.models import NormalizedSourceItem, RawSourceItem
 
 NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+PreservedNonBlankStr = Annotated[str, StringConstraints(strip_whitespace=False, min_length=1)]
+
+
+def normalize_legacy_speech_emotion(value: object) -> object:
+    """Map the retired neutral default onto a concrete reference-voice emotion.
+
+    Earlier persisted stories used ``neutral`` while GPT-SoVITS had only one
+    reference voice.  The multi-emotion contract has seven concrete labels;
+    treating legacy neutral narration as happiness lets existing records remain
+    readable without letting new arbitrary labels enter the script contract.
+    """
+
+    if isinstance(value, str) and value.strip().casefold() == "neutral":
+        return SpeechEmotion.HAPPINESS.value
+    return value
 
 
 def utc_now() -> datetime:
@@ -57,9 +74,14 @@ class IngestRequest(DomainModel):
     style: NonBlankStr = "clear, accurate short-video narration"
     target_duration_seconds: int = Field(default=90, ge=15, le=600)
     speaker_id: NonBlankStr = "narrator"
-    emotion: NonBlankStr = "neutral"
+    emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
     pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
 
 class SourceItemIngestRequest(DomainModel):
@@ -75,9 +97,14 @@ class SourceItemIngestRequest(DomainModel):
     style: NonBlankStr = "clear, accurate short-video narration"
     target_duration_seconds: int = Field(default=90, ge=15, le=600)
     speaker_id: NonBlankStr = "narrator"
-    emotion: NonBlankStr = "neutral"
+    emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
     pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
 
 class SourceSnapshot(DomainModel):
@@ -160,7 +187,10 @@ class EditorialScreening(DomainModel):
 class TranslationResult(DomainModel):
     source_language: NonBlankStr
     target_language: NonBlankStr
-    translated_text: NonBlankStr
+    # Chinese source text may deliberately bypass translation.  Preserve the
+    # already-captured source bytes exactly instead of stripping editorially
+    # meaningful leading/trailing whitespace a second time.
+    translated_text: PreservedNonBlankStr
     summary: NonBlankStr
     key_points: list[NonBlankStr] = Field(default_factory=list, max_length=20)
     screening: EditorialScreening
@@ -170,18 +200,29 @@ class ScriptPreferences(DomainModel):
     style: NonBlankStr
     target_duration_seconds: int = Field(ge=15, le=600)
     speaker_id: NonBlankStr
-    emotion: NonBlankStr = "neutral"
+    emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
     pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
 
 class ScriptSegmentDraft(DomainModel):
     text: NonBlankStr
     speaker_id: NonBlankStr = "narrator"
-    emotion: NonBlankStr = "neutral"
+    emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
+    scene_transition: SceneTransition = SceneTransition.BLACK
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
     pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
     visual_hint: str | None = None
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
 
 class ScriptDraft(DomainModel):
@@ -195,10 +236,18 @@ class ScriptSegment(DomainModel):
     sequence: int = Field(ge=0)
     text: NonBlankStr
     speaker_id: NonBlankStr
-    emotion: NonBlankStr
+    emotion: SpeechEmotion
+    # This describes the transition after this segment.  Renderers may use a
+    # richer animation later; the current renderer can safely render black.
+    scene_transition: SceneTransition = SceneTransition.BLACK
     speed: float = Field(ge=0.6, le=1.65)
     pitch: float = Field(ge=-12.0, le=12.0)
     visual_hint: str | None = None
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
 
 class ScriptDocument(DomainModel):
@@ -241,6 +290,30 @@ class AudioClip(DomainModel):
     sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 
 
+class SegmentSynthesisProvenance(DomainModel):
+    """The concrete voice assets selected for one rendered script segment.
+
+    The bundle-level fields in :class:`SynthesisMetadata` describe the legacy
+    single-voice case.  This record captures the real request-time selection
+    once a script can switch speakers or emotion reference material per
+    segment, without invalidating historical audio bundles.
+    """
+
+    segment_id: UUID
+    speaker_id: NonBlankStr
+    emotion: SpeechEmotion
+    reference_audio_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    reference_text_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    gpt_weights_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    sovits_weights_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    model_identity: NonBlankStr
+    # Roles may use reference material in different languages. Keep this at
+    # the segment boundary rather than misrepresenting every clip with the
+    # bundle-level, first-clip prompt language. ``und`` preserves readability
+    # of the brief pre-field provenance format; new adapters must be explicit.
+    prompt_language: NonBlankStr = "und"
+
+
 class SynthesisMetadata(DomainModel):
     seed: int
     reference_audio_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
@@ -249,6 +322,10 @@ class SynthesisMetadata(DomainModel):
     sovits_weights_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
     prompt_language: NonBlankStr
     text_language: NonBlankStr
+    # Empty is intentionally valid for pre-multi-role bundles.  New adapters
+    # should emit one entry per clip so the exact selected voice assets remain
+    # auditable after profiles or references change on disk.
+    segment_provenance: list[SegmentSynthesisProvenance] = Field(default_factory=list)
 
 
 class AudioBundle(DomainModel):
@@ -264,6 +341,15 @@ class AudioBundle(DomainModel):
         ids = [clip.segment_id for clip in self.clips]
         if len(ids) != len(set(ids)):
             raise ValueError("audio clips must have unique segment_id values")
+        provenance = self.synthesis.segment_provenance
+        if provenance:
+            provenance_ids = [entry.segment_id for entry in provenance]
+            if len(provenance_ids) != len(set(provenance_ids)):
+                raise ValueError("segment synthesis provenance must be unique per segment")
+            if set(provenance_ids) != set(ids):
+                raise ValueError(
+                    "segment synthesis provenance must contain exactly one entry per audio clip"
+                )
         return self
 
 
@@ -274,9 +360,15 @@ class TimelineSegment(DomainModel):
     end_ms: int = Field(gt=0)
     text: NonBlankStr
     speaker_id: NonBlankStr
-    emotion: NonBlankStr
+    emotion: SpeechEmotion
+    scene_transition: SceneTransition = SceneTransition.BLACK
     visual_hint: str | None = None
     audio_path: NonBlankStr
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
     @model_validator(mode="after")
     def validate_time_range(self) -> TimelineSegment:
@@ -291,7 +383,7 @@ class ProductionManifest(DomainModel):
     script_revision: int = Field(ge=1)
     language: NonBlankStr
     total_duration_ms: int = Field(gt=0)
-    timeline: list[TimelineSegment] = Field(min_length=1)
+    timeline: list[TimelineSegment] = Field(min_length=1, max_length=100)
 
 
 class PipelineFailure(DomainModel):
@@ -368,11 +460,7 @@ class StoryUpdate(DomainModel):
 
     @model_validator(mode="after")
     def require_edit(self) -> StoryUpdate:
-        if (
-            self.title is None
-            and self.style is None
-            and self.target_duration_seconds is None
-        ):
+        if self.title is None and self.style is None and self.target_duration_seconds is None:
             raise ValueError("at least one mutable story field must be supplied")
         return self
 
@@ -455,6 +543,33 @@ class SecondReviewSubmission(DomainModel):
         ):
             raise ValueError("request_changes requires a note or revised_script")
         return self
+
+
+class ScriptReviewSubmission(DomainModel):
+    """Human review of generated narration before any local TTS work begins."""
+
+    review_id: UUID = Field(default_factory=uuid4)
+    expected_story_version: int = Field(ge=1)
+    decision: ReviewDecision
+    reviewer_id: NonBlankStr
+    note: str | None = None
+    revised_script: ScriptDocument | None = None
+
+    @model_validator(mode="after")
+    def validate_revision(self) -> ScriptReviewSubmission:
+        if self.decision is ReviewDecision.APPROVE and self.revised_script is not None:
+            raise ValueError("approve cannot include a revised_script")
+        if self.decision is ReviewDecision.REQUEST_CHANGES and not (
+            self.note or self.revised_script
+        ):
+            raise ValueError("request_changes requires a note or revised_script")
+        return self
+
+
+class SynthesizeStoryRequest(DomainModel):
+    """Explicit, optimistic-concurrency guarded command to start local TTS."""
+
+    expected_story_version: int = Field(ge=1)
 
 
 class StateTransition(DomainModel):

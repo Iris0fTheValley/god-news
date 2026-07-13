@@ -1,4 +1,4 @@
-import {screen} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it, vi} from 'vitest';
 
@@ -20,5 +20,14 @@ describe('ScriptEditor', () => {
         expect.objectContaining({text: '雨下得很大。', sequence: 1}),
       ],
     }));
+  });
+
+  it('shares one role datalist, exposes scene transitions, and keeps visual hints out of the UI', () => {
+    const {container} = renderWithApp(<ScriptEditor script={scriptFixture} onChange={vi.fn()} />);
+
+    expect(container.querySelectorAll('datalist')).toHaveLength(1);
+    expect(within(container).getAllByLabelText('过场')).toHaveLength(scriptFixture.segments.length);
+    expect(within(container).getAllByText('画面 / 图片')).toHaveLength(scriptFixture.segments.length);
+    expect(within(container).queryByText('雨伞和小狗')).not.toBeInTheDocument();
   });
 });

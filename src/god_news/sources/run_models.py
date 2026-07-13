@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, StringConstraints, computed_field, field_validator, model_validator
 
-from god_news.domain.models import DomainModel, utc_now
+from god_news.domain.enums import SpeechEmotion
+from god_news.domain.models import DomainModel, normalize_legacy_speech_emotion, utc_now
 from god_news.sources.collectors.models import (
     CollectionAttempt,
     CollectionErrorEvidence,
@@ -41,10 +42,15 @@ class SourceRunRequest(DomainModel):
     style: NonBlankStr = "clear, accurate short-video narration"
     target_duration_seconds: int = Field(default=90, ge=15, le=600)
     speaker_id: NonBlankStr = "narrator"
-    emotion: NonBlankStr = "neutral"
+    emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
     pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
     requested_by: NonBlankStr
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def normalize_legacy_emotion(cls, value: object) -> object:
+        return normalize_legacy_speech_emotion(value)
 
 
 class SourceItemIngestionResult(DomainModel):
@@ -74,6 +80,7 @@ class SourceRun(DomainModel):
     collector_outcome: CollectionOutcome | None = None
     attempts: list[CollectionAttempt] = Field(default_factory=list, max_length=1_000)
     collection_errors: list[CollectionErrorEvidence] = Field(default_factory=list, max_length=100)
+    cooldown_wait_ms: float = Field(default=0, ge=0)
     items_discovered: int = Field(default=0, ge=0, le=100)
     item_results: list[SourceItemIngestionResult] = Field(default_factory=list, max_length=100)
     run_error: CollectionErrorEvidence | None = None
@@ -157,4 +164,3 @@ class SourceRun(DomainModel):
 
 class SourceRunReadiness(DomainModel):
     collectors: list[CollectorReadiness] = Field(min_length=4, max_length=4)
-

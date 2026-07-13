@@ -6,10 +6,11 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from god_news.api.app import create_app
 from god_news.application.source_runs import SourceRunService
-from god_news.domain.enums import StoryStatus
+from god_news.domain.enums import SpeechEmotion, StoryStatus
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.source_runs import (
     InMemorySourceRunRepository,
@@ -20,6 +21,7 @@ from god_news.sources.collectors.models import (
     CollectorReadiness,
     SourceCollectionRun,
 )
+from god_news.sources.collectors.rate_limited import RateLimitedSourceCollectorGateway
 from god_news.sources.models import RawGuardianItem, SourceName
 from god_news.sources.run_models import SourceRun, SourceRunRequest, SourceRunStatus
 
@@ -30,6 +32,13 @@ GUARDIAN_FIXTURE = RawGuardianItem.model_validate_json(
         encoding="utf-8"
     )
 )
+
+
+def test_source_run_emotion_uses_the_seven_voice_labels() -> None:
+    legacy = SourceRunRequest(source="guardian", requested_by="scheduler", emotion="neutral")
+    assert legacy.emotion is SpeechEmotion.HAPPINESS
+    with pytest.raises(ValidationError):
+        SourceRunRequest(source="guardian", requested_by="scheduler", emotion="calm")
 
 
 class StaticCollectorGateway:
@@ -75,6 +84,17 @@ class BlockingCollectorGateway(StaticCollectorGateway):
         self.started.set()
         await self.release.wait()
         return await super().collect(source, limit=limit)
+
+
+class ManualClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    async def sleep(self, seconds: float) -> None:
+        self.now += seconds
 
 
 @pytest.mark.asyncio
@@ -124,6 +144,43 @@ async def test_source_run_persists_progress_and_deduplicates_items(stack: Stack)
 
 
 @pytest.mark.asyncio
+async def test_source_run_persists_rate_limit_wait(stack: Stack) -> None:
+    collection = SourceCollectionRun(
+        source="guardian",
+        outcome="succeeded",
+        duration_ms=1,
+        items=[GUARDIAN_FIXTURE],
+    )
+    clock = ManualClock()
+    service = SourceRunService(
+        repository=InMemorySourceRunRepository(),
+        collectors=RateLimitedSourceCollectorGateway(
+            StaticCollectorGateway(collection),
+            clock=clock,
+            sleeper=clock.sleep,
+        ),
+        normalizer=stack.container.source_normalizers,
+        ingestor=stack.workflow,
+    )
+
+    first = await service.start(
+        SourceRunRequest(source="guardian", requested_by="test-editor"),
+        trace_id=uuid4(),
+    )
+    first_completed = await service.wait(first.run_id)
+    clock.now += 7
+    second = await service.start(
+        SourceRunRequest(source="guardian", requested_by="test-editor"),
+        trace_id=uuid4(),
+    )
+    second_completed = await service.wait(second.run_id)
+
+    assert first_completed.cooldown_wait_ms == 0
+    assert second_completed.cooldown_wait_ms == pytest.approx(23_000)
+    await service.aclose()
+
+
+@pytest.mark.asyncio
 async def test_sql_source_runs_recover_interrupted_work(tmp_path: Path) -> None:
     database = Database(f"sqlite+aiosqlite:///{(tmp_path / 'runs.db').as_posix()}")
     await database.create_schema()
@@ -138,6 +195,23 @@ async def test_sql_source_runs_recover_interrupted_work(tmp_path: Path) -> None:
         assert recovered.run_error.code == "interrupted_by_restart"
         assert recovered.version == 2
         assert await repository.recover_interrupted() == 0
+    finally:
+        await database.aclose()
+
+
+@pytest.mark.asyncio
+async def test_sql_source_run_persists_cooldown_wait_telemetry(tmp_path: Path) -> None:
+    database = Database(f"sqlite+aiosqlite:///{(tmp_path / 'runs.db').as_posix()}")
+    await database.create_schema()
+    repository = SqlAlchemySourceRunRepository(database.sessions)
+    run = SourceRun(
+        request=SourceRunRequest(source="reddit", requested_by="scheduler"),
+        cooldown_wait_ms=30_000,
+    )
+    try:
+        await repository.create(run)
+        reloaded = await repository.get(run.run_id)
+        assert reloaded.cooldown_wait_ms == 30_000
     finally:
         await database.aclose()
 

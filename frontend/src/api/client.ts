@@ -13,13 +13,19 @@ import type {
   RoleProfileCreate,
   RoleProfileReplace,
   ScheduleSnapshot,
+  ScriptReviewSubmission,
   SecondReviewSubmission,
   SourceRunRequest,
   SourceRunStatus,
   StoryStatus,
+  StoryVisualAssets,
   StoryUpdate,
+  SynthesizeBatchNarration,
+  SynthesizeStoryRequest,
+  SubmitNarrationReview,
   SubmitTimelineReview,
   VideoBatchStatus,
+  VisualAssetMutation,
 } from './types';
 
 export interface SourceRunListParams {
@@ -104,6 +110,24 @@ export async function submitSecondReview(storyId: string, body: SecondReviewSubm
   return result.data;
 }
 
+export async function submitScriptReview(storyId: string, body: ScriptReviewSubmission) {
+  const result = await api.POST('/api/v1/stories/{story_id}/reviews/script', {
+    params: {path: {story_id: storyId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function synthesizeStory(storyId: string, body: SynthesizeStoryRequest) {
+  const result = await api.POST('/api/v1/stories/{story_id}/synthesize', {
+    params: {path: {story_id: storyId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
 export async function resumeStory(storyId: string) {
   const result = await api.POST('/api/v1/stories/{story_id}/resume', {
     params: {path: {story_id: storyId}},
@@ -152,6 +176,75 @@ export async function getSourceHealth(probeNetwork = false) {
 
 export function audioClipUrl(storyId: string, segmentId: string): string {
   return `/api/v1/stories/${encodeURIComponent(storyId)}/audio/${encodeURIComponent(segmentId)}`;
+}
+
+/* 鈹€鈹€ Script visual assets 鈹€鈹€ */
+
+export interface UploadSegmentVisualAssetInput {
+  expectedStoryVersion: number;
+  expectedScriptRevision: number;
+  file: File;
+}
+
+export async function listStoryVisualAssets(storyId: string): Promise<StoryVisualAssets> {
+  const result = await api.GET('/api/v1/stories/{story_id}/visual-assets', {
+    params: {path: {story_id: storyId}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+/** Scoped browser URL for a persisted visual asset; it never exposes a host path. */
+export function visualAssetContentUrl(storyId: string, assetId: string): string {
+  return `/api/v1/stories/${encodeURIComponent(storyId)}/visual-assets/${encodeURIComponent(assetId)}/content`;
+}
+
+export async function uploadSegmentVisualAsset(
+  storyId: string,
+  segmentId: string,
+  input: UploadSegmentVisualAssetInput,
+): Promise<VisualAssetMutation> {
+  const params = new URLSearchParams({
+    expected_story_version: String(input.expectedStoryVersion),
+    expected_script_revision: String(input.expectedScriptRevision),
+    filename: input.file.name,
+  });
+  const response = await fetch(
+    `/api/v1/stories/${encodeURIComponent(storyId)}/visual-assets/${encodeURIComponent(segmentId)}?${params.toString()}`,
+    {
+      method: 'PUT',
+      headers: {'Content-Type': input.file.type},
+      body: input.file,
+    },
+  );
+  if (!response.ok) {
+    let error: unknown = null;
+    try {
+      error = await response.json();
+    } catch {
+      // The common API error helper supplies a stable fallback problem.
+    }
+    throwProblem(error, response);
+  }
+  return response.json() as Promise<VisualAssetMutation>;
+}
+
+export async function deleteSegmentVisualAsset(
+  storyId: string,
+  segmentId: string,
+  expectedStoryVersion: number,
+  expectedScriptRevision: number,
+): Promise<void> {
+  const result = await api.DELETE('/api/v1/stories/{story_id}/visual-assets/{segment_id}', {
+    params: {
+      path: {story_id: storyId, segment_id: segmentId},
+      query: {
+        expected_story_version: expectedStoryVersion,
+        expected_script_revision: expectedScriptRevision,
+      },
+    },
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
 }
 
 /* ── Roles ── */
@@ -252,8 +345,37 @@ export async function getVideoBatch(batchId: string) {
   return result.data;
 }
 
+/** Stable browser URL for one persisted merged-narration audio segment. */
+export function videoBatchAudioClipUrl(batchId: string, segmentId: string): string {
+  return `/api/v1/video/batches/${encodeURIComponent(batchId)}/audio/${encodeURIComponent(segmentId)}`;
+}
+
 export async function submitTimelineReview(batchId: string, body: SubmitTimelineReview) {
   const result = await api.POST('/api/v1/video/batches/{batch_id}/timeline-review', {
+    params: {path: {batch_id: batchId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function submitVideoBatchNarrationReview(
+  batchId: string,
+  body: SubmitNarrationReview,
+) {
+  const result = await api.POST('/api/v1/video/batches/{batch_id}/narration-review', {
+    params: {path: {batch_id: batchId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function synthesizeVideoBatchNarration(
+  batchId: string,
+  body: SynthesizeBatchNarration,
+) {
+  const result = await api.POST('/api/v1/video/batches/{batch_id}/narration/synthesize', {
     params: {path: {batch_id: batchId}},
     body,
   });

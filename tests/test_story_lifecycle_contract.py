@@ -10,8 +10,10 @@ from god_news.domain.enums import ReviewDecision, StoryStatus
 from god_news.domain.models import (
     FirstReviewSubmission,
     IngestRequest,
+    ScriptReviewSubmission,
     SecondReviewSubmission,
     StoryUpdate,
+    SynthesizeStoryRequest,
     TextSource,
 )
 from god_news.errors import ConcurrentWriteError, InvalidTransitionError, StoryInvariantError
@@ -42,10 +44,22 @@ async def _complete_story(stack: Stack):  # type: ignore[no-untyped-def]
             reviewer_id="first-editor",
         ),
     )
+    pending = await stack.workflow.submit_script_review(
+        story.story_id,
+        ScriptReviewSubmission(
+            expected_story_version=first.version,
+            decision=ReviewDecision.APPROVE,
+            reviewer_id="script-editor",
+        ),
+    )
+    synthesized = await stack.workflow.synthesize(
+        story.story_id,
+        SynthesizeStoryRequest(expected_story_version=pending.version),
+    )
     return await stack.workflow.submit_second_review(
         story.story_id,
         SecondReviewSubmission(
-            expected_story_version=first.version,
+            expected_story_version=synthesized.version,
             decision=ReviewDecision.APPROVE,
             reviewer_id="second-editor",
         ),
@@ -134,7 +148,7 @@ async def test_patch_updates_only_editorial_fields_with_optimistic_concurrency(
             StoryUpdate(expected_story_version=story.version, title="stale write"),
         )
 
-    ready_for_second_review = await stack.workflow.submit_first_review(
+    script_ready = await stack.workflow.submit_first_review(
         story.story_id,
         FirstReviewSubmission(
             expected_story_version=updated.version,
@@ -146,7 +160,7 @@ async def test_patch_updates_only_editorial_fields_with_optimistic_concurrency(
         await stack.workflow.update(
             story.story_id,
             StoryUpdate(
-                expected_story_version=ready_for_second_review.version,
+                expected_story_version=script_ready.version,
                 style="too late to alter script inputs",
             ),
         )

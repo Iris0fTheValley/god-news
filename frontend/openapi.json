@@ -208,6 +208,138 @@
         "title": "AudioMediaAsset",
         "type": "object"
       },
+      "BatchNarrationArtifact": {
+        "additionalProperties": false,
+        "description": "The reviewable, batch-level narration and its optional synthesized media.",
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AudioBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "composed_at": {
+            "format": "date-time",
+            "title": "Composed At",
+            "type": "string"
+          },
+          "manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductionManifest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "script": {
+            "$ref": "#/components/schemas/ScriptDocument"
+          },
+          "source_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/BatchNarrationSourceEvidence"
+            },
+            "maxItems": 15,
+            "minItems": 1,
+            "title": "Source Evidence",
+            "type": "array"
+          },
+          "source_evidence_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Source Evidence Sha256",
+            "type": "string"
+          },
+          "synthesized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synthesized At"
+          }
+        },
+        "required": [
+          "source_evidence",
+          "source_evidence_sha256",
+          "script"
+        ],
+        "title": "BatchNarrationArtifact",
+        "type": "object"
+      },
+      "BatchNarrationFailure": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "retryable": {
+            "default": true,
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "BatchNarrationFailure",
+        "type": "object"
+      },
+      "BatchNarrationSourceEvidence": {
+        "additionalProperties": false,
+        "description": "Stable provenance consumed by a merged narration generation.",
+        "properties": {
+          "script_revision": {
+            "minimum": 1.0,
+            "title": "Script Revision",
+            "type": "integer"
+          },
+          "script_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Script Sha256",
+            "type": "string"
+          },
+          "source_manifest_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Source Manifest Sha256",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "story_version": {
+            "minimum": 1.0,
+            "title": "Story Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "story_id",
+          "story_version",
+          "script_revision",
+          "script_sha256",
+          "source_manifest_sha256"
+        ],
+        "title": "BatchNarrationSourceEvidence",
+        "type": "object"
+      },
       "BgmRenderSpec": {
         "additionalProperties": false,
         "properties": {
@@ -825,6 +957,29 @@
         "title": "EditorialScreening",
         "type": "object"
       },
+      "EmotionReference": {
+        "additionalProperties": false,
+        "description": "DSakiko-compatible reference material for one concrete emotion.\n\nThe JSON shape deliberately mirrors ``reference_audio_and_text.json``:\n``{\"audio_path\": \"...\", \"text\": \"...\"}``. Paths remain inert profile\nmetadata here; the TTS adapter validates them against configured trusted\nlocal roots immediately before use.",
+        "properties": {
+          "audio_path": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Audio Path",
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audio_path",
+          "text"
+        ],
+        "title": "EmotionReference",
+        "type": "object"
+      },
       "FirstReviewSubmission": {
         "additionalProperties": false,
         "properties": {
@@ -1036,7 +1191,7 @@
       },
       "HostVisualReservations": {
         "additionalProperties": false,
-        "description": "Current Remotion host contract with typed future asset reservations.\n\nThe renderer remains ``placeholder`` until a concrete Live2D or\ndifferential-art composition is installed. Assets can already be described\nwithout leaking provider-specific mappings into the orchestration service.",
+        "description": "Typed visual reservations kept independent from narration composition.",
         "properties": {
           "differential_art": {
             "anyOf": [
@@ -1067,6 +1222,16 @@
         },
         "title": "HostVisualReservations",
         "type": "object"
+      },
+      "ImageContentType": {
+        "description": "Raster formats accepted by the local visual-asset boundary.",
+        "enum": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ],
+        "title": "ImageContentType",
+        "type": "string"
       },
       "ImageMediaAsset": {
         "additionalProperties": false,
@@ -1150,10 +1315,8 @@
         "additionalProperties": false,
         "properties": {
           "emotion": {
-            "default": "neutral",
-            "minLength": 1,
-            "title": "Emotion",
-            "type": "string"
+            "$ref": "#/components/schemas/SpeechEmotion",
+            "default": "happiness"
           },
           "pitch": {
             "default": 0.0,
@@ -1263,6 +1426,68 @@
         },
         "title": "Liveness",
         "type": "object"
+      },
+      "NarrationReview": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/NarrationReviewDecision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "title": "Reviewed At",
+            "type": "string"
+          },
+          "reviewed_batch_version": {
+            "minimum": 1.0,
+            "title": "Reviewed Batch Version",
+            "type": "integer"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          },
+          "script_revision": {
+            "minimum": 1.0,
+            "title": "Script Revision",
+            "type": "integer"
+          },
+          "script_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Script Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer_id",
+          "decision",
+          "reviewed_batch_version",
+          "script_revision",
+          "script_sha256"
+        ],
+        "title": "NarrationReview",
+        "type": "object"
+      },
+      "NarrationReviewDecision": {
+        "enum": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "title": "NarrationReviewDecision",
+        "type": "string"
       },
       "NormalizedSourceItem": {
         "additionalProperties": false,
@@ -1813,6 +2038,7 @@
             "items": {
               "$ref": "#/components/schemas/TimelineSegment"
             },
+            "maxItems": 100,
             "minItems": 1,
             "title": "Timeline",
             "type": "array"
@@ -2976,7 +3202,7 @@
       },
       "RemotionVideoProps": {
         "additionalProperties": false,
-        "description": "Backend-owned subset of ``video/src/schema.ts``.\n\n``runtime_assets`` is intentionally absent: the local Remotion CLI stages\nfiles by content hash and owns those transient browser bindings.",
+        "description": "Backend-owned subset of ``video/src/schema.ts``.\n\nThis object is deliberately absent until batch narration has been manually\nsynthesized. It therefore cannot accidentally encode an unreviewed or\nsource-story-flat render plan.",
         "properties": {
           "bgm": {
             "anyOf": [
@@ -3341,6 +3567,7 @@
       "ReviewStage": {
         "enum": [
           "first",
+          "script",
           "second"
         ],
         "title": "ReviewStage",
@@ -3457,6 +3684,12 @@
       "RoleProfile": {
         "additionalProperties": false,
         "properties": {
+          "character_prompt": {
+            "default": "",
+            "maxLength": 12000,
+            "title": "Character Prompt",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3487,6 +3720,16 @@
             "title": "Display Name",
             "type": "string"
           },
+          "emotion_refs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EmotionReference"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/SpeechEmotion"
+            },
+            "title": "Emotion Refs",
+            "type": "object"
+          },
           "enabled": {
             "default": true,
             "title": "Enabled",
@@ -3513,6 +3756,18 @@
             "title": "Profile Id",
             "type": "string"
           },
+          "reference_language": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Language"
+          },
           "slug": {
             "maxLength": 64,
             "minLength": 2,
@@ -3537,6 +3792,23 @@
             "minLength": 1,
             "title": "Speaker Id",
             "type": "string"
+          },
+          "tts_enabled": {
+            "default": false,
+            "title": "Tts Enabled",
+            "type": "boolean"
+          },
+          "tts_model_profile": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tts Model Profile"
           },
           "updated_at": {
             "format": "date-time",
@@ -3565,6 +3837,12 @@
       "RoleProfileCreate": {
         "additionalProperties": false,
         "properties": {
+          "character_prompt": {
+            "default": "",
+            "maxLength": 12000,
+            "title": "Character Prompt",
+            "type": "string"
+          },
           "default_emotion": {
             "default": "neutral",
             "minLength": 1,
@@ -3590,6 +3868,16 @@
             "title": "Display Name",
             "type": "string"
           },
+          "emotion_refs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EmotionReference"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/SpeechEmotion"
+            },
+            "title": "Emotion Refs",
+            "type": "object"
+          },
           "enabled": {
             "default": true,
             "title": "Enabled",
@@ -3610,6 +3898,18 @@
           },
           "kind": {
             "$ref": "#/components/schemas/RoleKind"
+          },
+          "reference_language": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Language"
           },
           "slug": {
             "maxLength": 64,
@@ -3635,6 +3935,23 @@
             "minLength": 1,
             "title": "Speaker Id",
             "type": "string"
+          },
+          "tts_enabled": {
+            "default": false,
+            "title": "Tts Enabled",
+            "type": "boolean"
+          },
+          "tts_model_profile": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tts Model Profile"
           },
           "visual_assets": {
             "$ref": "#/components/schemas/RoleVisualAssets"
@@ -3667,6 +3984,12 @@
       "RoleProfileReplace": {
         "additionalProperties": false,
         "properties": {
+          "character_prompt": {
+            "default": "",
+            "maxLength": 12000,
+            "title": "Character Prompt",
+            "type": "string"
+          },
           "default_emotion": {
             "default": "neutral",
             "minLength": 1,
@@ -3691,6 +4014,16 @@
             "minLength": 1,
             "title": "Display Name",
             "type": "string"
+          },
+          "emotion_refs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EmotionReference"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/SpeechEmotion"
+            },
+            "title": "Emotion Refs",
+            "type": "object"
           },
           "enabled": {
             "default": true,
@@ -3718,6 +4051,18 @@
           "kind": {
             "$ref": "#/components/schemas/RoleKind"
           },
+          "reference_language": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Language"
+          },
           "slug": {
             "maxLength": 64,
             "minLength": 2,
@@ -3742,6 +4087,23 @@
             "minLength": 1,
             "title": "Speaker Id",
             "type": "string"
+          },
+          "tts_enabled": {
+            "default": false,
+            "title": "Tts Enabled",
+            "type": "boolean"
+          },
+          "tts_model_profile": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tts Model Profile"
           },
           "visual_assets": {
             "$ref": "#/components/schemas/RoleVisualAssets"
@@ -3785,6 +4147,18 @@
         },
         "title": "RoleVisualAssets",
         "type": "object"
+      },
+      "SceneTransition": {
+        "description": "Outgoing visual transition requested for a narration segment.",
+        "enum": [
+          "black",
+          "crossfade",
+          "slide",
+          "wipe",
+          "mood_shift"
+        ],
+        "title": "SceneTransition",
+        "type": "string"
       },
       "ScheduleSnapshot": {
         "additionalProperties": false,
@@ -3891,10 +4265,8 @@
         "additionalProperties": false,
         "properties": {
           "emotion": {
-            "default": "neutral",
-            "minLength": 1,
-            "title": "Emotion",
-            "type": "string"
+            "$ref": "#/components/schemas/SpeechEmotion",
+            "default": "happiness"
           },
           "pitch": {
             "default": 0.0,
@@ -3935,19 +4307,73 @@
         "title": "ScriptPreferences",
         "type": "object"
       },
+      "ScriptReviewSubmission": {
+        "additionalProperties": false,
+        "description": "Human review of generated narration before any local TTS work begins.",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "expected_story_version": {
+            "minimum": 1.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          },
+          "revised_script": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScriptDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_story_version",
+          "decision",
+          "reviewer_id"
+        ],
+        "title": "ScriptReviewSubmission",
+        "type": "object"
+      },
       "ScriptSegment": {
         "additionalProperties": false,
         "properties": {
           "emotion": {
-            "minLength": 1,
-            "title": "Emotion",
-            "type": "string"
+            "$ref": "#/components/schemas/SpeechEmotion"
           },
           "pitch": {
             "maximum": 12.0,
             "minimum": -12.0,
             "title": "Pitch",
             "type": "number"
+          },
+          "scene_transition": {
+            "$ref": "#/components/schemas/SceneTransition",
+            "default": "black"
           },
           "segment_id": {
             "format": "uuid",
@@ -4049,6 +4475,87 @@
         "title": "SecondReviewSubmission",
         "type": "object"
       },
+      "SegmentSynthesisProvenance": {
+        "additionalProperties": false,
+        "description": "The concrete voice assets selected for one rendered script segment.\n\nThe bundle-level fields in :class:`SynthesisMetadata` describe the legacy\nsingle-voice case.  This record captures the real request-time selection\nonce a script can switch speakers or emotion reference material per\nsegment, without invalidating historical audio bundles.",
+        "properties": {
+          "emotion": {
+            "$ref": "#/components/schemas/SpeechEmotion"
+          },
+          "gpt_weights_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Gpt Weights Sha256",
+            "type": "string"
+          },
+          "model_identity": {
+            "minLength": 1,
+            "title": "Model Identity",
+            "type": "string"
+          },
+          "prompt_language": {
+            "default": "und",
+            "minLength": 1,
+            "title": "Prompt Language",
+            "type": "string"
+          },
+          "reference_audio_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Reference Audio Sha256",
+            "type": "string"
+          },
+          "reference_text_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Reference Text Sha256",
+            "type": "string"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sovits_weights_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sovits Weights Sha256",
+            "type": "string"
+          },
+          "speaker_id": {
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "speaker_id",
+          "emotion",
+          "reference_audio_sha256",
+          "reference_text_sha256",
+          "gpt_weights_sha256",
+          "sovits_weights_sha256",
+          "model_identity"
+        ],
+        "title": "SegmentSynthesisProvenance",
+        "type": "object"
+      },
+      "SegmentVisualAssetBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/VisualAsset"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "asset"
+        ],
+        "title": "SegmentVisualAssetBinding",
+        "type": "object"
+      },
       "SourceHealth": {
         "additionalProperties": false,
         "properties": {
@@ -4147,10 +4654,8 @@
         "description": "Trusted adapter boundary for one of the four fixed sources.\n\nNetwork-facing adapters must map their documented/authorized response into\n``RawSourceItem`` before calling this boundary. The core never consumes an\nupstream provider's unvalidated mapping.",
         "properties": {
           "emotion": {
-            "default": "neutral",
-            "minLength": 1,
-            "title": "Emotion",
-            "type": "string"
+            "$ref": "#/components/schemas/SpeechEmotion",
+            "default": "happiness"
           },
           "item": {
             "discriminator": {
@@ -4324,6 +4829,12 @@
             ],
             "title": "Collector Outcome"
           },
+          "cooldown_wait_ms": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Cooldown Wait Ms",
+            "type": "number"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -4467,10 +4978,8 @@
         "additionalProperties": false,
         "properties": {
           "emotion": {
-            "default": "neutral",
-            "minLength": 1,
-            "title": "Emotion",
-            "type": "string"
+            "$ref": "#/components/schemas/SpeechEmotion",
+            "default": "happiness"
           },
           "limit": {
             "default": 10,
@@ -4632,6 +5141,20 @@
         ],
         "title": "SourceSnapshot",
         "type": "object"
+      },
+      "SpeechEmotion": {
+        "description": "The seven reference-voice emotions supported by the narration pipeline.",
+        "enum": [
+          "happiness",
+          "sadness",
+          "anger",
+          "disgust",
+          "like",
+          "surprise",
+          "fear"
+        ],
+        "title": "SpeechEmotion",
+        "type": "string"
       },
       "StateTransition": {
         "additionalProperties": false,
@@ -4800,6 +5323,8 @@
           "PENDING_FIRST_REVIEW",
           "PROCESSING_SCRIPT",
           "SCRIPT_READY",
+          "PENDING_TTS",
+          "PROCESSING_TTS",
           "PENDING_SECOND_REVIEW",
           "DONE",
           "ARCHIVED"
@@ -4858,6 +5383,108 @@
           "expected_story_version"
         ],
         "title": "StoryUpdate",
+        "type": "object"
+      },
+      "StoryVisualAssets": {
+        "additionalProperties": false,
+        "description": "Assets effective for one editable script revision.\n\n``source_page_url`` is only an operator-facing candidate URL. It is never\nan image URL and never implies a screenshot was captured.  A UI may show a\ndefault preview only when ``source_page_screenshot`` is non-null.",
+        "properties": {
+          "script_revision": {
+            "minimum": 1.0,
+            "title": "Script Revision",
+            "type": "integer"
+          },
+          "segment_assets": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentVisualAssetBinding"
+            },
+            "title": "Segment Assets",
+            "type": "array"
+          },
+          "source_page_screenshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisualAsset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_page_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Page Url"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "story_version": {
+            "minimum": 1.0,
+            "title": "Story Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "story_id",
+          "story_version",
+          "script_revision"
+        ],
+        "title": "StoryVisualAssets",
+        "type": "object"
+      },
+      "SubmitNarrationReview": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/NarrationReviewDecision"
+          },
+          "expected_batch_version": {
+            "minimum": 1.0,
+            "title": "Expected Batch Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          },
+          "revised_script": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScriptDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_batch_version",
+          "decision",
+          "reviewer_id"
+        ],
+        "title": "SubmitNarrationReview",
         "type": "object"
       },
       "SubmitTimelineReview": {
@@ -4940,6 +5567,13 @@
             "title": "Seed",
             "type": "integer"
           },
+          "segment_provenance": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentSynthesisProvenance"
+            },
+            "title": "Segment Provenance",
+            "type": "array"
+          },
           "sovits_weights_sha256": {
             "pattern": "^[a-f0-9]{64}$",
             "title": "Sovits Weights Sha256",
@@ -4961,6 +5595,37 @@
           "text_language"
         ],
         "title": "SynthesisMetadata",
+        "type": "object"
+      },
+      "SynthesizeBatchNarration": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_batch_version": {
+            "minimum": 1.0,
+            "title": "Expected Batch Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_batch_version"
+        ],
+        "title": "SynthesizeBatchNarration",
+        "type": "object"
+      },
+      "SynthesizeStoryRequest": {
+        "additionalProperties": false,
+        "description": "Explicit, optimistic-concurrency guarded command to start local TTS.",
+        "properties": {
+          "expected_story_version": {
+            "minimum": 1.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_story_version"
+        ],
+        "title": "SynthesizeStoryRequest",
         "type": "object"
       },
       "TextSource": {
@@ -5072,14 +5737,16 @@
             "type": "string"
           },
           "emotion": {
-            "minLength": 1,
-            "title": "Emotion",
-            "type": "string"
+            "$ref": "#/components/schemas/SpeechEmotion"
           },
           "end_ms": {
             "exclusiveMinimum": 0.0,
             "title": "End Ms",
             "type": "integer"
+          },
+          "scene_transition": {
+            "$ref": "#/components/schemas/SceneTransition",
+            "default": "black"
           },
           "segment_id": {
             "format": "uuid",
@@ -5284,8 +5951,7 @@
             "items": {
               "$ref": "#/components/schemas/VideoInputAsset"
             },
-            "maxItems": 1600,
-            "minItems": 1,
+            "maxItems": 101,
             "title": "Input Assets",
             "type": "array"
           },
@@ -5299,17 +5965,52 @@
               }
             ]
           },
+          "narration": {
+            "$ref": "#/components/schemas/BatchNarrationArtifact"
+          },
+          "narration_failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatchNarrationFailure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "narration_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationReview"
+            },
+            "maxItems": 100,
+            "title": "Narration Reviews",
+            "type": "array"
+          },
           "remotion_props": {
-            "$ref": "#/components/schemas/RemotionVideoProps"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemotionVideoProps"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "render_input_sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Render Input Sha256",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Input Sha256"
           },
           "status": {
             "$ref": "#/components/schemas/VideoBatchStatus",
-            "default": "PENDING_TIMELINE_REVIEW"
+            "default": "PENDING_NARRATION_REVIEW"
           },
           "stories": {
             "items": {
@@ -5356,20 +6057,25 @@
             "minimum": 1.0,
             "title": "Version",
             "type": "integer"
+          },
+          "visual_reservations": {
+            "$ref": "#/components/schemas/HostVisualReservations"
           }
         },
         "required": [
           "title",
           "stories",
-          "remotion_props",
-          "input_assets",
-          "render_input_sha256"
+          "narration"
         ],
         "title": "VideoBatch",
         "type": "object"
       },
       "VideoBatchStatus": {
+        "description": "Batch workflow deliberately separates editorial and expensive work.",
         "enum": [
+          "PENDING_NARRATION_REVIEW",
+          "PENDING_BATCH_TTS",
+          "PROCESSING_BATCH_TTS",
           "PENDING_TIMELINE_REVIEW",
           "READY_TO_RENDER",
           "RENDERING",
@@ -5383,26 +6089,22 @@
       },
       "VideoBatchStory": {
         "additionalProperties": false,
+        "description": "Immutable source-story evidence for one input to a merged narration.\n\n``source_manifest`` is intentionally not a chapter in the eventual batch\ntimeline. It remains a point-in-time source snapshot only; the separate\nbatch narration artifact is the sole input to Remotion.",
         "properties": {
           "category": {
             "$ref": "#/components/schemas/ContentCategory"
           },
-          "chapter_end_ms": {
-            "exclusiveMinimum": 0.0,
-            "title": "Chapter End Ms",
-            "type": "integer"
-          },
-          "chapter_start_ms": {
-            "minimum": 0.0,
-            "title": "Chapter Start Ms",
-            "type": "integer"
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/ProductionManifest"
-          },
           "reserved_at": {
             "format": "date-time",
             "title": "Reserved At",
+            "type": "string"
+          },
+          "script": {
+            "$ref": "#/components/schemas/ScriptDocument"
+          },
+          "script_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Script Sha256",
             "type": "string"
           },
           "sequence": {
@@ -5410,6 +6112,14 @@
             "minimum": 0.0,
             "title": "Sequence",
             "type": "integer"
+          },
+          "source_manifest": {
+            "$ref": "#/components/schemas/ProductionManifest"
+          },
+          "source_manifest_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Source Manifest Sha256",
+            "type": "string"
           },
           "story_id": {
             "format": "uuid",
@@ -5445,9 +6155,10 @@
           "story_version",
           "category",
           "title",
-          "manifest",
-          "chapter_start_ms",
-          "chapter_end_ms"
+          "script",
+          "script_sha256",
+          "source_manifest",
+          "source_manifest_sha256"
         ],
         "title": "VideoBatchStory",
         "type": "object"
@@ -5654,6 +6365,112 @@
         },
         "title": "VideoTheme",
         "type": "object"
+      },
+      "VisualAsset": {
+        "additionalProperties": false,
+        "description": "Public, stable reference to a stored raster asset.\n\n``storage_key`` deliberately does not appear here.  Clients render this\nreference only through the scoped media endpoint, which keeps local paths\nout of API responses and makes the eventual video-renderer storage adapter\nreplaceable.",
+        "properties": {
+          "asset_id": {
+            "format": "uuid",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "content_type": {
+            "$ref": "#/components/schemas/ImageContentType"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "filename": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/VisualAssetOrigin"
+          },
+          "script_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script Revision"
+          },
+          "segment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Id"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "origin",
+          "content_type",
+          "filename",
+          "sha256",
+          "size_bytes"
+        ],
+        "title": "VisualAsset",
+        "type": "object"
+      },
+      "VisualAssetMutation": {
+        "additionalProperties": false,
+        "description": "Successful mutation result with the concurrency version to use next.",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/VisualAsset"
+          },
+          "story_version": {
+            "minimum": 1.0,
+            "title": "Story Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asset",
+          "story_version"
+        ],
+        "title": "VisualAssetMutation",
+        "type": "object"
+      },
+      "VisualAssetOrigin": {
+        "description": "Where a visual asset came from, without overloading editorial hints.",
+        "enum": [
+          "editor_upload",
+          "source_page_screenshot"
+        ],
+        "title": "VisualAssetOrigin",
+        "type": "string"
       }
     }
   },
@@ -8205,6 +9022,110 @@
         ]
       }
     },
+    "/api/v1/stories/{story_id}/reviews/script": {
+      "post": {
+        "description": "Approve or return the human-editable narration before local TTS starts.",
+        "operationId": "submitScriptReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptReviewSubmission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Script Review",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/api/v1/stories/{story_id}/reviews/second": {
       "post": {
         "operationId": "submitSecondReview",
@@ -8308,6 +9229,111 @@
         ]
       }
     },
+    "/api/v1/stories/{story_id}/synthesize": {
+      "post": {
+        "description": "Explicitly start isolated local TTS for an approved script revision.",
+        "operationId": "synthesizeStory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SynthesizeStoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Story"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Synthesize Story",
+        "tags": [
+          "stories",
+          "artifacts"
+        ]
+      }
+    },
     "/api/v1/stories/{story_id}/transitions": {
       "get": {
         "operationId": "listStoryTransitions",
@@ -8402,6 +9428,472 @@
         "summary": "Transition History",
         "tags": [
           "stories"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/visual-assets": {
+      "get": {
+        "operationId": "listStoryVisualAssets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryVisualAssets"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story or visual asset was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story version or script revision changed."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload exceeds the configured limit."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload or asset binding is invalid."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local visual asset storage failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Visual asset service is not configured."
+          }
+        },
+        "summary": "List Story Visual Assets",
+        "tags": [
+          "visual-assets"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/visual-assets/{asset_id}/content": {
+      "get": {
+        "operationId": "getVisualAssetContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story or visual asset was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story version or script revision changed."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload exceeds the configured limit."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload or asset binding is invalid."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local visual asset storage failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Visual asset service is not configured."
+          }
+        },
+        "summary": "Visual Asset Content",
+        "tags": [
+          "visual-assets"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/visual-assets/{segment_id}": {
+      "delete": {
+        "operationId": "deleteSegmentVisualAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_story_version",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Story Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_script_revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Script Revision",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story or visual asset was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story version or script revision changed."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload exceeds the configured limit."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload or asset binding is invalid."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local visual asset storage failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Visual asset service is not configured."
+          }
+        },
+        "summary": "Delete Segment Visual Asset",
+        "tags": [
+          "visual-assets"
+        ]
+      },
+      "put": {
+        "description": "Replace one segment's image with a raw PNG, JPEG, or WebP request body.",
+        "operationId": "uploadSegmentVisualAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_story_version",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Story Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_script_revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Script Revision",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualAssetMutation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story or visual asset was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Story version or script revision changed."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload exceeds the configured limit."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Image upload or asset binding is invalid."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local visual asset storage failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Visual asset service is not configured."
+          }
+        },
+        "summary": "Upload Segment Visual Asset",
+        "tags": [
+          "visual-assets"
         ]
       }
     },
@@ -8757,6 +10249,93 @@
         ]
       }
     },
+    "/api/v1/video/batches/{batch_id}/audio/{segment_id}": {
+      "get": {
+        "description": "Serve one reviewed batch-narration clip from the managed output root.\n\nThe stored clip path is never trusted as a request path.  It must still\nresolve underneath the configured output root and refer to the exact\nsegment persisted in the merged narration artifact.",
+        "operationId": "getVideoBatchAudioClip",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "Batch Audio Clip",
+        "tags": [
+          "video"
+        ]
+      }
+    },
     "/api/v1/video/batches/{batch_id}/cancel": {
       "post": {
         "operationId": "cancelVideoRender",
@@ -8835,6 +10414,192 @@
           }
         },
         "summary": "Cancel Video Render",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/v1/video/batches/{batch_id}/narration-review": {
+      "post": {
+        "operationId": "submitVideoBatchNarrationReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitNarrationReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoBatch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "Submit Video Batch Narration Review",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/v1/video/batches/{batch_id}/narration/synthesize": {
+      "post": {
+        "operationId": "synthesizeVideoBatchNarration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SynthesizeBatchNarration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoBatch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "Synthesize Video Batch Narration",
         "tags": [
           "video"
         ]

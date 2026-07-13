@@ -6,11 +6,13 @@ from god_news.sources.collectors.models import (
     SourceCollectionRun,
 )
 from god_news.sources.collectors.protocols import SourceCollector
+from god_news.sources.collectors.rate_limited import RateLimitedSourceCollectorGateway
 
 __all__ = [
     "CollectionAttempt",
     "CollectionErrorEvidence",
     "CollectorReadiness",
+    "RateLimitedSourceCollectorGateway",
     "SourceCollectionRun",
     "SourceCollector",
     "SourceCollectorRegistry",

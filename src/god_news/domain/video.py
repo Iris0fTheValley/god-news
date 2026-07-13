@@ -12,13 +12,43 @@ from uuid import UUID, uuid4
 from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from god_news.domain.enums import ContentCategory
-from god_news.domain.models import DomainModel, NonBlankStr, ProductionManifest, utc_now
+from god_news.domain.models import (
+    AudioBundle,
+    DomainModel,
+    NonBlankStr,
+    ProductionManifest,
+    ScriptDocument,
+    utc_now,
+)
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 
 
+def _canonical_sha256(value: object) -> str:
+    """Hash a JSON-safe value without depending on formatting or key order."""
+
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def model_sha256(model: DomainModel) -> str:
+    """Stable evidence digest for an immutable Pydantic domain artifact."""
+
+    return _canonical_sha256(model.model_dump(mode="json"))
+
+
 class VideoBatchStatus(StrEnum):
+    """Batch workflow deliberately separates editorial and expensive work."""
+
+    PENDING_NARRATION_REVIEW = "PENDING_NARRATION_REVIEW"
+    PENDING_BATCH_TTS = "PENDING_BATCH_TTS"
+    PROCESSING_BATCH_TTS = "PROCESSING_BATCH_TTS"
     PENDING_TIMELINE_REVIEW = "PENDING_TIMELINE_REVIEW"
     READY_TO_RENDER = "READY_TO_RENDER"
     RENDERING = "RENDERING"
@@ -26,6 +56,12 @@ class VideoBatchStatus(StrEnum):
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
+
+
+class NarrationReviewDecision(StrEnum):
+    APPROVE = "approve"
+    REVISE = "revise"
+    REJECT = "reject"
 
 
 class TimelineReviewDecision(StrEnum):
@@ -149,12 +185,7 @@ class DifferentialArtReservation(DomainModel):
 
 
 class HostVisualReservations(DomainModel):
-    """Current Remotion host contract with typed future asset reservations.
-
-    The renderer remains ``placeholder`` until a concrete Live2D or
-    differential-art composition is installed. Assets can already be described
-    without leaking provider-specific mappings into the orchestration service.
-    """
+    """Typed visual reservations kept independent from narration composition."""
 
     renderer: Literal["placeholder"] = "placeholder"
     live2d: Live2DReservation | None = None
@@ -164,8 +195,9 @@ class HostVisualReservations(DomainModel):
 class RemotionVideoProps(DomainModel):
     """Backend-owned subset of ``video/src/schema.ts``.
 
-    ``runtime_assets`` is intentionally absent: the local Remotion CLI stages
-    files by content hash and owns those transient browser bindings.
+    This object is deliberately absent until batch narration has been manually
+    synthesized. It therefore cannot accidentally encode an unreviewed or
+    source-story-flat render plan.
     """
 
     manifest: ProductionManifest
@@ -175,20 +207,26 @@ class RemotionVideoProps(DomainModel):
     transition_duration_ms: int = Field(default=180, ge=0, le=2_000)
     theme: VideoTheme = Field(default_factory=VideoTheme)
     bgm: BgmRenderSpec | None = None
-    visual_reservations: HostVisualReservations = Field(
-        default_factory=HostVisualReservations
-    )
+    visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
 
 
 class VideoBatchStory(DomainModel):
+    """Immutable source-story evidence for one input to a merged narration.
+
+    ``source_manifest`` is intentionally not a chapter in the eventual batch
+    timeline. It remains a point-in-time source snapshot only; the separate
+    batch narration artifact is the sole input to Remotion.
+    """
+
     sequence: int = Field(ge=0, le=14)
     story_id: UUID
     story_version: int = Field(ge=1)
     category: ContentCategory
     title: NonBlankStr
-    manifest: ProductionManifest
-    chapter_start_ms: int = Field(ge=0)
-    chapter_end_ms: int = Field(gt=0)
+    script: ScriptDocument
+    script_sha256: Sha256
+    source_manifest: ProductionManifest
+    source_manifest_sha256: Sha256
     reserved_at: datetime = Field(default_factory=utc_now)
     used_at: datetime | None = None
 
@@ -200,23 +238,109 @@ class VideoBatchStory(DomainModel):
         return value
 
     @model_validator(mode="after")
-    def validate_chapter(self) -> VideoBatchStory:
-        if self.manifest.story_id != self.story_id:
-            raise ValueError("story manifest ID must match story_id")
-        if self.chapter_end_ms <= self.chapter_start_ms:
-            raise ValueError("chapter_end_ms must be greater than chapter_start_ms")
-        if self.chapter_end_ms - self.chapter_start_ms != self.manifest.total_duration_ms:
-            raise ValueError("chapter duration must match the story manifest")
-        expected_start = 0
-        for index, segment in enumerate(self.manifest.timeline):
-            if segment.sequence != index:
-                raise ValueError("story timeline sequence must be contiguous and zero-based")
-            if segment.start_ms != expected_start:
-                raise ValueError("story timeline must be contiguous and start at zero")
-            expected_start = segment.end_ms
-        if expected_start != self.manifest.total_duration_ms:
-            raise ValueError("story timeline must end at total_duration_ms")
+    def validate_source_snapshot(self) -> VideoBatchStory:
+        if self.source_manifest.story_id != self.story_id:
+            raise ValueError("source manifest ID must match story_id")
+        if self.source_manifest.script_revision != self.script.revision:
+            raise ValueError("source manifest revision must match source script revision")
+        if self.source_manifest.language != self.script.language:
+            raise ValueError("source manifest language must match source script language")
+        if self.script_sha256 != model_sha256(self.script):
+            raise ValueError("script_sha256 does not match source script")
+        if self.source_manifest_sha256 != model_sha256(self.source_manifest):
+            raise ValueError("source_manifest_sha256 does not match source manifest")
+
+        source_segments = self.source_manifest.timeline
+        script_segments = self.script.segments
+        if len(source_segments) != len(script_segments):
+            raise ValueError("source manifest must contain every source script segment")
+        cursor = 0
+        for index, (timeline, script) in enumerate(
+            zip(source_segments, script_segments, strict=True)
+        ):
+            if (
+                timeline.sequence != index
+                or timeline.start_ms != cursor
+                or timeline.end_ms <= cursor
+                or timeline.segment_id != script.segment_id
+                or timeline.text != script.text
+                or timeline.speaker_id != script.speaker_id
+                or timeline.emotion != script.emotion
+                or timeline.scene_transition != script.scene_transition
+                or timeline.visual_hint != script.visual_hint
+            ):
+                raise ValueError("source manifest does not faithfully describe its source script")
+            cursor = timeline.end_ms
+        if cursor != self.source_manifest.total_duration_ms:
+            raise ValueError("source manifest timeline must end at total_duration_ms")
         return self
+
+
+class BatchNarrationSourceEvidence(DomainModel):
+    """Stable provenance consumed by a merged narration generation."""
+
+    story_id: UUID
+    story_version: int = Field(ge=1)
+    script_revision: int = Field(ge=1)
+    script_sha256: Sha256
+    source_manifest_sha256: Sha256
+
+
+def narration_source_evidence_sha256(
+    evidence: list[BatchNarrationSourceEvidence],
+) -> str:
+    return _canonical_sha256([item.model_dump(mode="json") for item in evidence])
+
+
+class BatchNarrationArtifact(DomainModel):
+    """The reviewable, batch-level narration and its optional synthesized media."""
+
+    source_evidence: list[BatchNarrationSourceEvidence] = Field(min_length=1, max_length=15)
+    source_evidence_sha256: Sha256
+    script: ScriptDocument
+    audio: AudioBundle | None = None
+    manifest: ProductionManifest | None = None
+    composed_at: datetime = Field(default_factory=utc_now)
+    synthesized_at: datetime | None = None
+
+    @field_validator("composed_at", "synthesized_at")
+    @classmethod
+    def require_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            raise ValueError("timestamps must be timezone-aware")
+        return value
+
+    @model_validator(mode="after")
+    def validate_artifact_shape(self) -> BatchNarrationArtifact:
+        ids = [item.story_id for item in self.source_evidence]
+        if len(ids) != len(set(ids)):
+            raise ValueError("batch narration source evidence must have unique story IDs")
+        if self.source_evidence_sha256 != narration_source_evidence_sha256(self.source_evidence):
+            raise ValueError("source_evidence_sha256 does not match source evidence")
+        if (self.audio is None) != (self.manifest is None):
+            raise ValueError("batch narration audio and manifest must appear together")
+        if self.audio is None and self.synthesized_at is not None:
+            raise ValueError("unsynthesized batch narration cannot have synthesized_at")
+        if self.audio is not None and self.synthesized_at is None:
+            raise ValueError("synthesized batch narration requires synthesized_at")
+        return self
+
+
+class NarrationReview(DomainModel):
+    reviewer_id: NonBlankStr
+    decision: NarrationReviewDecision
+    reviewed_batch_version: int = Field(ge=1)
+    script_revision: int = Field(ge=1)
+    script_sha256: Sha256
+    note: str | None = None
+    reviewed_at: datetime = Field(default_factory=utc_now)
+
+    @field_validator("reviewed_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("timestamps must be timezone-aware")
+        return value
 
 
 class TimelineReview(DomainModel):
@@ -274,18 +398,35 @@ class VideoRenderFailure(DomainModel):
         return value
 
 
+class BatchNarrationFailure(DomainModel):
+    message: NonBlankStr
+    retryable: bool = True
+    occurred_at: datetime = Field(default_factory=utc_now)
+
+    @field_validator("occurred_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("timestamps must be timezone-aware")
+        return value
+
+
 class VideoBatch(DomainModel):
     batch_id: UUID = Field(default_factory=uuid4)
-    status: VideoBatchStatus = VideoBatchStatus.PENDING_TIMELINE_REVIEW
+    status: VideoBatchStatus = VideoBatchStatus.PENDING_NARRATION_REVIEW
     title: NonBlankStr
     subtitle: str | None = None
     stories: list[VideoBatchStory] = Field(min_length=1, max_length=15)
+    narration: BatchNarrationArtifact
     bgm: BgmSelection | None = None
-    remotion_props: RemotionVideoProps
-    input_assets: list[VideoInputAsset] = Field(min_length=1, max_length=1_600)
-    render_input_sha256: Sha256
+    visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
+    remotion_props: RemotionVideoProps | None = None
+    input_assets: list[VideoInputAsset] = Field(default_factory=list, max_length=101)
+    render_input_sha256: Sha256 | None = None
+    narration_reviews: list[NarrationReview] = Field(default_factory=list, max_length=100)
     timeline_review: TimelineReview | None = None
     artifact: VideoRenderArtifact | None = None
+    narration_failure: BatchNarrationFailure | None = None
     last_failure: VideoRenderFailure | None = None
     version: int = Field(default=1, ge=1)
     created_at: datetime = Field(default_factory=utc_now)
@@ -305,114 +446,215 @@ class VideoBatch(DomainModel):
             raise ValueError("batch story IDs must be unique")
         if [story.sequence for story in self.stories] != list(range(len(self.stories))):
             raise ValueError("batch story sequence must be contiguous and zero-based")
-        if self.remotion_props.manifest.story_id != self.batch_id:
-            raise ValueError("aggregate manifest story_id must equal batch_id")
-        if (
-            self.remotion_props.title != self.title
-            or self.remotion_props.subtitle != self.subtitle
+
+        expected_evidence = [
+            BatchNarrationSourceEvidence(
+                story_id=story.story_id,
+                story_version=story.story_version,
+                script_revision=story.script.revision,
+                script_sha256=story.script_sha256,
+                source_manifest_sha256=story.source_manifest_sha256,
+            )
+            for story in self.stories
+        ]
+        if self.narration.source_evidence != expected_evidence:
+            raise ValueError("batch narration source evidence must match source-story snapshots")
+
+        generated = self.narration.audio is not None
+        if generated:
+            self._validate_synthesized_narration()
+        elif (
+            self.remotion_props is not None
+            or self.input_assets
+            or self.render_input_sha256 is not None
         ):
+            raise ValueError("unsynthesized batch narration cannot expose Remotion props or assets")
+
+        self._validate_review_evidence(story_ids, generated)
+        self._validate_render_evidence(generated)
+        return self
+
+    def _validate_synthesized_narration(self) -> None:
+        assert self.narration.audio is not None
+        assert self.narration.manifest is not None
+        assert self.remotion_props is not None
+        assert self.render_input_sha256 is not None
+
+        script = self.narration.script
+        audio = self.narration.audio
+        manifest = self.narration.manifest
+        script_ids = {segment.segment_id for segment in script.segments}
+        clips = {clip.segment_id: clip for clip in audio.clips}
+        if audio.revision != script.revision or set(clips) != script_ids:
+            raise ValueError(
+                "batch narration audio revision or segment IDs do not match its script"
+            )
+        if (
+            manifest.story_id != self.batch_id
+            or manifest.script_revision != script.revision
+            or manifest.language != script.language
+            or len(manifest.timeline) != len(script.segments)
+        ):
+            raise ValueError("merged production manifest does not match batch narration identity")
+        cursor = 0
+        for index, (timeline, segment) in enumerate(
+            zip(manifest.timeline, script.segments, strict=True)
+        ):
+            clip = clips.get(segment.segment_id)
+            if clip is None:
+                raise ValueError("merged production manifest references a missing batch audio clip")
+            if (
+                timeline.sequence != index
+                or timeline.start_ms != cursor
+                or timeline.end_ms != cursor + clip.duration_ms
+                or timeline.segment_id != segment.segment_id
+                or timeline.text != segment.text
+                or timeline.speaker_id != segment.speaker_id
+                or timeline.emotion != segment.emotion
+                or timeline.scene_transition != segment.scene_transition
+                or timeline.visual_hint != segment.visual_hint
+                or timeline.audio_path != clip.path
+            ):
+                raise ValueError(
+                    "merged production manifest must be built from batch script and clips"
+                )
+            cursor = timeline.end_ms
+        if manifest.total_duration_ms != cursor:
+            raise ValueError("merged production manifest timeline must end at total_duration_ms")
+        if self.remotion_props.manifest != manifest:
+            raise ValueError("Remotion props must use the merged batch manifest")
+        if self.remotion_props.title != self.title or self.remotion_props.subtitle != self.subtitle:
             raise ValueError("Remotion title metadata must match the batch")
+        if self.remotion_props.visual_reservations != self.visual_reservations:
+            raise ValueError("Remotion visual reservations must match the batch snapshot")
         expected_bgm = self.bgm.render_spec() if self.bgm is not None else None
         if self.remotion_props.bgm != expected_bgm:
             raise ValueError("Remotion BGM spec must match the selected catalog track")
-        expected_hash = render_input_sha256(self.remotion_props, self.input_assets)
-        if self.render_input_sha256 != expected_hash:
-            raise ValueError("render_input_sha256 does not match props and input assets")
 
         asset_keys = [(asset.kind, asset.local_path) for asset in self.input_assets]
         if len(asset_keys) != len(set(asset_keys)):
             raise ValueError("video input assets must not repeat a kind/path pair")
-        audio_paths = {segment.audio_path for segment in self.remotion_props.manifest.timeline}
         recorded_audio_paths = {
             asset.local_path
             for asset in self.input_assets
             if asset.kind is VideoInputAssetKind.AUDIO
         }
-        if recorded_audio_paths != audio_paths:
-            raise ValueError("video input audio evidence must match the aggregate timeline")
-        bgm_assets = [
-            asset for asset in self.input_assets if asset.kind is VideoInputAssetKind.BGM
-        ]
-        if self.remotion_props.bgm is None:
+        manifest_audio_paths = {segment.audio_path for segment in manifest.timeline}
+        if recorded_audio_paths != manifest_audio_paths:
+            raise ValueError("video input audio evidence must match merged narration clips")
+        bgm_assets = [asset for asset in self.input_assets if asset.kind is VideoInputAssetKind.BGM]
+        if expected_bgm is None:
             if bgm_assets:
                 raise ValueError("batches without BGM cannot retain BGM input evidence")
-        elif len(bgm_assets) != 1 or bgm_assets[0].local_path != self.remotion_props.bgm.local_path:
+        elif len(bgm_assets) != 1 or bgm_assets[0].local_path != expected_bgm.local_path:
             raise ValueError("BGM input evidence must match the selected BGM path")
+        if self.render_input_sha256 != render_input_sha256(self.remotion_props, self.input_assets):
+            raise ValueError("render_input_sha256 does not match props and input assets")
 
-        aggregate = self.remotion_props.manifest
-        if aggregate.total_duration_ms != self.stories[-1].chapter_end_ms:
-            raise ValueError("aggregate duration must end with the final chapter")
-        expected_start = 0
-        for story in self.stories:
-            if story.chapter_start_ms != expected_start:
-                raise ValueError("story chapters must be contiguous and start at zero")
-            expected_start = story.chapter_end_ms
+    def _validate_review_evidence(self, story_ids: list[UUID], generated: bool) -> None:
+        if self.timeline_review is not None and self.timeline_review.story_order != story_ids:
+            raise ValueError("timeline review order must match the immutable batch order")
+        latest_narration = self.narration_reviews[-1] if self.narration_reviews else None
 
-        aggregate_segments = aggregate.timeline
-        source_segments = [
-            segment for story in self.stories for segment in story.manifest.timeline
-        ]
-        if len(aggregate_segments) != len(source_segments):
-            raise ValueError("aggregate timeline must contain every story segment")
-        cursor = 0
-        for index, (combined, source) in enumerate(
-            zip(aggregate_segments, source_segments, strict=True)
-        ):
-            duration = source.end_ms - source.start_ms
-            if (
-                combined.sequence != index
-                or combined.start_ms != cursor
-                or combined.end_ms != cursor + duration
-                or combined.segment_id != source.segment_id
-                or combined.text != source.text
-                or combined.speaker_id != source.speaker_id
-                or combined.emotion != source.emotion
-                or combined.visual_hint != source.visual_hint
-                or combined.audio_path != source.audio_path
-            ):
-                raise ValueError("aggregate timeline does not match ordered story manifests")
-            cursor += duration
-        if cursor != aggregate.total_duration_ms:
-            raise ValueError("aggregate timeline must end at total_duration_ms")
-
-        used = [story.used_at for story in self.stories]
-        if self.status is VideoBatchStatus.RENDERED:
-            if self.artifact is None or any(value is None for value in used):
-                raise ValueError("rendered batches require an artifact and used_at for every story")
-            if len(set(used)) != 1:
-                raise ValueError("all stories in one render must share the same used_at")
-        elif self.artifact is not None or any(value is not None for value in used):
-            raise ValueError("only rendered batches may contain artifact or used_at evidence")
-
-        approved_states = {
+        pre_tts_states = {
+            VideoBatchStatus.PENDING_NARRATION_REVIEW,
+            VideoBatchStatus.PENDING_BATCH_TTS,
+            VideoBatchStatus.PROCESSING_BATCH_TTS,
+        }
+        synthesized_states = {
+            VideoBatchStatus.PENDING_TIMELINE_REVIEW,
             VideoBatchStatus.READY_TO_RENDER,
             VideoBatchStatus.RENDERING,
             VideoBatchStatus.RENDERED,
             VideoBatchStatus.FAILED,
         }
-        if (
-            self.timeline_review is not None
-            and self.timeline_review.story_order != story_ids
-        ):
-            raise ValueError("timeline review order must match the current batch order")
-        if self.status in approved_states:
+        if self.status in pre_tts_states and generated:
+            raise ValueError("pre-TTS batch states cannot retain synthesized narration")
+        if self.status in synthesized_states and not generated:
+            raise ValueError("post-TTS batch states require synthesized narration")
+
+        if self.status is VideoBatchStatus.PENDING_NARRATION_REVIEW:
+            if self.timeline_review is not None:
+                raise ValueError("narration review cannot retain timeline review evidence")
+            if (
+                latest_narration is not None
+                and latest_narration.decision is NarrationReviewDecision.APPROVE
+            ):
+                raise ValueError("approved narration must advance to the manual TTS gate")
+        elif self.status in {
+            VideoBatchStatus.PENDING_BATCH_TTS,
+            VideoBatchStatus.PROCESSING_BATCH_TTS,
+        }:
+            if self.timeline_review is not None:
+                raise ValueError("manual batch TTS gate cannot retain timeline review evidence")
+            if (
+                latest_narration is None
+                or latest_narration.decision is not NarrationReviewDecision.APPROVE
+            ):
+                raise ValueError("manual batch TTS requires approved narration review evidence")
+        elif self.status is VideoBatchStatus.PENDING_TIMELINE_REVIEW:
+            if self.timeline_review is not None:
+                raise ValueError("pending timeline review cannot already contain a timeline review")
+            if (
+                latest_narration is None
+                or latest_narration.decision is not NarrationReviewDecision.APPROVE
+            ):
+                raise ValueError("timeline review requires approved narration review evidence")
+        elif self.status in {
+            VideoBatchStatus.READY_TO_RENDER,
+            VideoBatchStatus.RENDERING,
+            VideoBatchStatus.RENDERED,
+            VideoBatchStatus.FAILED,
+        }:
+            if (
+                latest_narration is None
+                or latest_narration.decision is not NarrationReviewDecision.APPROVE
+            ):
+                raise ValueError("renderable batch requires approved narration review evidence")
             if (
                 self.timeline_review is None
                 or self.timeline_review.decision is not TimelineReviewDecision.APPROVE
             ):
                 raise ValueError("renderable batches require an approved timeline review")
         elif self.status is VideoBatchStatus.REJECTED:
-            if (
+            narrative_rejected = (
                 self.timeline_review is None
-                or self.timeline_review.decision is not TimelineReviewDecision.REJECT
-            ):
-                raise ValueError("rejected batches require rejection review evidence")
-        elif self.status is VideoBatchStatus.CANCELLED:
-            if self.artifact is not None or any(value is not None for value in used):
-                raise ValueError("cancelled batches cannot contain rendered output evidence")
-        elif self.timeline_review is not None:
-            raise ValueError("pending batches cannot contain timeline review evidence")
-        return self
+                and latest_narration is not None
+                and latest_narration.decision is NarrationReviewDecision.REJECT
+                and not generated
+            )
+            timeline_rejected = (
+                self.timeline_review is not None
+                and self.timeline_review.decision is TimelineReviewDecision.REJECT
+                and generated
+            )
+            if not (narrative_rejected or timeline_rejected):
+                raise ValueError("rejected batch requires narration or timeline rejection evidence")
+        elif self.status is VideoBatchStatus.CANCELLED and self.artifact is not None:
+            raise ValueError("cancelled batches cannot contain rendered output evidence")
+
+        if (
+            self.narration_failure is not None
+            and self.status is not VideoBatchStatus.PENDING_BATCH_TTS
+        ):
+            raise ValueError("batch narration failure is only valid at the manual TTS retry gate")
+
+    def _validate_render_evidence(self, generated: bool) -> None:
+        used = [story.used_at for story in self.stories]
+        if self.status is VideoBatchStatus.RENDERED:
+            if not generated or self.artifact is None or any(value is None for value in used):
+                raise ValueError(
+                    "rendered batches require merged media and used_at for every story"
+                )
+            if len(set(used)) != 1:
+                raise ValueError("all stories in one render must share the same used_at")
+        elif self.artifact is not None or any(value is not None for value in used):
+            raise ValueError("only rendered batches may contain artifact or used_at evidence")
+        if self.status is VideoBatchStatus.FAILED:
+            if self.last_failure is None:
+                raise ValueError("failed rendering requires a failure record")
+        elif self.last_failure is not None:
+            raise ValueError("render failure evidence is only valid while render status is FAILED")
 
 
 class CreateVideoBatch(DomainModel):
@@ -431,6 +673,28 @@ class CreateVideoBatch(DomainModel):
         if self.story_ids and len(self.story_ids) > self.max_stories:
             raise ValueError("story_ids cannot exceed max_stories")
         return self
+
+
+class SubmitNarrationReview(DomainModel):
+    expected_batch_version: int = Field(ge=1)
+    decision: NarrationReviewDecision
+    reviewer_id: NonBlankStr
+    note: str | None = None
+    revised_script: ScriptDocument | None = None
+
+    @model_validator(mode="after")
+    def validate_review(self) -> SubmitNarrationReview:
+        if self.decision is NarrationReviewDecision.APPROVE and self.revised_script is not None:
+            raise ValueError("narration approval cannot include a revised_script")
+        if self.decision is NarrationReviewDecision.REVISE and self.revised_script is None:
+            raise ValueError("narration revision requires a revised_script")
+        if self.decision is NarrationReviewDecision.REJECT and not self.note:
+            raise ValueError("narration rejection requires a note")
+        return self
+
+
+class SynthesizeBatchNarration(DomainModel):
+    expected_batch_version: int = Field(ge=1)
 
 
 class SubmitTimelineReview(DomainModel):
@@ -454,8 +718,30 @@ class RenderVideoBatch(DomainModel):
 
 
 VIDEO_BATCH_TRANSITIONS: dict[VideoBatchStatus, frozenset[VideoBatchStatus]] = {
+    VideoBatchStatus.PENDING_NARRATION_REVIEW: frozenset(
+        {
+            VideoBatchStatus.PENDING_BATCH_TTS,
+            VideoBatchStatus.REJECTED,
+            VideoBatchStatus.CANCELLED,
+        }
+    ),
+    VideoBatchStatus.PENDING_BATCH_TTS: frozenset(
+        {
+            VideoBatchStatus.PENDING_NARRATION_REVIEW,
+            VideoBatchStatus.PROCESSING_BATCH_TTS,
+            VideoBatchStatus.REJECTED,
+            VideoBatchStatus.CANCELLED,
+        }
+    ),
+    VideoBatchStatus.PROCESSING_BATCH_TTS: frozenset(
+        {
+            VideoBatchStatus.PENDING_BATCH_TTS,
+            VideoBatchStatus.PENDING_TIMELINE_REVIEW,
+        }
+    ),
     VideoBatchStatus.PENDING_TIMELINE_REVIEW: frozenset(
         {
+            VideoBatchStatus.PENDING_NARRATION_REVIEW,
             VideoBatchStatus.READY_TO_RENDER,
             VideoBatchStatus.REJECTED,
             VideoBatchStatus.CANCELLED,
@@ -464,12 +750,8 @@ VIDEO_BATCH_TRANSITIONS: dict[VideoBatchStatus, frozenset[VideoBatchStatus]] = {
     VideoBatchStatus.READY_TO_RENDER: frozenset(
         {VideoBatchStatus.RENDERING, VideoBatchStatus.CANCELLED}
     ),
-    VideoBatchStatus.RENDERING: frozenset(
-        {VideoBatchStatus.RENDERED, VideoBatchStatus.FAILED, VideoBatchStatus.CANCELLED}
-    ),
-    VideoBatchStatus.FAILED: frozenset(
-        {VideoBatchStatus.RENDERING, VideoBatchStatus.CANCELLED}
-    ),
+    VideoBatchStatus.RENDERING: frozenset({VideoBatchStatus.RENDERED, VideoBatchStatus.FAILED}),
+    VideoBatchStatus.FAILED: frozenset({VideoBatchStatus.RENDERING, VideoBatchStatus.CANCELLED}),
     VideoBatchStatus.RENDERED: frozenset(),
     VideoBatchStatus.REJECTED: frozenset(),
     VideoBatchStatus.CANCELLED: frozenset(),
@@ -489,17 +771,12 @@ def render_input_sha256(
 ) -> str:
     """Hash rendered semantics plus content snapshots in a stable order."""
 
-    payload = {
-        "props": props.model_dump(mode="json"),
-        "assets": [
-            asset.model_dump(mode="json")
-            for asset in sorted(assets, key=lambda item: (item.kind.value, item.local_path))
-        ],
-    }
-    encoded = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return _canonical_sha256(
+        {
+            "props": props.model_dump(mode="json"),
+            "assets": [
+                asset.model_dump(mode="json")
+                for asset in sorted(assets, key=lambda item: (item.kind.value, item.local_path))
+            ],
+        }
+    )

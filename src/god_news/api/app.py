@@ -14,6 +14,7 @@ from god_news.api.routes import router
 from god_news.api.schemas import ProblemDetail
 from god_news.api.source_run_routes import router as source_run_router
 from god_news.api.video_routes import router as video_router
+from god_news.api.visual_asset_routes import router as visual_asset_router
 from god_news.config import Settings, get_settings
 from god_news.container import AppContainer, build_container
 from god_news.errors import GodNewsError
@@ -102,5 +103,6 @@ def create_app(
     app.include_router(router, prefix="/api/v1")
     app.include_router(operations_router, prefix="/api/v1")
     app.include_router(source_run_router, prefix="/api/v1")
+    app.include_router(visual_asset_router, prefix="/api/v1")
     app.include_router(video_router, prefix="/api/v1")
     return app

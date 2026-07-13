@@ -57,6 +57,16 @@ class Settings(BaseSettings):
     database_auto_create: bool = True
     database_busy_timeout_ms: int = Field(default=5_000, ge=0, le=60_000)
     output_dir: Path = Path("./outputs")
+    # Visual assets intentionally live beneath output_dir so the existing
+    # retention operation can discover them without walking arbitrary uploads.
+    # None derives a deterministic child directory from output_dir.
+    visual_asset_dir: Path | None = None
+    visual_asset_max_upload_bytes: int = Field(
+        default=15 * 1024 * 1024,
+        ge=1024,
+        le=100 * 1024 * 1024,
+    )
+    visual_asset_max_pixels: int = Field(default=32_000_000, ge=1, le=100_000_000)
     uploaded_video_dir: Path = Path("./uploads/videos")
     video_bgm_directory: Path = Path("./assets/bgm")
     video_candidate_scan_limit: int = Field(default=1_000, ge=15, le=100_000)
@@ -192,6 +202,13 @@ class Settings(BaseSettings):
     tts_prompt_language: str = "en"
     tts_text_language: str = "auto"
     tts_default_speaker_id: str = "narrator"
+    # Operator-controlled allowlist for reusable local voice assets. The
+    # DSakiko location is only a convenient local default/example; deployments
+    # should override this with their own trusted roots in .env.
+    tts_trusted_asset_roots: tuple[Path, ...] = (
+        Path("J:/AI friend/GPT-SoVITS-v2pro-20250604"),
+        Path("J:/AI friend/DSakiko3.10"),
+    )
     tts_model_profile: str = "v2Pro"
     tts_gpt_weights: Path | None = None
     tts_sovits_weights: Path | None = None
@@ -348,7 +365,7 @@ class Settings(BaseSettings):
                 raise ValueError(f"{field_name} must match its configured host allowlist")
         return self
 
-    @field_validator("tts_gpt_weights", "tts_sovits_weights", mode="before")
+    @field_validator("tts_gpt_weights", "tts_sovits_weights", "visual_asset_dir", mode="before")
     @classmethod
     def blank_path_is_unset(cls, value: object) -> object:
         return None if value == "" else value
@@ -359,6 +376,18 @@ class Settings(BaseSettings):
         if not value.strip():
             raise ValueError("tts_model_profile cannot be blank")
         return value.strip()
+
+    @field_validator("tts_trusted_asset_roots")
+    @classmethod
+    def validate_tts_trusted_asset_roots(cls, value: tuple[Path, ...]) -> tuple[Path, ...]:
+        roots = tuple(path.expanduser().resolve(strict=False) for path in value)
+        if not roots:
+            raise ValueError("tts_trusted_asset_roots cannot be empty")
+        if len(roots) != len(set(roots)):
+            raise ValueError("tts_trusted_asset_roots must not contain duplicates")
+        if any(root.parent == root for root in roots):
+            raise ValueError("tts_trusted_asset_roots cannot include a filesystem root")
+        return roots
 
     @model_validator(mode="after")
     def validate_provider_selection(self) -> Settings:
@@ -374,6 +403,7 @@ class Settings(BaseSettings):
         if self.fetch_max_keepalive_connections > self.fetch_max_connections:
             raise ValueError("fetch_max_keepalive_connections cannot exceed fetch_max_connections")
         media_root = self.output_dir.expanduser().resolve(strict=False)
+        visual_asset_root = self.visual_asset_root
         upload_root = self.uploaded_video_dir.expanduser().resolve(strict=False)
         workspace_root = Path.cwd().resolve()
         for field_name, root in {
@@ -392,6 +422,8 @@ class Settings(BaseSettings):
             or upload_root in media_root.parents
         ):
             raise ValueError("output_dir and uploaded_video_dir must not overlap")
+        if visual_asset_root == media_root or not visual_asset_root.is_relative_to(media_root):
+            raise ValueError("visual_asset_dir must be a child directory of output_dir")
         if (
             self.environment is Environment.PRODUCTION
             and self.enable_drission_fetcher
@@ -408,6 +440,14 @@ class Settings(BaseSettings):
         if self.llm_provider is LLMProvider.LOCAL:
             return self.local_llm_base_url
         return self.deepseek_base_url
+
+    @property
+    def visual_asset_root(self) -> Path:
+        """Resolved local root for image assets; kept inside the media lifecycle root."""
+
+        configured = self.visual_asset_dir
+        root = configured if configured is not None else self.output_dir / "visual-assets"
+        return root.expanduser().resolve(strict=False)
 
     @property
     def active_llm_model(self) -> str:

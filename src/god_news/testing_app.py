@@ -16,6 +16,7 @@ from god_news.infrastructure.testing import (
     DeterministicFetcher,
     DeterministicSpeechSynthesizer,
     DeterministicTextGenerator,
+    DeterministicVoiceProfileResolver,
     InMemoryMemoryProvider,
     InMemoryStoryRepository,
 )
@@ -36,6 +37,7 @@ async def build_testing_container(_: Settings) -> AppContainer:
     generator = DeterministicTextGenerator()
     memory_provider = InMemoryMemoryProvider()
     synthesizer = DeterministicSpeechSynthesizer(settings.output_dir)
+    voice_resolver = DeterministicVoiceProfileResolver(settings.output_dir)
     source_normalizers = create_default_source_registry()
     source_health = SourceHealthMonitor(
         normalizers=source_normalizers,
@@ -49,6 +51,7 @@ async def build_testing_container(_: Settings) -> AppContainer:
         memory=MemoryCoordinator(memory_provider, recall_fail_open=True, recall_limit=5),
         synthesizer=synthesizer,
         source_normalizer=source_normalizers,
+        voice_resolver=voice_resolver,
     )
     return AppContainer(
         settings=settings,

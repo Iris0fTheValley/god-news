@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import stat
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -303,3 +304,16 @@ class RetentionCleanupHandler:
                 **common,
             )
         return RetentionItemResult(action=RetentionAction.DELETED, **common)
+
+
+class CompositeRetentionAssetProtector:
+    """Union multiple durable asset claim sources without coupling repositories."""
+
+    def __init__(self, *protectors: RetentionAssetProtector) -> None:
+        self._protectors = protectors
+
+    async def protected_asset_paths(self) -> Sequence[Path]:
+        protected: list[Path] = []
+        for protector in self._protectors:
+            protected.extend(await protector.protected_asset_paths())
+        return protected

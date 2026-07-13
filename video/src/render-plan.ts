@@ -18,6 +18,7 @@ export type TransitionTrack = Readonly<{
   from: number;
   durationInFrames: number;
   afterSegmentId: string;
+  transition_type: TimelineSegment['scene_transition'];
 }>;
 
 export type RenderTrack = IntroTrack | SegmentTrack | TransitionTrack;
@@ -77,6 +78,7 @@ export const buildRenderPlan = (
         from: cursor,
         durationInFrames: transitionFrames,
         afterSegmentId: segment.segment_id,
+        transition_type: segment.scene_transition,
       });
       cursor += transitionFrames;
     }

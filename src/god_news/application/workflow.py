@@ -22,11 +22,13 @@ from god_news.domain.models import (
     ReviewRecord,
     ScriptDocument,
     ScriptPreferences,
+    ScriptReviewSubmission,
     SecondReviewSubmission,
     SourceItemIngestRequest,
     StateTransition,
     Story,
     StoryUpdate,
+    SynthesizeStoryRequest,
     TimelineSegment,
     TranslationResult,
     utc_now,
@@ -40,10 +42,12 @@ from god_news.errors import (
     InvalidTransitionError,
     StoryInvariantError,
     TTSGenerationError,
+    VoiceProfileResolutionError,
 )
 from god_news.logging import story_log_context
 from god_news.sources.models import NormalizedSourceItem
 from god_news.sources.protocols import SourceItemNormalizer
+from god_news.voice_profiles import VoiceProfileResolver
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,7 @@ class StoryWorkflow:
         memory: MemoryCoordinator,
         synthesizer: SpeechSynthesizer,
         source_normalizer: SourceItemNormalizer,
+        voice_resolver: VoiceProfileResolver,
     ) -> None:
         self._repository = repository
         self._fetcher = fetcher
@@ -65,6 +70,7 @@ class StoryWorkflow:
         self._memory = memory
         self._synthesizer = synthesizer
         self._source_normalizer = source_normalizer
+        self._voice_resolver = voice_resolver
         self._story_locks: WeakValueDictionary[UUID, asyncio.Lock] = WeakValueDictionary()
 
     async def ingest(self, request: IngestRequest, *, trace_id: UUID | None = None) -> Story:
@@ -163,15 +169,9 @@ class StoryWorkflow:
                         transition_reason="translation recovery queued for first review",
                     )
                 if story.status is StoryStatus.PROCESSING_SCRIPT:
-                    return await self._create_script_and_audio(story)
-                if story.status is StoryStatus.SCRIPT_READY:
-                    return await self._synthesize_and_queue_second_review(story)
-                if (
-                    story.status is StoryStatus.PENDING_SECOND_REVIEW
-                    and story.script is not None
-                    and story.audio is None
-                ):
-                    return await self._resynthesize_in_second_review(story)
+                    return await self._create_script(story)
+                if story.status is StoryStatus.PROCESSING_TTS:
+                    return await self._complete_tts_from_processing(story)
                 raise InvalidTransitionError(story_id, story.status, story.status)
 
     async def archive(self, story_id: UUID) -> Story:
@@ -211,7 +211,7 @@ class StoryWorkflow:
 
         Style and duration are input to script generation.  Once a script exists,
         changing either would make approved artifacts misleading, so callers must
-        revise the script through the second-review flow instead.
+        revise the script through the script-review flow instead.
         """
 
         async with self._lock_for(story_id):
@@ -305,9 +305,10 @@ class StoryWorkflow:
                 expected_version=story.version,
                 review=review,
             )
-            await self._remember_review(corrected, review, approved=True)
+            await self._remember_review(corrected, review, approved=False)
             return corrected
 
+        await self._require_enabled_tts_voice(story_id, corrected.preferences.speaker_id)
         processing = transition_story(corrected, StoryStatus.PROCESSING_SCRIPT)
         processing = await self._repository.save(
             processing,
@@ -318,7 +319,118 @@ class StoryWorkflow:
         logger.info("first review approved")
         await self._remember_translation(processing, approved=True)
         await self._remember_review(processing, review, approved=True)
-        return await self._create_script_and_audio(processing)
+        return await self._create_script(processing)
+
+    async def submit_script_review(
+        self,
+        story_id: UUID,
+        submission: ScriptReviewSubmission,
+    ) -> Story:
+        """Record the human script gate before any expensive local TTS work."""
+
+        async with self._lock_for(story_id):
+            existing = await self._repository.get_review(submission.review_id)
+            if existing is not None:
+                if (
+                    existing.story_id != story_id
+                    or existing.stage is not ReviewStage.SCRIPT
+                    or existing.request_sha256 != self._review_request_hash(submission)
+                ):
+                    raise IdempotencyConflictError(story_id)
+                return await self._repository.get(story_id)
+            story = await self._repository.get(story_id)
+            with story_log_context(story_id):
+                return await self._submit_script_review_locked(story, submission)
+
+    async def _submit_script_review_locked(
+        self,
+        story: Story,
+        submission: ScriptReviewSubmission,
+    ) -> Story:
+        story_id = story.story_id
+        if submission.expected_story_version != story.version:
+            raise ConcurrentWriteError(story_id)
+        if story.status is not StoryStatus.SCRIPT_READY:
+            raise InvalidTransitionError(story_id, story.status, StoryStatus.PENDING_TTS)
+        if story.script is None:
+            raise ArtifactNotReadyError(story_id, "Script is missing.")
+
+        if submission.decision is ReviewDecision.REQUEST_CHANGES:
+            reviewed_story = story
+            if submission.revised_script is not None:
+                revised_script = submission.revised_script.model_copy(
+                    update={"revision": story.script.revision + 1}
+                )
+                reviewed_story = story.model_copy(
+                    update={
+                        "script": revised_script,
+                        "audio": None,
+                        "last_failure": None,
+                        "updated_at": utc_now(),
+                    }
+                )
+            review = self._build_review(
+                reviewed_story,
+                review_id=submission.review_id,
+                stage=ReviewStage.SCRIPT,
+                decision=submission.decision,
+                reviewer_id=submission.reviewer_id,
+                note=submission.note,
+                request_sha256=self._review_request_hash(submission),
+            )
+            reviewed_story = reviewed_story.model_copy(update={"updated_at": utc_now()})
+            reviewed_story = await self._repository.save(
+                reviewed_story,
+                expected_version=story.version,
+                review=review,
+            )
+            await self._remember_review(reviewed_story, review, approved=False)
+            return reviewed_story
+
+        review = self._build_review(
+            story,
+            review_id=submission.review_id,
+            stage=ReviewStage.SCRIPT,
+            decision=submission.decision,
+            reviewer_id=submission.reviewer_id,
+            note=submission.note,
+            request_sha256=self._review_request_hash(submission),
+        )
+        pending = transition_story(story, StoryStatus.PENDING_TTS)
+        pending = await self._repository.save(
+            pending,
+            expected_version=story.version,
+            transition_reason="script review approved; waiting for manual TTS synthesis",
+            review=review,
+        )
+        logger.info("script review approved; awaiting manual TTS")
+        await self._remember_review(pending, review, approved=True)
+        return pending
+
+    async def synthesize(self, story_id: UUID, request: SynthesizeStoryRequest) -> Story:
+        """Explicit command boundary for isolated local TTS synthesis.
+
+        This command intentionally is not part of ``resume`` for script-ready
+        stories: an editor must approve a concrete script and deliberately
+        start the high-cost local process.
+        """
+
+        async with self._lock_for(story_id):
+            story = await self._repository.get(story_id)
+            if request.expected_story_version != story.version:
+                raise ConcurrentWriteError(story_id)
+            if story.status is not StoryStatus.PENDING_TTS:
+                raise InvalidTransitionError(story_id, story.status, StoryStatus.PROCESSING_TTS)
+            if story.script is None:
+                raise ArtifactNotReadyError(story_id, "Script is missing.")
+            with story_log_context(story_id):
+                processing = transition_story(story, StoryStatus.PROCESSING_TTS)
+                processing = await self._repository.save(
+                    processing,
+                    expected_version=story.version,
+                    transition_reason="manual TTS synthesis started",
+                )
+                return await self._complete_tts_from_processing(processing)
 
     async def submit_second_review(
         self,
@@ -366,9 +478,11 @@ class StoryWorkflow:
                     expected_version=story.version,
                     review=review,
                 )
-                await self._remember_review(unchanged, review, approved=True)
+                await self._remember_review(unchanged, review, approved=False)
                 return unchanged
-            next_revision = (story.script.revision if story.script else 0) + 1
+            if story.script is None:
+                raise ArtifactNotReadyError(story_id, "Script is missing.")
+            next_revision = story.script.revision + 1
             revised_script = submission.revised_script.model_copy(
                 update={"revision": next_revision}
             )
@@ -389,13 +503,15 @@ class StoryWorkflow:
                 note=submission.note,
                 request_sha256=self._review_request_hash(submission),
             )
-            revised = await self._repository.save(
-                revised,
+            script_ready = transition_story(revised, StoryStatus.SCRIPT_READY)
+            script_ready = await self._repository.save(
+                script_ready,
                 expected_version=story.version,
+                transition_reason="final review returned revised script to script review",
                 review=review,
             )
-            await self._remember_review(revised, review, approved=True)
-            return await self._resynthesize_in_second_review(revised)
+            await self._remember_review(script_ready, review, approved=False)
+            return script_ready
 
         if story.script is None or story.audio is None:
             raise ArtifactNotReadyError(
@@ -446,6 +562,7 @@ class StoryWorkflow:
                     text=segment.text,
                     speaker_id=segment.speaker_id,
                     emotion=segment.emotion,
+                    scene_transition=segment.scene_transition,
                     visual_hint=segment.visual_hint,
                     audio_path=clip.path,
                 )
@@ -495,7 +612,9 @@ class StoryWorkflow:
             await self._store_failure(checkpoint, exc)
             raise
 
-    async def _create_script_and_audio(self, story: Story) -> Story:
+    async def _create_script(self, story: Story) -> Story:
+        """Generate a draft script and stop at the explicit script-review gate."""
+
         if story.translation is None:
             raise ArtifactNotReadyError(story.story_id, "Translation is missing.")
         try:
@@ -522,8 +641,8 @@ class StoryWorkflow:
         except Exception as exc:
             await self._store_failure(story, exc)
             raise
-        logger.info("script ready; starting isolated TTS")
-        return await self._synthesize_and_queue_second_review(ready)
+        logger.info("script ready for human script review")
+        return ready
 
     def _lock_for(self, story_id: UUID) -> asyncio.Lock:
         lock = self._story_locks.get(story_id)
@@ -532,7 +651,20 @@ class StoryWorkflow:
             self._story_locks[story_id] = lock
         return lock
 
-    async def _synthesize_and_queue_second_review(self, story: Story) -> Story:
+    async def _complete_tts_from_processing(self, story: Story) -> Story:
+        """Run TTS from its durable processing checkpoint.
+
+        A failure deliberately returns the story to ``PENDING_TTS`` with a
+        persisted failure record.  That leaves the approved script immutable
+        and makes each retry an explicit, auditable command.
+        """
+
+        if story.status is not StoryStatus.PROCESSING_TTS:
+            raise InvalidTransitionError(
+                story.story_id,
+                story.status,
+                StoryStatus.PENDING_SECOND_REVIEW,
+            )
         if story.script is None:
             raise ArtifactNotReadyError(story.story_id, "Script is missing.")
         try:
@@ -546,27 +678,37 @@ class StoryWorkflow:
             pending = await self._repository.save(
                 pending,
                 expected_version=story.version,
-                transition_reason="audio generated and queued for second review",
+                transition_reason="manual TTS synthesis completed; queued for final review",
             )
-            logger.info("audio ready for second review")
+            logger.info("audio ready for final review")
             return pending
+        except asyncio.CancelledError:
+            await asyncio.shield(
+                self._return_tts_to_pending(
+                    story,
+                    TTSGenerationError(
+                        "Local TTS synthesis was interrupted; manually retry when ready.",
+                        story.story_id,
+                    ),
+                )
+            )
+            raise
         except Exception as exc:
-            await self._store_failure(story, exc)
+            await self._return_tts_to_pending(story, exc)
             raise
 
-    async def _resynthesize_in_second_review(self, story: Story) -> Story:
-        if story.script is None:
-            raise ArtifactNotReadyError(story.story_id, "Revised script is missing.")
+    async def _return_tts_to_pending(self, story: Story, exc: Exception) -> None:
+        """Durably expose a failed manual TTS attempt as a safe retry state."""
+
         try:
-            audio = await self._synthesizer.synthesize(story.story_id, story.script)
-            self._validate_audio(story, story.script, audio)
-            updated = story.model_copy(
-                update={"audio": audio, "last_failure": None, "updated_at": utc_now()}
+            pending = transition_story(story, StoryStatus.PENDING_TTS)
+            await self._store_failure(
+                pending,
+                exc,
+                transition_reason="TTS synthesis failed; manual retry required",
             )
-            return await self._repository.save(updated, expected_version=story.version)
-        except Exception as exc:
-            await self._store_failure(story, exc)
-            raise
+        except Exception:
+            logger.exception("could not return failed TTS synthesis to PENDING_TTS")
 
     def _apply_first_review_edits(
         self,
@@ -605,6 +747,26 @@ class StoryWorkflow:
                 "preferences": submission.preferences or story.preferences,
             }
         )
+
+    async def _require_enabled_tts_voice(self, story_id: UUID, speaker_id: str) -> None:
+        """Fail closed before script generation if the chosen narrator is not usable.
+
+        This is intentionally a narrow port call.  The workflow does not know
+        how profiles are stored; it only requires a resolver to attest that the
+        selected speaker is currently enabled and has complete local-TTS assets.
+        """
+
+        try:
+            profile = await self._voice_resolver.resolve_voice(speaker_id)
+        except Exception as exc:
+            logger.exception("could not verify narrator role before first-review approval")
+            raise VoiceProfileResolutionError(story_id) from exc
+        if profile is None:
+            raise StoryInvariantError(
+                story_id,
+                "Choose an enabled role with a complete local TTS configuration "
+                "before approving first review.",
+            )
 
     @staticmethod
     def _validate_audio(story: Story, script: ScriptDocument, audio: AudioBundle) -> None:
@@ -661,11 +823,17 @@ class StoryWorkflow:
 
     @staticmethod
     def _review_request_hash(
-        submission: FirstReviewSubmission | SecondReviewSubmission,
+        submission: FirstReviewSubmission | ScriptReviewSubmission | SecondReviewSubmission,
     ) -> str:
         return hashlib.sha256(submission.model_dump_json().encode("utf-8")).hexdigest()
 
-    async def _store_failure(self, story: Story, exc: Exception) -> None:
+    async def _store_failure(
+        self,
+        story: Story,
+        exc: Exception,
+        *,
+        transition_reason: str | None = None,
+    ) -> None:
         code = exc.code if isinstance(exc, GodNewsError) else "internal_error"
         message = (
             exc.public_message
@@ -684,7 +852,11 @@ class StoryWorkflow:
             }
         )
         try:
-            await self._repository.save(failed, expected_version=story.version)
+            await self._repository.save(
+                failed,
+                expected_version=story.version,
+                transition_reason=transition_reason,
+            )
         except Exception:
             logger.exception("could not persist pipeline failure")
 

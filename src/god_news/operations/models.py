@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
@@ -14,6 +15,9 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from god_news.domain.enums import SpeechEmotion
+from god_news.voice_profiles import EMOTION_REFERENCE_KEYS, ResolvedVoiceProfile, VoiceReference
 
 NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -90,39 +94,92 @@ class RoleVisualAssets(OperationsModel):
         return self
 
 
-class RoleProfileCreate(OperationsModel):
+class EmotionReference(OperationsModel):
+    """DSakiko-compatible reference material for one concrete emotion.
+
+    The JSON shape deliberately mirrors ``reference_audio_and_text.json``:
+    ``{"audio_path": "...", "text": "..."}``. Paths remain inert profile
+    metadata here; the TTS adapter validates them against configured trusted
+    local roots immediately before use.
+    """
+
+    audio_path: AssetRef
+    text: NonBlankStr
+
+
+class RoleProfileInput(OperationsModel):
+    """Editable role fields shared by create, replace, and stored profiles.
+
+    ``tts_enabled`` is an explicit operational opt-in. Existing rows may carry
+    legacy weight metadata without seven emotion references; they remain valid
+    non-TTS profiles until an operator completes the configuration and enables
+    synthesis. This avoids silently treating old metadata as a live subprocess
+    configuration.
+    """
+
     slug: RoleSlug
     display_name: NonBlankStr
     kind: RoleKind
     speaker_id: NonBlankStr
+    character_prompt: str = Field(default="", max_length=12_000)
     default_emotion: NonBlankStr = "neutral"
     default_speed: float = Field(default=1.0, ge=0.6, le=1.65)
     default_pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
-    # These are persisted role metadata only.  The current GPT-SoVITS adapter
-    # remains single-voice and continues to use its application-level weights.
     gpt_weights_path: AssetRef | None = None
     sovits_weights_path: AssetRef | None = None
+    tts_model_profile: NonBlankStr | None = None
+    reference_language: NonBlankStr | None = None
+    emotion_refs: dict[SpeechEmotion, EmotionReference] = Field(default_factory=dict)
+    tts_enabled: bool = False
     visual_assets: RoleVisualAssets = Field(default_factory=RoleVisualAssets)
     enabled: bool = True
+
+    @model_validator(mode="after")
+    def validate_tts_configuration(self) -> RoleProfileInput:
+        """Require a complete, concrete voice only when it is enabled for TTS."""
+
+        if not self.tts_enabled:
+            return self
+        if self.gpt_weights_path is None or self.sovits_weights_path is None:
+            raise ValueError(
+                "TTS-enabled roles require both gpt_weights_path and sovits_weights_path."
+            )
+        if self.tts_model_profile is None:
+            raise ValueError("TTS-enabled roles require tts_model_profile.")
+        expected = set(EMOTION_REFERENCE_KEYS)
+        actual = set(self.emotion_refs)
+        if actual != expected:
+            missing = sorted(item.value for item in expected - actual)
+            unexpected = sorted(
+                item.value if isinstance(item, SpeechEmotion) else str(item)
+                for item in actual - expected
+            )
+            details = []
+            if missing:
+                details.append(f"missing: {', '.join(missing)}")
+            if unexpected:
+                details.append(f"unexpected: {', '.join(unexpected)}")
+            raise ValueError(
+                "TTS-enabled roles require exactly seven emotion_refs "
+                f"({'; '.join(details) or 'invalid keys'})."
+            )
+        if self.default_emotion not in {item.value for item in SpeechEmotion}:
+            raise ValueError(
+                "TTS-enabled role default_emotion must be one of the seven supported emotions."
+            )
+        return self
+
+
+class RoleProfileCreate(RoleProfileInput):
+    pass
 
 
 class RoleProfileReplace(RoleProfileCreate):
     expected_version: int = Field(ge=1)
 
 
-class RoleProfile(OperationsModel):
+class RoleProfile(RoleProfileInput):
     profile_id: UUID = Field(default_factory=uuid4)
-    slug: RoleSlug
-    display_name: NonBlankStr
-    kind: RoleKind
-    speaker_id: NonBlankStr
-    default_emotion: NonBlankStr = "neutral"
-    default_speed: float = Field(default=1.0, ge=0.6, le=1.65)
-    default_pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
-    gpt_weights_path: AssetRef | None = None
-    sovits_weights_path: AssetRef | None = None
-    visual_assets: RoleVisualAssets = Field(default_factory=RoleVisualAssets)
-    enabled: bool = True
     version: int = Field(default=1, ge=1)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -133,6 +190,34 @@ class RoleProfile(OperationsModel):
         if value.tzinfo is None:
             raise ValueError("timestamps must be timezone-aware")
         return value.astimezone(UTC)
+
+    def as_resolved_voice_profile(self) -> ResolvedVoiceProfile | None:
+        """Adapt a stored profile to the TTS-facing, UI-independent contract."""
+
+        if not self.enabled or not self.tts_enabled:
+            return None
+        if (
+            self.gpt_weights_path is None
+            or self.sovits_weights_path is None
+            or self.tts_model_profile is None
+        ):
+            return None
+        return ResolvedVoiceProfile(
+            profile_id=self.profile_id,
+            speaker_id=self.speaker_id,
+            model_profile=self.tts_model_profile,
+            gpt_weights_path=Path(self.gpt_weights_path),
+            sovits_weights_path=Path(self.sovits_weights_path),
+            emotion_refs={
+                emotion: VoiceReference(
+                    audio_path=Path(reference.audio_path),
+                    text=reference.text,
+                )
+                for emotion, reference in self.emotion_refs.items()
+            },
+            default_emotion=SpeechEmotion(self.default_emotion),
+            reference_language=self.reference_language,
+        )
 
 
 class RoleProfileDelete(OperationsModel):

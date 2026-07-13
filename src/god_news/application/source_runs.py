@@ -59,10 +59,6 @@ class SourceRunService:
         # user cancellation from application shutdown.
         self._operator_cancellations: set[UUID] = set()
         self._task_lock = asyncio.Lock()
-        sources: tuple[SourceName, ...] = ("dazhong", "reddit", "guardian", "pikabu")
-        self._source_locks: dict[SourceName, asyncio.Lock] = {
-            source: asyncio.Lock() for source in sources
-        }
         self._closing = False
 
     def readiness(self) -> Sequence[CollectorReadiness]:
@@ -162,8 +158,7 @@ class SourceRunService:
         run = await self._repository.get(run_id)
         token = set_trace_id(str(run.trace_id))
         try:
-            async with self._source_locks[run.request.source]:
-                await self._execute_locked(run_id)
+            await self._execute_locked(run_id)
         except asyncio.CancelledError:
             await self._mark_cancelled(
                 run_id,
@@ -203,6 +198,7 @@ class SourceRunService:
             collector_outcome=collected.outcome,
             attempts=list(collected.attempts),
             collection_errors=list(collected.errors),
+            cooldown_wait_ms=collected.cooldown_wait_ms,
             items_discovered=len(collected.items),
             updated_at=datetime.now(UTC),
         )

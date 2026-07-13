@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi.responses import FileResponse
 
 from god_news.api.dependencies import get_container
 from god_news.api.schemas import ProblemDetail
@@ -13,11 +15,13 @@ from god_news.domain.video import (
     BgmTrack,
     CreateVideoBatch,
     RenderVideoBatch,
+    SubmitNarrationReview,
     SubmitTimelineReview,
+    SynthesizeBatchNarration,
     VideoBatch,
     VideoBatchStatus,
 )
-from god_news.video_errors import VideoRendererUnavailableError
+from god_news.video_errors import VideoBatchConflictError, VideoRendererUnavailableError
 
 PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
     404: {
@@ -93,6 +97,69 @@ async def get_video_batch(
     service: VideoBatchServiceDependency,
 ) -> VideoBatch:
     return await service.get(batch_id)
+
+
+@router.get(
+    "/batches/{batch_id}/audio/{segment_id}",
+    response_class=FileResponse,
+    operation_id="getVideoBatchAudioClip",
+)
+async def batch_audio_clip(
+    batch_id: UUID,
+    segment_id: UUID,
+    container: ContainerDependency,
+    service: VideoBatchServiceDependency,
+) -> FileResponse:
+    """Serve one reviewed batch-narration clip from the managed output root.
+
+    The stored clip path is never trusted as a request path.  It must still
+    resolve underneath the configured output root and refer to the exact
+    segment persisted in the merged narration artifact.
+    """
+
+    batch = await service.get(batch_id)
+    audio = batch.narration.audio
+    if audio is None:
+        raise VideoBatchConflictError("Batch narration audio is not ready.")
+    clip = next((item for item in audio.clips if item.segment_id == segment_id), None)
+    if clip is None:
+        raise VideoBatchConflictError("Batch narration audio segment does not exist.")
+
+    root = container.settings.output_dir.resolve()
+    path = (root / Path(clip.path)).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise VideoBatchConflictError("Batch narration audio path is invalid.") from exc
+    if not path.is_file():
+        raise VideoBatchConflictError("Batch narration audio file is missing.")
+    return FileResponse(path, media_type="audio/wav", filename=path.name)
+
+
+@router.post(
+    "/batches/{batch_id}/narration-review",
+    response_model=VideoBatch,
+    operation_id="submitVideoBatchNarrationReview",
+)
+async def submit_video_batch_narration_review(
+    batch_id: UUID,
+    request: SubmitNarrationReview,
+    service: VideoBatchServiceDependency,
+) -> VideoBatch:
+    return await service.submit_narration_review(batch_id, request)
+
+
+@router.post(
+    "/batches/{batch_id}/narration/synthesize",
+    response_model=VideoBatch,
+    operation_id="synthesizeVideoBatchNarration",
+)
+async def synthesize_video_batch_narration(
+    batch_id: UUID,
+    request: SynthesizeBatchNarration,
+    service: VideoBatchServiceDependency,
+) -> VideoBatch:
+    return await service.synthesize_narration(batch_id, request)
 
 
 @router.post(

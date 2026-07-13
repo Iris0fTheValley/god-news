@@ -15,6 +15,7 @@ from god_news.infrastructure.source_health import build_source_policies
 from god_news.infrastructure.testing import (
     DeterministicSpeechSynthesizer,
     DeterministicTextGenerator,
+    DeterministicVoiceProfileResolver,
     InMemoryMemoryProvider,
     InMemoryStoryRepository,
 )
@@ -29,6 +30,7 @@ class Stack:
     generator: DeterministicTextGenerator
     memory: InMemoryMemoryProvider
     synthesizer: DeterministicSpeechSynthesizer
+    voice_resolver: DeterministicVoiceProfileResolver
     workflow: StoryWorkflow
     container: AppContainer
 
@@ -58,6 +60,7 @@ def stack(tmp_path: Path) -> Stack:
     generator = DeterministicTextGenerator()
     memory = InMemoryMemoryProvider()
     synthesizer = DeterministicSpeechSynthesizer(settings.output_dir)
+    voice_resolver = DeterministicVoiceProfileResolver(vendor)
     fetcher = TextFetcher()
     coordinator = MemoryCoordinator(memory, recall_fail_open=True, recall_limit=5)
     source_normalizers = create_default_source_registry()
@@ -73,6 +76,7 @@ def stack(tmp_path: Path) -> Stack:
         memory=coordinator,
         synthesizer=synthesizer,
         source_normalizer=source_normalizers,
+        voice_resolver=voice_resolver,
     )
     container = AppContainer(
         settings=settings,
@@ -91,6 +95,7 @@ def stack(tmp_path: Path) -> Stack:
         generator=generator,
         memory=memory,
         synthesizer=synthesizer,
+        voice_resolver=voice_resolver,
         workflow=workflow,
         container=container,
     )

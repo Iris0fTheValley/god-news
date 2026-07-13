@@ -79,6 +79,9 @@ class SourceCollectionRun(DomainModel):
     started_at: datetime = Field(default_factory=utc_now)
     finished_at: datetime = Field(default_factory=utc_now)
     duration_ms: float = Field(ge=0)
+    # Set by the gateway decorator after it has applied per-source cadence.
+    # It is duplicated onto SourceRun so the API/audit record retains it.
+    cooldown_wait_ms: float = Field(default=0, ge=0)
     items: list[RawSourceItem] = Field(default_factory=list, max_length=100)
     attempts: list[CollectionAttempt] = Field(default_factory=list, max_length=1_000)
     errors: list[CollectionErrorEvidence] = Field(default_factory=list, max_length=100)

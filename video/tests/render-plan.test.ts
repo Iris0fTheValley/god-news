@@ -8,14 +8,20 @@ describe('buildRenderPlan', () => {
     const plan = buildRenderPlan(validProps, 30);
 
     expect(plan.durationInFrames).toBe(96);
-    expect(plan.tracks.map(({kind, from, durationInFrames}) => ({
-      kind,
-      from,
-      durationInFrames,
+    expect(plan.tracks.map((track) => ({
+      kind: track.kind,
+      from: track.from,
+      durationInFrames: track.durationInFrames,
+      ...(track.kind === 'transition' ? {transition_type: track.transition_type} : {}),
     }))).toEqual([
       {kind: 'intro', from: 0, durationInFrames: 15},
       {kind: 'segment', from: 15, durationInFrames: 30},
-      {kind: 'transition', from: 45, durationInFrames: 6},
+      {
+        kind: 'transition',
+        from: 45,
+        durationInFrames: 6,
+        transition_type: 'crossfade',
+      },
       {kind: 'segment', from: 51, durationInFrames: 45},
     ]);
   });

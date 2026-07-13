@@ -41,7 +41,7 @@ function initialRequest(): SourceRunRequest {
     style: 'clear, accurate short-video narration',
     target_duration_seconds: 90,
     speaker_id: 'narrator',
-    emotion: 'neutral',
+    emotion: 'happiness',
     speed: 1,
     pitch: 0,
     requested_by: 'web-operator',

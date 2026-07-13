@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import uuid4
 
 import pytest
 
 from god_news.domain.enums import ContentCategory, ReviewDecision, StoryStatus
+from god_news.domain.fsm import transition_story
 from god_news.domain.models import (
     FirstReviewSubmission,
     IngestRequest,
+    ScriptReviewSubmission,
     SecondReviewSubmission,
+    SynthesizeStoryRequest,
     TextSource,
 )
-from god_news.errors import ArtifactNotReadyError, IdempotencyConflictError, TTSGenerationError
+from god_news.errors import (
+    ArtifactNotReadyError,
+    IdempotencyConflictError,
+    InvalidTransitionError,
+    StoryInvariantError,
+    TTSGenerationError,
+)
 
 from .conftest import Stack
 
@@ -32,6 +42,30 @@ def ingest_request() -> IngestRequest:
     )
 
 
+async def _approve_first_review(stack: Stack, story_id, version: int):  # type: ignore[no-untyped-def]
+    return await stack.workflow.submit_first_review(
+        story_id,
+        FirstReviewSubmission(
+            expected_story_version=version,
+            decision=ReviewDecision.APPROVE,
+            reviewer_id="editor-1",
+            note="Names and quantities checked.",
+        ),
+    )
+
+
+async def _approve_script_review(stack: Stack, story_id, version: int):  # type: ignore[no-untyped-def]
+    return await stack.workflow.submit_script_review(
+        story_id,
+        ScriptReviewSubmission(
+            expected_story_version=version,
+            decision=ReviewDecision.APPROVE,
+            reviewer_id="script-editor",
+            note="Narration is ready for synthesis.",
+        ),
+    )
+
+
 @pytest.mark.asyncio
 async def test_complete_review_gated_pipeline(stack: Stack) -> None:
     story = await stack.workflow.ingest(ingest_request())
@@ -43,20 +77,25 @@ async def test_complete_review_gated_pipeline(stack: Stack) -> None:
     with pytest.raises(ArtifactNotReadyError):
         await stack.workflow.production_manifest(story.story_id)
 
-    story = await stack.workflow.submit_first_review(
+    story = await _approve_first_review(stack, story.story_id, story.version)
+    assert story.status is StoryStatus.SCRIPT_READY
+    assert story.script is not None
+    assert story.audio is None
+    assert stack.generator.script_calls == 1
+    assert stack.synthesizer.calls == 0
+
+    story = await _approve_script_review(stack, story.story_id, story.version)
+    assert story.status is StoryStatus.PENDING_TTS
+    assert story.audio is None
+    assert stack.synthesizer.calls == 0
+
+    story = await stack.workflow.synthesize(
         story.story_id,
-        FirstReviewSubmission(
-            expected_story_version=story.version,
-            decision=ReviewDecision.APPROVE,
-            reviewer_id="editor-1",
-            note="Names and quantities checked.",
-        ),
+        SynthesizeStoryRequest(expected_story_version=story.version),
     )
     assert story.status is StoryStatus.PENDING_SECOND_REVIEW
-    assert stack.synthesizer.calls == 1
     assert story.audio is not None
-    assert stack.memory.writes
-    assert all(memory.approved for memory in stack.memory.writes)
+    assert stack.synthesizer.calls == 1
 
     story = await stack.workflow.submit_second_review(
         story.story_id,
@@ -72,6 +111,7 @@ async def test_complete_review_gated_pipeline(stack: Stack) -> None:
     manifest = await stack.workflow.production_manifest(story.story_id)
     assert manifest.total_duration_ms > 0
     assert len(manifest.timeline) == len(story.script.segments)  # type: ignore[union-attr]
+    assert manifest.timeline[0].scene_transition.value == "black"
 
     transitions = await stack.workflow.transitions(story.story_id)
     assert [(item.from_status, item.to_status) for item in transitions] == [
@@ -79,11 +119,14 @@ async def test_complete_review_gated_pipeline(stack: Stack) -> None:
         (StoryStatus.TRANSLATED, StoryStatus.PENDING_FIRST_REVIEW),
         (StoryStatus.PENDING_FIRST_REVIEW, StoryStatus.PROCESSING_SCRIPT),
         (StoryStatus.PROCESSING_SCRIPT, StoryStatus.SCRIPT_READY),
-        (StoryStatus.SCRIPT_READY, StoryStatus.PENDING_SECOND_REVIEW),
+        (StoryStatus.SCRIPT_READY, StoryStatus.PENDING_TTS),
+        (StoryStatus.PENDING_TTS, StoryStatus.PROCESSING_TTS),
+        (StoryStatus.PROCESSING_TTS, StoryStatus.PENDING_SECOND_REVIEW),
         (StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.DONE),
     ]
-    assert len(await stack.workflow.reviews(story.story_id)) == 2
-    assert any(memory.approved for memory in stack.memory.writes)
+    assert len(await stack.workflow.reviews(story.story_id)) == 3
+    assert stack.memory.writes
+    assert all(memory.approved for memory in stack.memory.writes)
 
 
 @pytest.mark.asyncio
@@ -122,30 +165,115 @@ async def test_first_review_changes_do_not_start_expensive_work(stack: Stack) ->
 
 
 @pytest.mark.asyncio
-async def test_tts_failure_is_recoverable_from_script_ready(stack: Stack) -> None:
+async def test_first_review_rejects_an_unconfigured_tts_speaker_before_script_generation(
+    stack: Stack,
+) -> None:
     story = await stack.workflow.ingest(ingest_request())
-    stack.synthesizer.fail_next = True
-    with pytest.raises(TTSGenerationError):
+
+    with pytest.raises(StoryInvariantError, match="enabled role"):
         await stack.workflow.submit_first_review(
             story.story_id,
             FirstReviewSubmission(
                 expected_story_version=story.version,
                 decision=ReviewDecision.APPROVE,
                 reviewer_id="editor-1",
+                preferences=story.preferences.model_copy(
+                    update={"speaker_id": "unconfigured-speaker"}
+                ),
             ),
         )
+
+    unchanged = await stack.workflow.get(story.story_id)
+    assert unchanged.status is StoryStatus.PENDING_FIRST_REVIEW
+    assert await stack.workflow.reviews(story.story_id) == []
+    assert stack.generator.script_calls == 0
+    assert stack.synthesizer.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source_language", "content", "expected"),
+    [
+        ("zh-CN", "  这是一段保留空白的中文原文。  ", "  这是一段保留空白的中文原文。  "),
+        (
+            None,
+            "  这是一段无语言标记但有足够汉字的新闻原文。  ",
+            "  这是一段无语言标记但有足够汉字的新闻原文。  ",
+        ),
+        (
+            "en",
+            "这是一段显式英文来源的中文引文。",
+            "[offline translation] 这是一段显式英文来源的中文引文。",
+        ),
+    ],
+)
+async def test_deterministic_generator_matches_chinese_translation_contract(
+    stack: Stack,
+    source_language: str | None,
+    content: str,
+    expected: str,
+) -> None:
+    result = await stack.generator.translate_and_summarize(
+        story_id=uuid4(),
+        content=content,
+        source_language=source_language,
+        target_language="en",
+        memories=[],
+    )
+    assert result.translated_text == expected
+    assert result.summary
+    assert result.screening.category is not None
+
+
+@pytest.mark.asyncio
+async def test_tts_failure_returns_to_manual_retry_gate(stack: Stack) -> None:
+    story = await stack.workflow.ingest(ingest_request())
+    story = await _approve_first_review(stack, story.story_id, story.version)
+    with pytest.raises(InvalidTransitionError):
+        await stack.workflow.resume(story.story_id)
+    story = await _approve_script_review(stack, story.story_id, story.version)
+    stack.synthesizer.fail_next = True
+
+    with pytest.raises(TTSGenerationError):
+        await stack.workflow.synthesize(
+            story.story_id,
+            SynthesizeStoryRequest(expected_story_version=story.version),
+        )
     failed = await stack.workflow.get(story.story_id)
-    assert failed.status is StoryStatus.SCRIPT_READY
+    assert failed.status is StoryStatus.PENDING_TTS
     assert failed.last_failure is not None
 
-    resumed = await stack.workflow.resume(story.story_id)
-    assert resumed.status is StoryStatus.PENDING_SECOND_REVIEW
-    assert resumed.last_failure is None
+    with pytest.raises(InvalidTransitionError):
+        await stack.workflow.resume(failed.story_id)
+
+    retried = await stack.workflow.synthesize(
+        failed.story_id,
+        SynthesizeStoryRequest(expected_story_version=failed.version),
+    )
+    assert retried.status is StoryStatus.PENDING_SECOND_REVIEW
+    assert retried.last_failure is None
     assert stack.synthesizer.calls == 2
 
 
 @pytest.mark.asyncio
-async def test_review_idempotency_prevents_duplicate_concurrent_tts(stack: Stack) -> None:
+async def test_resume_recovers_only_the_durable_tts_processing_checkpoint(stack: Stack) -> None:
+    story = await stack.workflow.ingest(ingest_request())
+    story = await _approve_first_review(stack, story.story_id, story.version)
+    pending = await _approve_script_review(stack, story.story_id, story.version)
+    processing = transition_story(pending, StoryStatus.PROCESSING_TTS)
+    processing = await stack.repository.save(
+        processing,
+        expected_version=pending.version,
+        transition_reason="fixture interrupted after manual TTS started",
+    )
+
+    recovered = await stack.workflow.resume(processing.story_id)
+    assert recovered.status is StoryStatus.PENDING_SECOND_REVIEW
+    assert stack.synthesizer.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_review_idempotency_and_manual_tts_lock_prevent_duplicate_work(stack: Stack) -> None:
     story = await stack.workflow.ingest(ingest_request())
     submission = FirstReviewSubmission(
         expected_story_version=story.version,
@@ -158,6 +286,18 @@ async def test_review_idempotency_prevents_duplicate_concurrent_tts(stack: Stack
         return_exceptions=True,
     )
     assert all(not isinstance(result, Exception) for result in results)
+    assert stack.generator.script_calls == 1
+    assert stack.synthesizer.calls == 0
+
+    ready = await stack.workflow.get(story.story_id)
+    pending = await _approve_script_review(stack, ready.story_id, ready.version)
+    request = SynthesizeStoryRequest(expected_story_version=pending.version)
+    results = await asyncio.gather(
+        stack.workflow.synthesize(pending.story_id, request),
+        stack.workflow.synthesize(pending.story_id, request),
+        return_exceptions=True,
+    )
+    assert sum(isinstance(result, Exception) for result in results) == 1
     assert stack.synthesizer.calls == 1
 
     changed_request = submission.model_copy(update={"note": "different request"})
@@ -175,14 +315,59 @@ async def test_mismatched_audio_cannot_enter_second_review(stack: Stack) -> None
 
     stack.synthesizer.synthesize = mismatched  # type: ignore[method-assign]
     story = await stack.workflow.ingest(ingest_request())
+    story = await _approve_first_review(stack, story.story_id, story.version)
+    story = await _approve_script_review(stack, story.story_id, story.version)
     with pytest.raises(TTSGenerationError, match="does not match"):
-        await stack.workflow.submit_first_review(
+        await stack.workflow.synthesize(
             story.story_id,
-            FirstReviewSubmission(
-                expected_story_version=story.version,
-                decision=ReviewDecision.APPROVE,
-                reviewer_id="editor-1",
-            ),
+            SynthesizeStoryRequest(expected_story_version=story.version),
         )
     failed = await stack.workflow.get(story.story_id)
-    assert failed.status is StoryStatus.SCRIPT_READY
+    assert failed.status is StoryStatus.PENDING_TTS
+    assert failed.last_failure is not None
+
+
+@pytest.mark.asyncio
+async def test_final_review_revision_returns_to_script_review_before_another_tts_run(
+    stack: Stack,
+) -> None:
+    story = await stack.workflow.ingest(ingest_request())
+    story = await _approve_first_review(stack, story.story_id, story.version)
+    story = await _approve_script_review(stack, story.story_id, story.version)
+    story = await stack.workflow.synthesize(
+        story.story_id,
+        SynthesizeStoryRequest(expected_story_version=story.version),
+    )
+    assert story.script is not None
+    revised = story.script.model_copy(
+        update={
+            "segments": [
+                story.script.segments[0].model_copy(update={"text": "Human-revised narration."})
+            ]
+        }
+    )
+
+    returned = await stack.workflow.submit_second_review(
+        story.story_id,
+        SecondReviewSubmission(
+            expected_story_version=story.version,
+            decision=ReviewDecision.REQUEST_CHANGES,
+            reviewer_id="final-editor",
+            note="Use the revised wording.",
+            revised_script=revised,
+        ),
+    )
+    assert returned.status is StoryStatus.SCRIPT_READY
+    assert returned.audio is None
+    assert returned.script is not None
+    assert returned.script.revision == story.script.revision + 1
+    assert stack.synthesizer.calls == 1
+
+    pending = await _approve_script_review(stack, returned.story_id, returned.version)
+    regenerated = await stack.workflow.synthesize(
+        pending.story_id,
+        SynthesizeStoryRequest(expected_story_version=pending.version),
+    )
+    assert regenerated.status is StoryStatus.PENDING_SECOND_REVIEW
+    assert regenerated.audio is not None
+    assert stack.synthesizer.calls == 2

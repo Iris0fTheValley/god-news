@@ -18,11 +18,13 @@ from god_news.domain.models import (
     IngestRequest,
     ProductionManifest,
     ReviewRecord,
+    ScriptReviewSubmission,
     SecondReviewSubmission,
     SourceItemIngestRequest,
     StateTransition,
     Story,
     StoryUpdate,
+    SynthesizeStoryRequest,
 )
 from god_news.errors import ArtifactNotReadyError
 from god_news.logging import trace_id_var
@@ -205,6 +207,38 @@ async def first_review(
     container: ContainerDependency,
 ) -> Story:
     return await container.workflow.submit_first_review(story_id, submission)
+
+
+@router.post(
+    "/stories/{story_id}/reviews/script",
+    response_model=Story,
+    operation_id="submitScriptReview",
+    tags=["reviews"],
+)
+async def script_review(
+    story_id: UUID,
+    submission: ScriptReviewSubmission,
+    container: ContainerDependency,
+) -> Story:
+    """Approve or return the human-editable narration before local TTS starts."""
+
+    return await container.workflow.submit_script_review(story_id, submission)
+
+
+@router.post(
+    "/stories/{story_id}/synthesize",
+    response_model=Story,
+    operation_id="synthesizeStory",
+    tags=["stories", "artifacts"],
+)
+async def synthesize_story(
+    story_id: UUID,
+    request: SynthesizeStoryRequest,
+    container: ContainerDependency,
+) -> Story:
+    """Explicitly start isolated local TTS for an approved script revision."""
+
+    return await container.workflow.synthesize(story_id, request)
 
 
 @router.post(

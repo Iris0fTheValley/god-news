@@ -61,8 +61,27 @@ async def test_api_drives_the_full_offline_pipeline(stack: Stack) -> None:
                 },
             )
             assert first.status_code == 200
-            assert first.json()["status"] == "PENDING_SECOND_REVIEW"
-            segment_id = first.json()["audio"]["clips"][0]["segment_id"]
+            assert first.json()["status"] == "SCRIPT_READY"
+            assert first.json()["audio"] is None
+
+            script_review = await client.post(
+                f"/api/v1/stories/{story_id}/reviews/script",
+                json={
+                    "expected_story_version": first.json()["version"],
+                    "decision": "approve",
+                    "reviewer_id": "script-editor",
+                },
+            )
+            assert script_review.status_code == 200
+            assert script_review.json()["status"] == "PENDING_TTS"
+
+            synthesized = await client.post(
+                f"/api/v1/stories/{story_id}/synthesize",
+                json={"expected_story_version": script_review.json()["version"]},
+            )
+            assert synthesized.status_code == 200
+            assert synthesized.json()["status"] == "PENDING_SECOND_REVIEW"
+            segment_id = synthesized.json()["audio"]["clips"][0]["segment_id"]
 
             metrics = await client.get("/api/v1/metrics/classification")
             assert metrics.status_code == 200
@@ -82,7 +101,7 @@ async def test_api_drives_the_full_offline_pipeline(stack: Stack) -> None:
             second = await client.post(
                 f"/api/v1/stories/{story_id}/reviews/second",
                 json={
-                    "expected_story_version": first.json()["version"],
+                    "expected_story_version": synthesized.json()["version"],
                     "decision": "approve",
                     "reviewer_id": "editor-2",
                 },
@@ -100,8 +119,23 @@ async def test_api_drives_the_full_offline_pipeline(stack: Stack) -> None:
 
             reviews = await client.get(f"/api/v1/stories/{story_id}/reviews")
             transitions = await client.get(f"/api/v1/stories/{story_id}/transitions")
-            assert len(reviews.json()) == 2
-            assert len(transitions.json()) == 6
+            assert len(reviews.json()) == 3
+            assert len(transitions.json()) == 8
+
+            openapi = await client.get("/openapi.json")
+            assert openapi.status_code == 200
+            assert (
+                openapi.json()["paths"]["/api/v1/stories/{story_id}/reviews/script"]["post"][
+                    "operationId"
+                ]
+                == "submitScriptReview"
+            )
+            assert (
+                openapi.json()["paths"]["/api/v1/stories/{story_id}/synthesize"]["post"][
+                    "operationId"
+                ]
+                == "synthesizeStory"
+            )
 
             cannot_resume = await client.post(f"/api/v1/stories/{story_id}/resume")
             assert cannot_resume.status_code == 409

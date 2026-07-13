@@ -31,7 +31,7 @@ pnpm --filter @god-news/frontend dev
 
 - 四个固定来源自动抓取（大众新闻、Reddit、Guardian、Pikabu），三层 URL 抓取降级
 - LLM 翻译 + 摘要 + AI 内容分类，人工初审可修订
-- 初审批准后自动生成口播脚本并调用本地 GPT-SoVITS 合成语音
+- 初审批准后自动生成口播脚本；脚本人工审核批准后，才可显式启动本地 GPT-SoVITS 合成语音
 - 人工终审通过后产出 `ProductionManifest` 时间轴，并创建带输入资产快照的可审阅视频批次
 - 软归档（ARCHIVED）、重开终审、故事编辑，完整审计追踪
 - 角色管理、采集运行日志、视频批次编排、BGM 目录浏览、运维清理
@@ -39,11 +39,35 @@ pnpm --filter @god-news/frontend dev
 ## 管线
 
 ```
-抓取 → 翻译/AI分类 → 人工初审 → 脚本 → TTS → 人工终审 → DONE
-               ↑ 批准后才消耗本地 GPU          ↓
-               ← ← ← 重开终审 ← ← ← ← ← ← ← ←
-               任一状态 → ARCHIVED（软归档）
+抓取 → 翻译/AI分类 → 人工初审 → 生成口播 → 人工审口播 → 手动 TTS → 人工终审 → DONE
+                                                          ↑ 仅此处显式消耗本地 GPU
+                                             终审改稿 ───┘
+任一非归档状态 → ARCHIVED（软归档）
 ```
+
+## 审核与手动合成
+
+生产状态路径为：
+
+`FETCHED → TRANSLATED → PENDING_FIRST_REVIEW → PROCESSING_SCRIPT → SCRIPT_READY → PENDING_TTS → PROCESSING_TTS → PENDING_SECOND_REVIEW → DONE`。
+
+`SCRIPT_READY` 是口播脚本的人工审核门。批准后故事进入 `PENDING_TTS`；客户端必须以当前乐观锁版本显式发起合成，服务才会启动本地 TTS：
+
+```http
+POST /api/v1/stories/{story_id}/reviews/script
+Content-Type: application/json
+
+{"expected_story_version": 5, "decision": "approve", "reviewer_id": "script-editor"}
+```
+
+```http
+POST /api/v1/stories/{story_id}/synthesize
+Content-Type: application/json
+
+{"expected_story_version": 6}
+```
+
+TTS 失败会安全回到 `PENDING_TTS` 并保留 `last_failure`，需要使用新版本再次手动触发；`/resume` 不会越过 `SCRIPT_READY` 或 `PENDING_TTS` 自动合成。
 
 ## 技术栈
 
@@ -54,7 +78,7 @@ pnpm --filter @god-news/frontend dev
 | 持久化 | SQLAlchemy 异步 + SQLite，乐观并发 |
 | LLM | DeepSeek V4 Flash（可选 LM Studio 本地） |
 | 记忆 | ChromaDB 本地嵌入式持久化 |
-| TTS | GPT-SoVITS v2Pro，单 story loopback 子进程 |
+| TTS | GPT-SoVITS v2Pro，单个串行 loopback 子进程；按段切换角色与七情绪参考材料 |
 | 前端 | React + Vite + TanStack Query，OpenAPI 自动生成类型 |
 | 视频 | Remotion 9:16 工程骨架，消费 `ProductionManifest 1.0`；生产渲染器仍是可替换适配器 |
 
@@ -81,4 +105,5 @@ pnpm --filter @god-news/video test
 
 - 四个真实内容源只有在对应凭据、用途授权和站点条款均确认后才会启用；离线演示不访问真实网络。
 - 视频批次、时间轴审阅和输入资产完整性校验已实现；真正的 Remotion 批量渲染进程仍需接入 `BatchVideoRenderer` 适配器。
-- 角色中的 GPT/SoVITS 权重路径当前是可审计的元数据。现有 TTS 保持单语音实例，后续多角色合成应以独立适配器接入。
+- 已启用 TTS 的角色使用独立的权重对、七组情绪参考音频/文本与可选参考语言；合成器按段选择角色和情绪。为保护显存，不同权重永不并存，切换时会先终止旧本地子进程。
+- 固定内容源的网络采集节奏由后端强制：同一来源两次网络采集完成之间不少于 30 秒，全局最多两个采集请求并行。前端不提供频率设置；随仓库启动命令固定为单 worker，若未来部署多进程/多实例，须先替换为持久化租约适配器。

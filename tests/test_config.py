@@ -41,6 +41,16 @@ def test_example_environment_file_is_parseable() -> None:
     assert settings.memory_provider is MemoryProviderName.CHROMADB
     assert settings.memory_chroma_collection == "god-news-memory-v1"
     assert settings.memory_chroma_embedding_model.value == "all-MiniLM-L6-v2"
+    assert Path("J:/AI friend/DSakiko3.10").resolve() in settings.tts_trusted_asset_roots
+
+
+def test_tts_trusted_asset_roots_must_not_be_empty(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="tts_trusted_asset_roots"):
+        Settings(
+            _env_file=None,
+            output_dir=tmp_path,
+            tts_trusted_asset_roots=(),
+        )
 
 
 @pytest.mark.parametrize("name", ["bad..name", "127.0.0.1"])

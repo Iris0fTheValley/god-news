@@ -16,13 +16,16 @@ interface FormValues {
   text: string;
   language: string;
   targetLanguage: string;
-  style: string;
-  duration: number;
-  speakerId: string;
-  emotion: string;
-  speed: number;
-  pitch: number;
 }
+
+const DEFAULT_INGEST_PREFERENCES = {
+  style: 'clear, accurate short-video narration',
+  target_duration_seconds: 90,
+  speaker_id: 'narrator',
+  emotion: 'happiness' as const,
+  speed: 1,
+  pitch: 0,
+};
 
 export function CreateStoryForm() {
   const [open, setOpen] = useState(false);
@@ -37,12 +40,6 @@ export function CreateStoryForm() {
       text: '',
       language: '',
       targetLanguage: 'zh-CN',
-      style: '准确、克制、让人愿意听完的好事播报',
-      duration: 90,
-      speakerId: 'narrator',
-      emotion: 'neutral',
-      speed: 1,
-      pitch: 0,
     },
   });
   const kind = useWatch({control, name: 'kind'});
@@ -67,12 +64,7 @@ export function CreateStoryForm() {
   const submit = handleSubmit((values) => {
     const common = {
       target_language: values.targetLanguage,
-      style: values.style,
-      target_duration_seconds: Number(values.duration),
-      speaker_id: values.speakerId,
-      emotion: values.emotion,
-      speed: Number(values.speed),
-      pitch: Number(values.pitch),
+      ...DEFAULT_INGEST_PREFERENCES,
     };
     const request: IngestRequest =
       values.kind === 'url'
@@ -151,39 +143,10 @@ export function CreateStoryForm() {
             </label>
           </>
         )}
-        <label className="field">
+        <label className="field wide">
           <span>目标语言</span>
           <input className="input" required {...register('targetLanguage')} />
         </label>
-        <label className="field">
-          <span>目标时长（秒）</span>
-          <input className="input" type="number" min={15} max={600} required {...register('duration', {valueAsNumber: true})} />
-        </label>
-        <label className="field wide">
-          <span>播报风格</span>
-          <input className="input" required {...register('style')} />
-        </label>
-        <details className="advanced-fields wide">
-          <summary>语音与角色参数</summary>
-          <div className="form-grid">
-            <label className="field">
-              <span>speaker_id</span>
-              <input className="input" required {...register('speakerId')} />
-            </label>
-            <label className="field">
-              <span>情绪</span>
-              <input className="input" required {...register('emotion')} />
-            </label>
-            <label className="field">
-              <span>语速</span>
-              <input className="input" type="number" min={0.6} max={1.65} step={0.05} {...register('speed', {valueAsNumber: true})} />
-            </label>
-            <label className="field">
-              <span>音高</span>
-              <input className="input" type="number" min={-12} max={12} step={0.5} {...register('pitch', {valueAsNumber: true})} />
-            </label>
-          </div>
-        </details>
         {mutation.error === null ? null : <ApiErrorNotice error={mutation.error} />}
         <div className="form-actions wide">
           <button className="button" type="button" onClick={close}>

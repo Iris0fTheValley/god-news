@@ -58,6 +58,16 @@ class VideoRenderingError(GodNewsError):
         )
 
 
+class VideoNarrationSynthesisError(GodNewsError):
+    def __init__(self, message: str, *, retryable: bool = True) -> None:
+        super().__init__(
+            "video_narration_synthesis_failed",
+            message,
+            status_code=502,
+            retryable=retryable,
+        )
+
+
 class VideoRendererUnavailableError(GodNewsError):
     def __init__(self, message: str) -> None:
         super().__init__("video_renderer_unavailable", message, status_code=503)

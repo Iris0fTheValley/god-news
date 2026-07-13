@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
-from god_news.domain.enums import ContentCategory, StoryStatus
+from god_news.domain.enums import ContentCategory, SpeechEmotion, StoryStatus
 from god_news.domain.fsm import all_transitions, transition_story
 from god_news.domain.models import (
     AudioBundle,
@@ -13,6 +14,7 @@ from god_news.domain.models import (
     ScriptDocument,
     ScriptPreferences,
     ScriptSegment,
+    SegmentSynthesisProvenance,
     Story,
     SynthesisMetadata,
     TextSource,
@@ -29,8 +31,14 @@ EXPECTED = (
     (StoryStatus.PENDING_FIRST_REVIEW, StoryStatus.ARCHIVED),
     (StoryStatus.PROCESSING_SCRIPT, StoryStatus.SCRIPT_READY),
     (StoryStatus.PROCESSING_SCRIPT, StoryStatus.ARCHIVED),
-    (StoryStatus.SCRIPT_READY, StoryStatus.PENDING_SECOND_REVIEW),
+    (StoryStatus.SCRIPT_READY, StoryStatus.PENDING_TTS),
     (StoryStatus.SCRIPT_READY, StoryStatus.ARCHIVED),
+    (StoryStatus.PENDING_TTS, StoryStatus.PROCESSING_TTS),
+    (StoryStatus.PENDING_TTS, StoryStatus.ARCHIVED),
+    (StoryStatus.PROCESSING_TTS, StoryStatus.PENDING_TTS),
+    (StoryStatus.PROCESSING_TTS, StoryStatus.PENDING_SECOND_REVIEW),
+    (StoryStatus.PROCESSING_TTS, StoryStatus.ARCHIVED),
+    (StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.SCRIPT_READY),
     (StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.DONE),
     (StoryStatus.PENDING_SECOND_REVIEW, StoryStatus.ARCHIVED),
     (StoryStatus.DONE, StoryStatus.PENDING_SECOND_REVIEW),
@@ -114,7 +122,7 @@ def make_artifacts() -> tuple[TranslationResult, ScriptDocument, AudioBundle]:
 
 def test_fsm_contains_the_pipeline_reopen_and_soft_archive_transitions() -> None:
     assert set(all_transitions()) == set(EXPECTED)
-    assert len(StoryStatus) == 8
+    assert len(StoryStatus) == 10
 
 
 def test_fsm_rejects_skipping_a_review_gate() -> None:
@@ -129,6 +137,8 @@ def test_fsm_walks_the_complete_path() -> None:
     story = transition_story(story, StoryStatus.PENDING_FIRST_REVIEW)
     story = transition_story(story, StoryStatus.PROCESSING_SCRIPT)
     story = transition_story(story, StoryStatus.SCRIPT_READY, script=script)
+    story = transition_story(story, StoryStatus.PENDING_TTS)
+    story = transition_story(story, StoryStatus.PROCESSING_TTS)
     story = transition_story(story, StoryStatus.PENDING_SECOND_REVIEW, audio=audio)
     story = transition_story(story, StoryStatus.DONE)
     assert story.status is StoryStatus.DONE
@@ -146,6 +156,10 @@ def test_fsm_reopens_done_only_and_archives_from_every_live_state() -> None:
     story = transition_story(story, StoryStatus.PROCESSING_SCRIPT)
     assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
     story = transition_story(story, StoryStatus.SCRIPT_READY, script=script)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.PENDING_TTS)
+    assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
+    story = transition_story(story, StoryStatus.PROCESSING_TTS)
     assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
     story = transition_story(story, StoryStatus.PENDING_SECOND_REVIEW, audio=audio)
     assert transition_story(story, StoryStatus.ARCHIVED).status is StoryStatus.ARCHIVED
@@ -168,3 +182,30 @@ def test_archive_retains_failure_evidence() -> None:
     )
     archived = transition_story(failed, StoryStatus.ARCHIVED)
     assert archived.last_failure == failed.last_failure
+
+
+def test_audio_bundle_validates_complete_per_segment_voice_provenance() -> None:
+    _, _, audio = make_artifacts()
+    clip = audio.clips[0]
+    digest = "0" * 64
+    provenance = SegmentSynthesisProvenance(
+        segment_id=clip.segment_id,
+        speaker_id="narrator",
+        emotion=SpeechEmotion.HAPPINESS,
+        reference_audio_sha256=digest,
+        reference_text_sha256=digest,
+        gpt_weights_sha256=digest,
+        sovits_weights_sha256=digest,
+        model_identity="fixture-v1",
+    )
+    payload = audio.model_dump()
+    payload["synthesis"]["segment_provenance"] = [provenance.model_dump()]
+    audited = AudioBundle.model_validate(payload)
+    assert audited.synthesis.segment_provenance == [provenance]
+
+    payload["synthesis"]["segment_provenance"] = [
+        provenance.model_dump(),
+        provenance.model_dump(),
+    ]
+    with pytest.raises(ValidationError, match="unique per segment"):
+        AudioBundle.model_validate(payload)

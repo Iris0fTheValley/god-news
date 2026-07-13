@@ -6,6 +6,8 @@ export const STORY_STATUSES = [
   'PENDING_FIRST_REVIEW',
   'PROCESSING_SCRIPT',
   'SCRIPT_READY',
+  'PENDING_TTS',
+  'PROCESSING_TTS',
   'PENDING_SECOND_REVIEW',
   'DONE',
 ] as const satisfies readonly Exclude<StoryStatus, 'ARCHIVED'>[];
@@ -25,6 +27,8 @@ export const STATUS_LABELS: Record<StoryStatus, string> = {
   PENDING_FIRST_REVIEW: '等待初审',
   PROCESSING_SCRIPT: '生成脚本',
   SCRIPT_READY: '脚本就绪',
+  PENDING_TTS: '等待语音合成',
+  PROCESSING_TTS: '合成本地语音',
   PENDING_SECOND_REVIEW: '等待终审',
   DONE: '已完成',
   ARCHIVED: '已归档',

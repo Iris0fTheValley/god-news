@@ -3,6 +3,18 @@ import {z} from 'zod';
 const nonBlank = z.string().trim().min(1);
 const localPath = nonBlank.max(4096);
 
+// Keep this vocabulary shared with the backend manifest.  The renderer still
+// deliberately uses a black placeholder for every value today; retaining the
+// semantic tag means a future transition adapter can change visuals without
+// rewriting approved narration manifests.
+export const SceneTransitionSchema = z.enum([
+  'black',
+  'crossfade',
+  'slide',
+  'wipe',
+  'mood_shift',
+]);
+
 export const TimelineSegmentSchema = z
   .object({
     segment_id: z.string().uuid(),
@@ -12,6 +24,9 @@ export const TimelineSegmentSchema = z
     text: nonBlank,
     speaker_id: nonBlank,
     emotion: nonBlank,
+    // Outgoing transition: rendered after this segment and before the next.
+    // The last segment retains the value as audit data but has no transition.
+    scene_transition: SceneTransitionSchema.default('black'),
     visual_hint: z.string().nullable().optional(),
     audio_path: localPath,
   })
@@ -176,5 +191,6 @@ export const parseGodNewsVideoProps = (input: unknown): GodNewsVideoProps =>
   ValidatedGodNewsVideoPropsSchema.parse(input);
 
 export type TimelineSegment = z.infer<typeof TimelineSegmentSchema>;
+export type SceneTransition = z.infer<typeof SceneTransitionSchema>;
 export type ProductionManifest = z.infer<typeof ProductionManifestSchema>;
 export type GodNewsVideoProps = z.infer<typeof GodNewsVideoPropsSchema>;

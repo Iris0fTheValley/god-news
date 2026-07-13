@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from god_news.api.app import create_app
+from god_news.domain.enums import SpeechEmotion
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.role_profiles import (
     InMemoryRoleProfileRepository,
@@ -53,6 +54,32 @@ def _role(slug: str = "main-host") -> RoleProfileCreate:
             ],
         },
     )
+
+
+def _emotion_refs() -> dict[str, dict[str, str]]:
+    return {
+        emotion.value: {
+            "audio_path": rf"J:\models\references\{emotion.value}.wav",
+            "text": f"{emotion.value} reference text",
+        }
+        for emotion in SpeechEmotion
+    }
+
+
+def _tts_role(slug: str = "voice-host") -> RoleProfileCreate:
+    values = _role(slug).model_dump()
+    values.update(
+        {
+            "speaker_id": f"speaker-{slug}",
+            "default_emotion": SpeechEmotion.HAPPINESS.value,
+            "tts_enabled": True,
+            "tts_model_profile": "v2Pro",
+            "reference_language": "all_ja",
+            "character_prompt": "A calm, accurate news narrator.",
+            "emotion_refs": _emotion_refs(),
+        }
+    )
+    return RoleProfileCreate.model_validate(values)
 
 
 @pytest.mark.asyncio
@@ -151,7 +178,9 @@ async def test_sqlite_role_weight_migration_is_additive_and_idempotent(tmp_path:
             ).all()
             profile = (
                 await db_connection.exec_driver_sql(
-                    "SELECT slug, display_name, gpt_weights_path, sovits_weights_path "
+                    "SELECT slug, display_name, gpt_weights_path, sovits_weights_path, "
+                    "character_prompt, emotion_refs_json, tts_enabled, tts_model_profile, "
+                    "reference_language "
                     "FROM role_profiles WHERE slug = 'legacy-host'"
                 )
             ).one()
@@ -161,8 +190,23 @@ async def test_sqlite_role_weight_migration_is_additive_and_idempotent(tmp_path:
     assert {str(column[1]) for column in columns} >= {
         "gpt_weights_path",
         "sovits_weights_path",
+        "character_prompt",
+        "emotion_refs_json",
+        "tts_enabled",
+        "tts_model_profile",
+        "reference_language",
     }
-    assert tuple(profile) == ("legacy-host", "Legacy host", None, None)
+    assert tuple(profile) == (
+        "legacy-host",
+        "Legacy host",
+        None,
+        None,
+        "",
+        "{}",
+        0,
+        None,
+        None,
+    )
 
 
 def test_role_weight_asset_refs_are_inert_and_path_safe() -> None:
@@ -181,6 +225,127 @@ def test_role_weight_asset_refs_are_inert_and_path_safe() -> None:
             kind=RoleKind.NARRATOR,
             speaker_id="voice-safe",
             gpt_weights_path="weights/unsafe\x00.pth",
+        )
+
+
+def test_tts_enabled_role_requires_complete_dsakiko_voice_shape() -> None:
+    missing_weight = _tts_role().model_dump()
+    missing_weight["sovits_weights_path"] = None
+    with pytest.raises(ValidationError, match="both gpt_weights_path and sovits_weights_path"):
+        RoleProfileCreate.model_validate(missing_weight)
+
+    missing_reference = _tts_role().model_dump()
+    missing_reference["emotion_refs"].pop(SpeechEmotion.FEAR)
+    with pytest.raises(ValidationError, match="exactly seven emotion_refs"):
+        RoleProfileCreate.model_validate(missing_reference)
+
+    missing_profile = _tts_role().model_dump()
+    missing_profile["tts_model_profile"] = None
+    with pytest.raises(ValidationError, match="tts_model_profile"):
+        RoleProfileCreate.model_validate(missing_profile)
+
+    role = _tts_role()
+    assert role.character_prompt == "A calm, accurate news narrator."
+    assert role.reference_language == "all_ja"
+    assert set(role.emotion_refs) == set(SpeechEmotion)
+
+
+@pytest.mark.asyncio
+async def test_role_slug_is_immutable_and_enabled_speaker_lookup_is_unique() -> None:
+    repository = InMemoryRoleProfileRepository()
+    service = RoleProfileService(repository)
+    created = await service.create(_tts_role("first-host"))
+    replacement_values = created.model_dump(
+        exclude={"profile_id", "version", "created_at", "updated_at"}
+    )
+    replacement_values["slug"] = "renamed-host"
+    replacement = RoleProfileReplace(
+        **replacement_values,
+        expected_version=created.version,
+    )
+    with pytest.raises(RoleProfileConflictError, match="slug is immutable"):
+        await service.replace(created.profile_id, replacement)
+
+    duplicate_values = _tts_role("second-host").model_dump()
+    duplicate_values["speaker_id"] = created.speaker_id
+    with pytest.raises(RoleProfileConflictError, match="speaker_id"):
+        await service.create(RoleProfileCreate.model_validate(duplicate_values))
+
+    duplicate_values["enabled"] = False
+    disabled_duplicate = await service.create(RoleProfileCreate.model_validate(duplicate_values))
+    assert disabled_duplicate.enabled is False
+    found = await service.get_enabled_by_speaker_id(created.speaker_id)
+    assert found is not None
+    assert found.profile_id == created.profile_id
+    resolved = await service.resolve_voice(created.speaker_id)
+    assert resolved is not None
+    assert resolved.speaker_id == created.speaker_id
+    assert resolved.reference_language == "all_ja"
+
+
+@pytest.mark.asyncio
+async def test_live_script_guard_blocks_only_voice_selection_mutations() -> None:
+    class Guard:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+            self.referenced = False
+
+        async def has_live_script_reference(self, speaker_id: str) -> bool:
+            self.calls.append(speaker_id)
+            return self.referenced
+
+    guard = Guard()
+    service = RoleProfileService(InMemoryRoleProfileRepository(), guard)
+    created = await service.create(_tts_role("guarded-host"))
+    guard.referenced = True
+    guard.calls.clear()
+    edit_values = created.model_dump(
+        exclude={"profile_id", "version", "created_at", "updated_at"}
+    )
+    edit_values["display_name"] = "Editorial-only rename"
+    editorial_edit = RoleProfileReplace(**edit_values, expected_version=created.version)
+    updated = await service.replace(created.profile_id, editorial_edit)
+    assert updated.display_name == "Editorial-only rename"
+    assert guard.calls == []
+
+    voice_values = updated.model_dump(
+        exclude={"profile_id", "version", "created_at", "updated_at"}
+    )
+    voice_values["reference_language"] = "en"
+    voice_edit = RoleProfileReplace(**voice_values, expected_version=updated.version)
+    with pytest.raises(RoleProfileConflictError, match="live scripts"):
+        await service.replace(updated.profile_id, voice_edit)
+    assert guard.calls == [created.speaker_id]
+
+    with pytest.raises(RoleProfileConflictError, match="live scripts"):
+        await service.delete(updated.profile_id, expected_version=updated.version)
+    assert guard.calls == [created.speaker_id, created.speaker_id]
+
+
+@pytest.mark.asyncio
+async def test_live_script_guard_blocks_new_or_reenabled_voice_contracts() -> None:
+    class Guard:
+        async def has_live_script_reference(self, speaker_id: str) -> bool:
+            return speaker_id == "speaker-live"
+
+    service = RoleProfileService(InMemoryRoleProfileRepository(), Guard())
+    live_values = _tts_role("live").model_dump()
+    live_values["speaker_id"] = "speaker-live"
+    with pytest.raises(RoleProfileConflictError, match="live scripts"):
+        await service.create(RoleProfileCreate.model_validate(live_values))
+
+    disabled_values = _tts_role("disabled-live").model_dump()
+    disabled_values["speaker_id"] = "speaker-live"
+    disabled_values["enabled"] = False
+    disabled = await service.create(RoleProfileCreate.model_validate(disabled_values))
+    replacement_values = disabled.model_dump(
+        exclude={"profile_id", "version", "created_at", "updated_at"}
+    )
+    replacement_values["enabled"] = True
+    with pytest.raises(RoleProfileConflictError, match="live scripts"):
+        await service.replace(
+            disabled.profile_id,
+            RoleProfileReplace(**replacement_values, expected_version=disabled.version),
         )
 
 

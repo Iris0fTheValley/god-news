@@ -1,14 +1,15 @@
-import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {CheckCircle2, RotateCcw} from 'lucide-react';
-import {useRef, useState} from 'react';
-import {useForm} from 'react-hook-form';
+import {type ChangeEvent, useRef, useState} from 'react';
+import {useForm, useWatch} from 'react-hook-form';
 
-import {submitFirstReview} from '../../api/client';
+import {listRoles, submitFirstReview} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
-import type {FirstReviewSubmission, Story} from '../../api/types';
+import type {FirstReviewSubmission, SpeechEmotion, Story} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {CATEGORY_LABELS} from '../../components/contentCategories';
+import {SPEECH_EMOTIONS} from '../../components/narrationOptions';
 
 interface ReviewForm {
   reviewerId: string;
@@ -19,6 +20,8 @@ interface ReviewForm {
   candidateRecommendation: boolean;
   style: string;
   duration: number;
+  speakerId: string;
+  speed: number;
   note: string;
 }
 
@@ -26,12 +29,22 @@ interface FirstReviewPanelProps {
   story: Story;
 }
 
+function resolveEmotion(value: string): SpeechEmotion | null {
+  return SPEECH_EMOTIONS.includes(value as SpeechEmotion)
+    ? value as SpeechEmotion
+    : null;
+}
+
 export function FirstReviewPanel({story}: FirstReviewPanelProps) {
   const storyId = story.story_id;
   const queryClient = useQueryClient();
   const retryReviewId = useRef<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<'approve' | 'request_changes' | null>(null);
-  const {register, getValues, formState} = useForm<ReviewForm>({
+  const rolesQuery = useQuery({
+    queryKey: queryKeys.roles(true),
+    queryFn: () => listRoles(true),
+  });
+  const {register, getValues, setValue, control, formState} = useForm<ReviewForm>({
     defaultValues: {
       reviewerId: 'local-editor',
       translation: story.translation?.translated_text ?? '',
@@ -41,14 +54,30 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
       candidateRecommendation: story.translation?.screening.candidate_recommendation ?? false,
       style: story.preferences.style,
       duration: story.preferences.target_duration_seconds,
+      speakerId: story.preferences.speaker_id,
+      speed: story.preferences.speed,
       note: '',
     },
   });
+  const selectedSpeakerId = useWatch({control, name: 'speakerId'});
+  const eligibleRoles = (rolesQuery.data ?? []).filter(
+    (role) => role.enabled && role.tts_enabled && resolveEmotion(role.default_emotion) !== null,
+  );
+  const selectedRole = eligibleRoles.find((role) => role.speaker_id === selectedSpeakerId);
+  const selectedEmotion = selectedRole === undefined
+    ? null
+    : resolveEmotion(selectedRole.default_emotion);
+  const canApprove = rolesQuery.isSuccess && selectedRole !== undefined && selectedEmotion !== null;
 
   const mutation = useMutation({
     mutationFn: async ({decision}: {decision: 'approve' | 'request_changes'}) => {
       if (storyId === undefined) throw new Error('Story ID is missing.');
       const values = getValues();
+      const role = eligibleRoles.find((item) => item.speaker_id === values.speakerId);
+      const emotion = role === undefined ? null : resolveEmotion(role.default_emotion);
+      if (decision === 'approve' && (role === undefined || emotion === null || !rolesQuery.isSuccess)) {
+        throw new Error('Select an enabled, TTS-capable role before approving the first review.');
+      }
       retryReviewId.current ??= crypto.randomUUID();
       const body: FirstReviewSubmission = {
         review_id: retryReviewId.current,
@@ -64,10 +93,14 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           .filter(Boolean),
         corrected_category: values.category,
         corrected_candidate_recommendation: values.candidateRecommendation,
-        preferences: {
+        preferences: role === undefined || emotion === null ? null : {
           ...story.preferences,
           style: values.style,
           target_duration_seconds: Number(values.duration),
+          speaker_id: role.speaker_id,
+          emotion,
+          speed: Number(values.speed),
+          pitch: story.preferences.pitch,
         },
       };
       return submitFirstReview(storyId, body);
@@ -88,7 +121,7 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
     <form className="review-form" onSubmit={(event) => event.preventDefault()}>
       <p className="eyebrow">FIRST REVIEW · v{String(story.version ?? 1)}</p>
       <h2>人工初审</h2>
-      <p className="review-help">确认事实、译文和关键点。批准后才会生成脚本并加载本地语音模型。</p>
+      <p className="review-help">确认事实、译文和关键点。在这里设定脚本参数；批准后只生成口播文本，不会启动本地 TTS。</p>
       <label className="field">
         <span>审核人</span>
         <input className="input" required {...register('reviewerId')} />
@@ -119,6 +152,38 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           <span>可以进入候选池</span>
         </label>
       </div>
+      <fieldset className="field-group wide">
+        <legend className="eyebrow">SCRIPT SETTINGS</legend>
+        <p className="field-hint">只能选择已启用、已完成本地 TTS 配置的角色；音高沿用故事当前值且不在此处显示。</p>
+        <div className="form-grid">
+          <label className="field">
+            <span>播报角色</span>
+            <select
+              className="select"
+              disabled={rolesQuery.isLoading}
+              {...register('speakerId', {
+                onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+                  const role = eligibleRoles.find((item) => item.speaker_id === event.currentTarget.value);
+                  if (role !== undefined) setValue('speed', role.default_speed, {shouldDirty: true});
+                },
+              })}
+            >
+              <option value="" disabled>请选择可合成的播报角色</option>
+              {selectedSpeakerId !== '' && selectedRole === undefined ? (
+                <option value={selectedSpeakerId} disabled>当前角色不可用于本地 TTS</option>
+              ) : null}
+              {eligibleRoles.map((role) => (
+                <option key={role.profile_id ?? role.slug} value={role.speaker_id}>{role.display_name} · {role.speaker_id}</option>
+              ))}
+            </select>
+            <small>{rolesQuery.isLoading ? '正在加载角色…' : rolesQuery.isSuccess ? '仅显示可立即用于本地 TTS 的角色。' : '角色列表不可用，不能批准初审。'}</small>
+          </label>
+          <label className="field">
+            <span>语速</span>
+            <input className="input" type="number" min={0.6} max={1.65} step={0.05} {...register('speed', {valueAsNumber: true})} />
+          </label>
+        </div>
+      </fieldset>
       <div className="form-grid">
         <label className="field">
           <span>播报风格</span>
@@ -133,6 +198,7 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
         <span>审核说明</span>
         <textarea className="textarea compact" {...register('note')} />
       </label>
+      {rolesQuery.error === null ? null : <ApiErrorNotice error={rolesQuery.error} />}
       {mutation.error === null ? null : <ApiErrorNotice error={mutation.error} />}
       <div className="review-actions">
         <button
@@ -146,16 +212,23 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
         <button
           className="button primary"
           type="button"
-          disabled={mutation.isPending || formState.isSubmitting}
+          disabled={mutation.isPending || formState.isSubmitting || !canApprove}
           onClick={() => setPendingDecision('approve')}
         >
           <CheckCircle2 size={18} aria-hidden="true" />
-          {mutation.isPending ? '正在生成脚本与音频…' : '批准并生成音频'}
+          {mutation.isPending ? '正在生成口播文本…' : '批准并生成口播文本'}
         </button>
       </div>
+      {canApprove ? null : (
+        <p className="pending-note" role="status">
+          {rolesQuery.isLoading
+            ? '正在校验可用角色。'
+            : '批准前请选择一个已启用且具备完整本地 TTS 配置的角色。'}
+        </p>
+      )}
       {mutation.isPending ? (
         <p className="pending-note" role="status" aria-live="polite">
-          首次模型加载约需一分钟。请保持页面打开；中断后可用“恢复生成”继续。
+          正在生成口播文本。请保持页面打开；中断后可从安全检查点恢复。
         </p>
       ) : null}
       <ConfirmDialog
@@ -163,10 +236,10 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
         title={pendingDecision === 'approve' ? '批准初审' : '保存修改'}
         message={
           pendingDecision === 'approve'
-            ? '批准后将触发脚本生成 + 语音合成（约 1 分钟）。此操作不可撤销，确认继续？'
+            ? '批准后将生成口播文本，随后仍需人工审稿并手动启动语音合成。确认继续？'
             : '保存修改后将更新初审记录，但不会推进到脚本生成阶段。'
         }
-        confirmLabel={pendingDecision === 'approve' ? '批准并生成音频' : '确认保存'}
+        confirmLabel={pendingDecision === 'approve' ? '批准并生成口播文本' : '确认保存'}
         onConfirm={() => {
           if (pendingDecision !== null) mutation.mutate({decision: pendingDecision});
           setPendingDecision(null);

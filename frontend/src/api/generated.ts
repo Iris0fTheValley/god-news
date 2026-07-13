@@ -385,6 +385,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stories/{story_id}/reviews/script": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Script Review
+         * @description Approve or return the human-editable narration before local TTS starts.
+         */
+        post: operations["submitScriptReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stories/{story_id}/reviews/second": {
         parameters: {
             query?: never;
@@ -396,6 +416,26 @@ export interface paths {
         put?: never;
         /** Second Review */
         post: operations["submitSecondReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/synthesize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Synthesize Story
+         * @description Explicitly start isolated local TTS for an approved script revision.
+         */
+        post: operations["synthesizeStory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -414,6 +454,61 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/visual-assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Story Visual Assets */
+        get: operations["listStoryVisualAssets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/visual-assets/{asset_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Visual Asset Content */
+        get: operations["getVisualAssetContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/visual-assets/{segment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Segment Visual Asset
+         * @description Replace one segment's image with a raw PNG, JPEG, or WebP request body.
+         */
+        put: operations["uploadSegmentVisualAsset"];
+        post?: never;
+        /** Delete Segment Visual Asset */
+        delete: operations["deleteSegmentVisualAsset"];
         options?: never;
         head?: never;
         patch?: never;
@@ -455,6 +550,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/video/batches/{batch_id}/audio/{segment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Batch Audio Clip
+         * @description Serve one reviewed batch-narration clip from the managed output root.
+         *
+         *     The stored clip path is never trusted as a request path.  It must still
+         *     resolve underneath the configured output root and refer to the exact
+         *     segment persisted in the merged narration artifact.
+         */
+        get: operations["getVideoBatchAudioClip"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/video/batches/{batch_id}/cancel": {
         parameters: {
             query?: never;
@@ -466,6 +585,40 @@ export interface paths {
         put?: never;
         /** Cancel Video Render */
         post: operations["cancelVideoRender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches/{batch_id}/narration-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Video Batch Narration Review */
+        post: operations["submitVideoBatchNarrationReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/batches/{batch_id}/narration/synthesize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synthesize Video Batch Narration */
+        post: operations["synthesizeVideoBatchNarration"];
         delete?: never;
         options?: never;
         head?: never;
@@ -606,6 +759,60 @@ export interface components {
              * Format: uri
              */
             url: string;
+        };
+        /**
+         * BatchNarrationArtifact
+         * @description The reviewable, batch-level narration and its optional synthesized media.
+         */
+        BatchNarrationArtifact: {
+            audio?: components["schemas"]["AudioBundle"] | null;
+            /**
+             * Composed At
+             * Format: date-time
+             */
+            composed_at?: string;
+            manifest?: components["schemas"]["ProductionManifest"] | null;
+            script: components["schemas"]["ScriptDocument"];
+            /** Source Evidence */
+            source_evidence: components["schemas"]["BatchNarrationSourceEvidence"][];
+            /** Source Evidence Sha256 */
+            source_evidence_sha256: string;
+            /** Synthesized At */
+            synthesized_at?: string | null;
+        };
+        /** BatchNarrationFailure */
+        BatchNarrationFailure: {
+            /** Message */
+            message: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at?: string;
+            /**
+             * Retryable
+             * @default true
+             */
+            retryable: boolean;
+        };
+        /**
+         * BatchNarrationSourceEvidence
+         * @description Stable provenance consumed by a merged narration generation.
+         */
+        BatchNarrationSourceEvidence: {
+            /** Script Revision */
+            script_revision: number;
+            /** Script Sha256 */
+            script_sha256: string;
+            /** Source Manifest Sha256 */
+            source_manifest_sha256: string;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Story Version */
+            story_version: number;
         };
         /** BgmRenderSpec */
         BgmRenderSpec: {
@@ -858,6 +1065,21 @@ export interface components {
             /** Secondary Categories */
             secondary_categories?: components["schemas"]["ContentCategory"][];
         };
+        /**
+         * EmotionReference
+         * @description DSakiko-compatible reference material for one concrete emotion.
+         *
+         *     The JSON shape deliberately mirrors ``reference_audio_and_text.json``:
+         *     ``{"audio_path": "...", "text": "..."}``. Paths remain inert profile
+         *     metadata here; the TTS adapter validates them against configured trusted
+         *     local roots immediately before use.
+         */
+        EmotionReference: {
+            /** Audio Path */
+            audio_path: string;
+            /** Text */
+            text: string;
+        };
         /** FirstReviewSubmission */
         FirstReviewSubmission: {
             /** Corrected Candidate Recommendation */
@@ -915,11 +1137,7 @@ export interface components {
         };
         /**
          * HostVisualReservations
-         * @description Current Remotion host contract with typed future asset reservations.
-         *
-         *     The renderer remains ``placeholder`` until a concrete Live2D or
-         *     differential-art composition is installed. Assets can already be described
-         *     without leaking provider-specific mappings into the orchestration service.
+         * @description Typed visual reservations kept independent from narration composition.
          */
         HostVisualReservations: {
             differential_art?: components["schemas"]["DifferentialArtReservation"] | null;
@@ -931,6 +1149,12 @@ export interface components {
              */
             renderer: "placeholder";
         };
+        /**
+         * ImageContentType
+         * @description Raster formats accepted by the local visual-asset boundary.
+         * @enum {string}
+         */
+        ImageContentType: "image/png" | "image/jpeg" | "image/webp";
         /** ImageMediaAsset */
         ImageMediaAsset: {
             /** Alt Text */
@@ -960,11 +1184,8 @@ export interface components {
         };
         /** IngestRequest */
         IngestRequest: {
-            /**
-             * Emotion
-             * @default neutral
-             */
-            emotion: string;
+            /** @default happiness */
+            emotion: components["schemas"]["SpeechEmotion"];
             /**
              * Pitch
              * @default 0
@@ -1015,6 +1236,30 @@ export interface components {
              */
             alive: boolean;
         };
+        /** NarrationReview */
+        NarrationReview: {
+            decision: components["schemas"]["NarrationReviewDecision"];
+            /** Note */
+            note?: string | null;
+            /**
+             * Reviewed At
+             * Format: date-time
+             */
+            reviewed_at?: string;
+            /** Reviewed Batch Version */
+            reviewed_batch_version: number;
+            /** Reviewer Id */
+            reviewer_id: string;
+            /** Script Revision */
+            script_revision: number;
+            /** Script Sha256 */
+            script_sha256: string;
+        };
+        /**
+         * NarrationReviewDecision
+         * @enum {string}
+         */
+        NarrationReviewDecision: "approve" | "revise" | "reject";
         /** NormalizedSourceItem */
         NormalizedSourceItem: {
             attribution: components["schemas"]["Attribution"];
@@ -1645,8 +1890,9 @@ export interface components {
          * RemotionVideoProps
          * @description Backend-owned subset of ``video/src/schema.ts``.
          *
-         *     ``runtime_assets`` is intentionally absent: the local Remotion CLI stages
-         *     files by content hash and owns those transient browser bindings.
+         *     This object is deliberately absent until batch narration has been manually
+         *     synthesized. It therefore cannot accidentally encode an unreviewed or
+         *     source-story-flat render plan.
          */
         RemotionVideoProps: {
             bgm?: components["schemas"]["BgmRenderSpec"] | null;
@@ -1787,7 +2033,7 @@ export interface components {
          * ReviewStage
          * @enum {string}
          */
-        ReviewStage: "first" | "second";
+        ReviewStage: "first" | "script" | "second";
         /** RightsMetadata */
         RightsMetadata: {
             /** Allows Derivatives */
@@ -1820,6 +2066,11 @@ export interface components {
         /** RoleProfile */
         RoleProfile: {
             /**
+             * Character Prompt
+             * @default
+             */
+            character_prompt: string;
+            /**
              * Created At
              * Format: date-time
              */
@@ -1841,6 +2092,10 @@ export interface components {
             default_speed: number;
             /** Display Name */
             display_name: string;
+            /** Emotion Refs */
+            emotion_refs?: {
+                [key: string]: components["schemas"]["EmotionReference"];
+            };
             /**
              * Enabled
              * @default true
@@ -1854,12 +2109,21 @@ export interface components {
              * Format: uuid
              */
             profile_id?: string;
+            /** Reference Language */
+            reference_language?: string | null;
             /** Slug */
             slug: string;
             /** Sovits Weights Path */
             sovits_weights_path?: string | null;
             /** Speaker Id */
             speaker_id: string;
+            /**
+             * Tts Enabled
+             * @default false
+             */
+            tts_enabled: boolean;
+            /** Tts Model Profile */
+            tts_model_profile?: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -1875,6 +2139,11 @@ export interface components {
         /** RoleProfileCreate */
         RoleProfileCreate: {
             /**
+             * Character Prompt
+             * @default
+             */
+            character_prompt: string;
+            /**
              * Default Emotion
              * @default neutral
              */
@@ -1891,6 +2160,10 @@ export interface components {
             default_speed: number;
             /** Display Name */
             display_name: string;
+            /** Emotion Refs */
+            emotion_refs?: {
+                [key: string]: components["schemas"]["EmotionReference"];
+            };
             /**
              * Enabled
              * @default true
@@ -1899,12 +2172,21 @@ export interface components {
             /** Gpt Weights Path */
             gpt_weights_path?: string | null;
             kind: components["schemas"]["RoleKind"];
+            /** Reference Language */
+            reference_language?: string | null;
             /** Slug */
             slug: string;
             /** Sovits Weights Path */
             sovits_weights_path?: string | null;
             /** Speaker Id */
             speaker_id: string;
+            /**
+             * Tts Enabled
+             * @default false
+             */
+            tts_enabled: boolean;
+            /** Tts Model Profile */
+            tts_model_profile?: string | null;
             visual_assets?: components["schemas"]["RoleVisualAssets"];
         };
         /** RoleProfileDelete */
@@ -1915,6 +2197,11 @@ export interface components {
         /** RoleProfileReplace */
         RoleProfileReplace: {
             /**
+             * Character Prompt
+             * @default
+             */
+            character_prompt: string;
+            /**
              * Default Emotion
              * @default neutral
              */
@@ -1931,6 +2218,10 @@ export interface components {
             default_speed: number;
             /** Display Name */
             display_name: string;
+            /** Emotion Refs */
+            emotion_refs?: {
+                [key: string]: components["schemas"]["EmotionReference"];
+            };
             /**
              * Enabled
              * @default true
@@ -1941,12 +2232,21 @@ export interface components {
             /** Gpt Weights Path */
             gpt_weights_path?: string | null;
             kind: components["schemas"]["RoleKind"];
+            /** Reference Language */
+            reference_language?: string | null;
             /** Slug */
             slug: string;
             /** Sovits Weights Path */
             sovits_weights_path?: string | null;
             /** Speaker Id */
             speaker_id: string;
+            /**
+             * Tts Enabled
+             * @default false
+             */
+            tts_enabled: boolean;
+            /** Tts Model Profile */
+            tts_model_profile?: string | null;
             visual_assets?: components["schemas"]["RoleVisualAssets"];
         };
         /**
@@ -1963,6 +2263,12 @@ export interface components {
             /** Live2D Asset Ref */
             live2d_asset_ref?: string | null;
         };
+        /**
+         * SceneTransition
+         * @description Outgoing visual transition requested for a narration segment.
+         * @enum {string}
+         */
+        SceneTransition: "black" | "crossfade" | "slide" | "wipe" | "mood_shift";
         /** ScheduleSnapshot */
         ScheduleSnapshot: {
             /** Enabled */
@@ -1994,11 +2300,8 @@ export interface components {
         };
         /** ScriptPreferences */
         ScriptPreferences: {
-            /**
-             * Emotion
-             * @default neutral
-             */
-            emotion: string;
+            /** @default happiness */
+            emotion: components["schemas"]["SpeechEmotion"];
             /**
              * Pitch
              * @default 0
@@ -2016,12 +2319,32 @@ export interface components {
             /** Target Duration Seconds */
             target_duration_seconds: number;
         };
+        /**
+         * ScriptReviewSubmission
+         * @description Human review of generated narration before any local TTS work begins.
+         */
+        ScriptReviewSubmission: {
+            decision: components["schemas"]["ReviewDecision"];
+            /** Expected Story Version */
+            expected_story_version: number;
+            /** Note */
+            note?: string | null;
+            /**
+             * Review Id
+             * Format: uuid
+             */
+            review_id?: string;
+            /** Reviewer Id */
+            reviewer_id: string;
+            revised_script?: components["schemas"]["ScriptDocument"] | null;
+        };
         /** ScriptSegment */
         ScriptSegment: {
-            /** Emotion */
-            emotion: string;
+            emotion: components["schemas"]["SpeechEmotion"];
             /** Pitch */
             pitch: number;
+            /** @default black */
+            scene_transition: components["schemas"]["SceneTransition"];
             /**
              * Segment Id
              * Format: uuid
@@ -2053,6 +2376,49 @@ export interface components {
             /** Reviewer Id */
             reviewer_id: string;
             revised_script?: components["schemas"]["ScriptDocument"] | null;
+        };
+        /**
+         * SegmentSynthesisProvenance
+         * @description The concrete voice assets selected for one rendered script segment.
+         *
+         *     The bundle-level fields in :class:`SynthesisMetadata` describe the legacy
+         *     single-voice case.  This record captures the real request-time selection
+         *     once a script can switch speakers or emotion reference material per
+         *     segment, without invalidating historical audio bundles.
+         */
+        SegmentSynthesisProvenance: {
+            emotion: components["schemas"]["SpeechEmotion"];
+            /** Gpt Weights Sha256 */
+            gpt_weights_sha256: string;
+            /** Model Identity */
+            model_identity: string;
+            /**
+             * Prompt Language
+             * @default und
+             */
+            prompt_language: string;
+            /** Reference Audio Sha256 */
+            reference_audio_sha256: string;
+            /** Reference Text Sha256 */
+            reference_text_sha256: string;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Sovits Weights Sha256 */
+            sovits_weights_sha256: string;
+            /** Speaker Id */
+            speaker_id: string;
+        };
+        /** SegmentVisualAssetBinding */
+        SegmentVisualAssetBinding: {
+            asset: components["schemas"]["VisualAsset"];
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
         };
         /** SourceHealth */
         SourceHealth: {
@@ -2098,11 +2464,8 @@ export interface components {
          *     upstream provider's unvalidated mapping.
          */
         SourceItemIngestRequest: {
-            /**
-             * Emotion
-             * @default neutral
-             */
-            emotion: string;
+            /** @default happiness */
+            emotion: components["schemas"]["SpeechEmotion"];
             /** Item */
             item: components["schemas"]["RawDazhongItem"] | components["schemas"]["RawRedditItem"] | components["schemas"]["RawGuardianItem"] | components["schemas"]["RawPikabuItem"];
             /**
@@ -2165,6 +2528,11 @@ export interface components {
             /** Collector Outcome */
             collector_outcome?: ("disabled" | "unconfigured" | "unauthorized" | "succeeded" | "partial" | "failed" | "stopped_captcha") | null;
             /**
+             * Cooldown Wait Ms
+             * @default 0
+             */
+            cooldown_wait_ms: number;
+            /**
              * Created At
              * Format: date-time
              */
@@ -2220,11 +2588,8 @@ export interface components {
         };
         /** SourceRunRequest */
         SourceRunRequest: {
-            /**
-             * Emotion
-             * @default neutral
-             */
-            emotion: string;
+            /** @default happiness */
+            emotion: components["schemas"]["SpeechEmotion"];
             /**
              * Limit
              * @default 10
@@ -2298,6 +2663,12 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * SpeechEmotion
+         * @description The seven reference-voice emotions supported by the narration pipeline.
+         * @enum {string}
+         */
+        SpeechEmotion: "happiness" | "sadness" | "anger" | "disgust" | "like" | "surprise" | "fear";
         /** StateTransition */
         StateTransition: {
             from_status: components["schemas"]["StoryStatus"];
@@ -2366,7 +2737,7 @@ export interface components {
          * StoryStatus
          * @enum {string}
          */
-        StoryStatus: "FETCHED" | "TRANSLATED" | "PENDING_FIRST_REVIEW" | "PROCESSING_SCRIPT" | "SCRIPT_READY" | "PENDING_SECOND_REVIEW" | "DONE" | "ARCHIVED";
+        StoryStatus: "FETCHED" | "TRANSLATED" | "PENDING_FIRST_REVIEW" | "PROCESSING_SCRIPT" | "SCRIPT_READY" | "PENDING_TTS" | "PROCESSING_TTS" | "PENDING_SECOND_REVIEW" | "DONE" | "ARCHIVED";
         /**
          * StoryUpdate
          * @description Concurrent-safe edits to mutable editorial settings only.
@@ -2383,6 +2754,41 @@ export interface components {
             target_duration_seconds?: number | null;
             /** Title */
             title?: string | null;
+        };
+        /**
+         * StoryVisualAssets
+         * @description Assets effective for one editable script revision.
+         *
+         *     ``source_page_url`` is only an operator-facing candidate URL. It is never
+         *     an image URL and never implies a screenshot was captured.  A UI may show a
+         *     default preview only when ``source_page_screenshot`` is non-null.
+         */
+        StoryVisualAssets: {
+            /** Script Revision */
+            script_revision: number;
+            /** Segment Assets */
+            segment_assets?: components["schemas"]["SegmentVisualAssetBinding"][];
+            source_page_screenshot?: components["schemas"]["VisualAsset"] | null;
+            /** Source Page Url */
+            source_page_url?: string | null;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Story Version */
+            story_version: number;
+        };
+        /** SubmitNarrationReview */
+        SubmitNarrationReview: {
+            decision: components["schemas"]["NarrationReviewDecision"];
+            /** Expected Batch Version */
+            expected_batch_version: number;
+            /** Note */
+            note?: string | null;
+            /** Reviewer Id */
+            reviewer_id: string;
+            revised_script?: components["schemas"]["ScriptDocument"] | null;
         };
         /** SubmitTimelineReview */
         SubmitTimelineReview: {
@@ -2408,10 +2814,25 @@ export interface components {
             runtime_config_sha256: string;
             /** Seed */
             seed: number;
+            /** Segment Provenance */
+            segment_provenance?: components["schemas"]["SegmentSynthesisProvenance"][];
             /** Sovits Weights Sha256 */
             sovits_weights_sha256: string;
             /** Text Language */
             text_language: string;
+        };
+        /** SynthesizeBatchNarration */
+        SynthesizeBatchNarration: {
+            /** Expected Batch Version */
+            expected_batch_version: number;
+        };
+        /**
+         * SynthesizeStoryRequest
+         * @description Explicit, optimistic-concurrency guarded command to start local TTS.
+         */
+        SynthesizeStoryRequest: {
+            /** Expected Story Version */
+            expected_story_version: number;
         };
         /** TextSource */
         TextSource: {
@@ -2456,10 +2877,11 @@ export interface components {
         TimelineSegment: {
             /** Audio Path */
             audio_path: string;
-            /** Emotion */
-            emotion: string;
+            emotion: components["schemas"]["SpeechEmotion"];
             /** End Ms */
             end_ms: number;
+            /** @default black */
+            scene_transition: components["schemas"]["SceneTransition"];
             /**
              * Segment Id
              * Format: uuid
@@ -2536,12 +2958,16 @@ export interface components {
              */
             created_at?: string;
             /** Input Assets */
-            input_assets: components["schemas"]["VideoInputAsset"][];
+            input_assets?: components["schemas"]["VideoInputAsset"][];
             last_failure?: components["schemas"]["VideoRenderFailure"] | null;
-            remotion_props: components["schemas"]["RemotionVideoProps"];
+            narration: components["schemas"]["BatchNarrationArtifact"];
+            narration_failure?: components["schemas"]["BatchNarrationFailure"] | null;
+            /** Narration Reviews */
+            narration_reviews?: components["schemas"]["NarrationReview"][];
+            remotion_props?: components["schemas"]["RemotionVideoProps"] | null;
             /** Render Input Sha256 */
-            render_input_sha256: string;
-            /** @default PENDING_TIMELINE_REVIEW */
+            render_input_sha256?: string | null;
+            /** @default PENDING_NARRATION_REVIEW */
             status: components["schemas"]["VideoBatchStatus"];
             /** Stories */
             stories: components["schemas"]["VideoBatchStory"][];
@@ -2560,27 +2986,37 @@ export interface components {
              * @default 1
              */
             version: number;
+            visual_reservations?: components["schemas"]["HostVisualReservations"];
         };
         /**
          * VideoBatchStatus
+         * @description Batch workflow deliberately separates editorial and expensive work.
          * @enum {string}
          */
-        VideoBatchStatus: "PENDING_TIMELINE_REVIEW" | "READY_TO_RENDER" | "RENDERING" | "RENDERED" | "REJECTED" | "CANCELLED" | "FAILED";
-        /** VideoBatchStory */
+        VideoBatchStatus: "PENDING_NARRATION_REVIEW" | "PENDING_BATCH_TTS" | "PROCESSING_BATCH_TTS" | "PENDING_TIMELINE_REVIEW" | "READY_TO_RENDER" | "RENDERING" | "RENDERED" | "REJECTED" | "CANCELLED" | "FAILED";
+        /**
+         * VideoBatchStory
+         * @description Immutable source-story evidence for one input to a merged narration.
+         *
+         *     ``source_manifest`` is intentionally not a chapter in the eventual batch
+         *     timeline. It remains a point-in-time source snapshot only; the separate
+         *     batch narration artifact is the sole input to Remotion.
+         */
         VideoBatchStory: {
             category: components["schemas"]["ContentCategory"];
-            /** Chapter End Ms */
-            chapter_end_ms: number;
-            /** Chapter Start Ms */
-            chapter_start_ms: number;
-            manifest: components["schemas"]["ProductionManifest"];
             /**
              * Reserved At
              * Format: date-time
              */
             reserved_at?: string;
+            script: components["schemas"]["ScriptDocument"];
+            /** Script Sha256 */
+            script_sha256: string;
             /** Sequence */
             sequence: number;
+            source_manifest: components["schemas"]["ProductionManifest"];
+            /** Source Manifest Sha256 */
+            source_manifest_sha256: string;
             /**
              * Story Id
              * Format: uuid
@@ -2686,6 +3122,59 @@ export interface components {
              */
             signal: string;
         };
+        /**
+         * VisualAsset
+         * @description Public, stable reference to a stored raster asset.
+         *
+         *     ``storage_key`` deliberately does not appear here.  Clients render this
+         *     reference only through the scoped media endpoint, which keeps local paths
+         *     out of API responses and makes the eventual video-renderer storage adapter
+         *     replaceable.
+         */
+        VisualAsset: {
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id?: string;
+            content_type: components["schemas"]["ImageContentType"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /** Filename */
+            filename: string;
+            origin: components["schemas"]["VisualAssetOrigin"];
+            /** Script Revision */
+            script_revision?: number | null;
+            /** Segment Id */
+            segment_id?: string | null;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+        };
+        /**
+         * VisualAssetMutation
+         * @description Successful mutation result with the concurrency version to use next.
+         */
+        VisualAssetMutation: {
+            asset: components["schemas"]["VisualAsset"];
+            /** Story Version */
+            story_version: number;
+        };
+        /**
+         * VisualAssetOrigin
+         * @description Where a visual asset came from, without overloading editorial hints.
+         * @enum {string}
+         */
+        VisualAssetOrigin: "editor_upload" | "source_page_screenshot";
     };
     responses: never;
     parameters: never;
@@ -4722,6 +5211,86 @@ export interface operations {
             };
         };
     };
+    submitScriptReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScriptReviewSubmission"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     submitSecondReview: {
         parameters: {
             query?: never;
@@ -4734,6 +5303,86 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SecondReviewSubmission"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    synthesizeStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SynthesizeStoryRequest"];
             };
         };
         responses: {
@@ -4868,6 +5517,326 @@ export interface operations {
                 };
             };
             /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listStoryVisualAssets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryVisualAssets"];
+                };
+            };
+            /** @description Story or visual asset was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Story version or script revision changed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload exceeds the configured limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload or asset binding is invalid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local visual asset storage failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Visual asset service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getVisualAssetContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Story or visual asset was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Story version or script revision changed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload exceeds the configured limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload or asset binding is invalid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local visual asset storage failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Visual asset service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    uploadSegmentVisualAsset: {
+        parameters: {
+            query: {
+                expected_story_version: number;
+                expected_script_revision: number;
+                filename: string;
+            };
+            header?: never;
+            path: {
+                story_id: string;
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualAssetMutation"];
+                };
+            };
+            /** @description Story or visual asset was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Story version or script revision changed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload exceeds the configured limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload or asset binding is invalid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local visual asset storage failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Visual asset service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    deleteSegmentVisualAsset: {
+        parameters: {
+            query: {
+                expected_story_version: number;
+                expected_script_revision: number;
+            };
+            header?: never;
+            path: {
+                story_id: string;
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Story or visual asset was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Story version or script revision changed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload exceeds the configured limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Image upload or asset binding is invalid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local visual asset storage failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Visual asset service is not configured. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -5148,6 +6117,72 @@ export interface operations {
             };
         };
     };
+    getVideoBatchAudioClip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requested video batch or BGM track was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video batch state, input evidence, or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local video rendering failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     cancelVideoRender: {
         parameters: {
             query?: never;
@@ -5158,6 +6193,148 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Requested video batch or BGM track was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video batch state, input evidence, or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local video rendering failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    submitVideoBatchNarrationReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitNarrationReview"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoBatch"];
+                };
+            };
+            /** @description Requested video batch or BGM track was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video batch state, input evidence, or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local video rendering failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    synthesizeVideoBatchNarration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SynthesizeBatchNarration"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

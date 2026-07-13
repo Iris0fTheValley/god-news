@@ -8,8 +8,22 @@ from uuid import uuid4
 import pytest
 
 from god_news.config import LLMProvider
+from god_news.domain.enums import ContentCategory, SceneTransition, SpeechEmotion
+from god_news.domain.models import (
+    EditorialScreening,
+    ProductionManifest,
+    ScriptPreferences,
+    TimelineSegment,
+    TranslationResult,
+)
+from god_news.domain.video import VideoBatchStory, model_sha256
 from god_news.errors import LLMGenerationError
-from god_news.infrastructure.llm.openai_compatible import OpenAICompatibleTextGenerator
+from god_news.infrastructure.llm.openai_compatible import (
+    OpenAICompatibleBatchNarrationComposer,
+    OpenAICompatibleTextGenerator,
+)
+
+from .test_fsm import make_artifacts
 
 
 @pytest.mark.asyncio
@@ -175,3 +189,273 @@ async def test_source_limit_fails_explicitly_instead_of_truncating() -> None:
         assert not captured.value.retryable
     finally:
         await generator.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source_language", "content", "expected_translated_text"),
+    [
+        ("zh-CN", "  这是一段保留前后空白的中文原文。  ", "  这是一段保留前后空白的中文原文。  "),
+        (
+            None,
+            "  这是一段没有语言标记但含有足够汉字的新闻内容。  ",
+            "  这是一段没有语言标记但含有足够汉字的新闻内容。  ",
+        ),
+        ("en", "  这是一段显式标记为英文的内容。  ", "LLM translated text"),
+    ],
+)
+async def test_chinese_source_bypasses_translation_but_keeps_llm_summary_and_screening(
+    source_language: str | None,
+    content: str,
+    expected_translated_text: str,
+) -> None:
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "source_language": "zh",
+                            "translated_text": "LLM translated text",
+                            "summary": "LLM summary remains available.",
+                            "key_points": ["LLM point"],
+                            "category": "short_video",
+                            "secondary_categories": ["forum"],
+                            "candidate_recommendation": True,
+                            "classification_confidence": 0.73,
+                            "classification_rationale": "LLM classification remains available.",
+                            "risk_flags": ["needs_review"],
+                        },
+                        ensure_ascii=False,
+                    )
+                ),
+            )
+        ]
+    )
+    create = AsyncMock(return_value=completion)
+    generator = OpenAICompatibleTextGenerator(
+        provider=LLMProvider.DEEPSEEK,
+        api_key="test",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-flash",
+        timeout_seconds=5,
+        max_retries=0,
+        validation_retries=0,
+        max_output_tokens=1024,
+        temperature=0.1,
+        max_source_characters=1000,
+        max_memory_characters=100,
+        thinking_enabled=False,
+    )
+    await generator._client.close()  # type: ignore[attr-defined]
+    generator._client = SimpleNamespace(  # type: ignore[assignment]
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+        close=AsyncMock(),
+    )
+
+    result = await generator.translate_and_summarize(
+        story_id=uuid4(),
+        content=content,
+        source_language=source_language,
+        target_language="en",
+        memories=[],
+    )
+
+    assert result.translated_text == expected_translated_text
+    assert result.summary == "LLM summary remains available."
+    assert result.screening.category is ContentCategory.SHORT_VIDEO
+
+
+@pytest.mark.asyncio
+async def test_script_output_uses_valid_llm_emotion_and_transition_with_safe_fallbacks() -> None:
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "title": "Narration",
+                            "segments": [
+                                {
+                                    "text": "A surprising development.",
+                                    "emotion": "surprise",
+                                    "scene_transition": "slide",
+                                },
+                                {
+                                    "text": "A safe fallback applies here.",
+                                    "emotion": "not-an-emotion",
+                                    "scene_transition": "not-a-transition",
+                                },
+                            ],
+                        }
+                    )
+                ),
+            )
+        ]
+    )
+    create = AsyncMock(return_value=completion)
+    generator = OpenAICompatibleTextGenerator(
+        provider=LLMProvider.DEEPSEEK,
+        api_key="test",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-flash",
+        timeout_seconds=5,
+        max_retries=0,
+        validation_retries=0,
+        max_output_tokens=1024,
+        temperature=0.1,
+        max_source_characters=1000,
+        max_memory_characters=100,
+        thinking_enabled=False,
+    )
+    await generator._client.close()  # type: ignore[attr-defined]
+    generator._client = SimpleNamespace(  # type: ignore[assignment]
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+        close=AsyncMock(),
+    )
+    translation = TranslationResult(
+        source_language="en",
+        target_language="zh-CN",
+        translated_text="A translated source.",
+        summary="A concise summary.",
+        key_points=["A key point."],
+        screening=EditorialScreening(
+            model_category=ContentCategory.KINDNESS,
+            category=ContentCategory.KINDNESS,
+            model_candidate_recommendation=True,
+            candidate_recommendation=True,
+            confidence=0.9,
+            rationale="Fixture classification.",
+        ),
+    )
+    draft = await generator.create_script(
+        story_id=uuid4(),
+        translation=translation,
+        preferences=ScriptPreferences(
+            style="accurate narration",
+            target_duration_seconds=60,
+            speaker_id="narrator",
+            emotion=SpeechEmotion.FEAR,
+        ),
+        memories=[],
+    )
+
+    assert [segment.emotion for segment in draft.segments] == [
+        SpeechEmotion.SURPRISE,
+        SpeechEmotion.FEAR,
+    ]
+    assert [segment.scene_transition for segment in draft.segments] == [
+        SceneTransition.SLIDE,
+        SceneTransition.BLACK,
+    ]
+    system_prompt = create.await_args.kwargs["messages"][0]["content"]
+    assert "happiness, sadness, anger, disgust, like, surprise, fear" in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks() -> None:
+    _, script, audio = make_artifacts()
+    source_id = uuid4()
+    clip = audio.clips[0]
+    segment = script.segments[0]
+    source_manifest = ProductionManifest(
+        story_id=source_id,
+        script_revision=script.revision,
+        language=script.language,
+        total_duration_ms=clip.duration_ms,
+        timeline=[
+            TimelineSegment(
+                segment_id=segment.segment_id,
+                sequence=0,
+                start_ms=0,
+                end_ms=clip.duration_ms,
+                text=segment.text,
+                speaker_id=segment.speaker_id,
+                emotion=segment.emotion,
+                scene_transition=segment.scene_transition,
+                visual_hint=segment.visual_hint,
+                audio_path=clip.path,
+            )
+        ],
+    )
+    source = VideoBatchStory(
+        sequence=0,
+        story_id=source_id,
+        story_version=3,
+        category=ContentCategory.KINDNESS,
+        title="Reviewed source",
+        script=script,
+        script_sha256=model_sha256(script),
+        source_manifest=source_manifest,
+        source_manifest_sha256=model_sha256(source_manifest),
+    )
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "segments": [
+                                {
+                                    "text": "A natural opening connects the stories.",
+                                    "speaker_id": "unapproved-speaker",
+                                    "emotion": "unknown-emotion",
+                                    "scene_transition": "crossfade",
+                                },
+                                {
+                                    "text": "The next source follows with its facts.",
+                                    "speaker_id": "narrator",
+                                    "emotion": "fear",
+                                    "scene_transition": "not-a-transition",
+                                },
+                            ]
+                        }
+                    )
+                ),
+            )
+        ]
+    )
+    create = AsyncMock(return_value=completion)
+    generator = OpenAICompatibleTextGenerator(
+        provider=LLMProvider.DEEPSEEK,
+        api_key="test",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-flash",
+        timeout_seconds=5,
+        max_retries=0,
+        validation_retries=0,
+        max_output_tokens=1024,
+        temperature=0.1,
+        max_source_characters=4_000,
+        max_memory_characters=100,
+        thinking_enabled=False,
+    )
+    await generator._client.close()  # type: ignore[attr-defined]
+    generator._client = SimpleNamespace(  # type: ignore[assignment]
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+        close=AsyncMock(),
+    )
+
+    merged = await OpenAICompatibleBatchNarrationComposer(generator).compose(
+        batch_id=uuid4(),
+        title="Daily merged narration",
+        sources=[source],
+    )
+
+    assert merged.title == "Daily merged narration"
+    assert [item.speaker_id for item in merged.segments] == ["narrator", "narrator"]
+    assert [item.emotion for item in merged.segments] == [
+        SpeechEmotion.HAPPINESS,
+        SpeechEmotion.FEAR,
+    ]
+    assert [item.scene_transition for item in merged.segments] == [
+        SceneTransition.CROSSFADE,
+        SceneTransition.BLACK,
+    ]
+    assert [item.speed for item in merged.segments] == [segment.speed, segment.speed]
+    system_prompt = create.await_args.kwargs["messages"][0]["content"]
+    assert "available_speakers" in system_prompt
+    assert "multiple independently reviewed" in system_prompt

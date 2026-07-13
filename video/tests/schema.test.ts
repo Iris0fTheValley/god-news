@@ -8,6 +8,15 @@ describe('GodNewsVideoPropsSchema', () => {
     expect(parseGodNewsVideoProps(validProps)).toEqual(validProps);
   });
 
+  it('uses black as the forward-compatible transition fallback', () => {
+    const legacy = structuredClone(validProps) as unknown as {
+      manifest: {timeline: Array<{scene_transition?: string}>};
+    };
+    delete legacy.manifest.timeline[0]!.scene_transition;
+
+    expect(parseGodNewsVideoProps(legacy).manifest.timeline[0]!.scene_transition).toBe('black');
+  });
+
   it('rejects a non-contiguous timeline', () => {
     const invalid = structuredClone(validProps);
     invalid.manifest.timeline[1]!.start_ms = 1100;

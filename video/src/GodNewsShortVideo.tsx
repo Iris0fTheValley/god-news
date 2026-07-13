@@ -260,7 +260,7 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
               key={`transition-${track.afterSegmentId}`}
               from={track.from}
               durationInFrames={track.durationInFrames}
-              name="Black transition placeholder"
+              name={`Black ${track.transition_type} transition placeholder`}
             >
               <BlackPlaceholder />
             </Sequence>

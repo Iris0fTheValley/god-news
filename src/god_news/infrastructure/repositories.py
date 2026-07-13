@@ -451,3 +451,40 @@ class SqlAlchemyStoryRepository:
     async def healthcheck(self) -> None:
         async with self._sessions() as session:
             await session.execute(select(1))
+
+
+class SqlAlchemyLiveScriptRoleUsageGuard:
+    """Read-only story-side adapter for safe role-profile mutation.
+
+    The role application service owns the policy for changing a voice contract.
+    This adapter only identifies scripts that can still be rendered and hence
+    must keep resolving their recorded ``speaker_id``. Parsing each persisted
+    script, rather than using a JSON substring query, keeps the decision exact
+    across SQLite versions and intentionally fails closed when old/corrupt data
+    cannot be understood by the current script contract.
+    """
+
+    _LIVE_SCRIPT_STATUSES = (
+        StoryStatus.SCRIPT_READY,
+        StoryStatus.PENDING_TTS,
+        StoryStatus.PROCESSING_TTS,
+        StoryStatus.PENDING_SECOND_REVIEW,
+    )
+
+    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+        self._sessions = sessions
+
+    async def has_live_script_reference(self, speaker_id: str) -> bool:
+        statement = select(StoryRow.script_json).where(
+            StoryRow.status.in_(tuple(status.value for status in self._LIVE_SCRIPT_STATUSES)),
+            StoryRow.script_json.is_not(None),
+        )
+        async with self._sessions() as session:
+            serialized_scripts = (await session.scalars(statement)).all()
+        for serialized in serialized_scripts:
+            if serialized is None:
+                continue
+            script = ScriptDocument.model_validate_json(serialized)
+            if any(segment.speaker_id == speaker_id for segment in script.segments):
+                return True
+        return False

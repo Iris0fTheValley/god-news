@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, delete, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
@@ -64,7 +65,7 @@ def _aware(value: datetime) -> datetime:
 
 
 def _to_batch(row: VideoBatchRow) -> VideoBatch:
-    batch = VideoBatch.model_validate_json(row.batch_json)
+    batch = _parse_batch_payload(row.batch_json)
     return batch.model_copy(
         update={
             "version": row.version,
@@ -72,6 +73,24 @@ def _to_batch(row: VideoBatchRow) -> VideoBatch:
             "updated_at": _aware(row.updated_at),
         }
     )
+
+
+def _parse_batch_payload(payload: str) -> VideoBatch:
+    """Decode persisted batch JSON with an actionable legacy-data failure.
+
+    The batch narration redesign deliberately refuses to fabricate a unified
+    narration from an old flattened render plan.  If a pre-redesign local
+    database exists, the operator must recreate that batch from its retained
+    source stories so it passes the current human narration-review gate.
+    """
+
+    try:
+        return VideoBatch.model_validate_json(payload)
+    except ValidationError as exc:
+        raise VideoBatchConflictError(
+            "Stored video batch does not satisfy the current narration-review schema. "
+            "Recreate it from its source stories; no unsafe automatic merge was applied."
+        ) from exc
 
 
 class SqlAlchemyVideoBatchRepository:
@@ -206,10 +225,14 @@ class SqlAlchemyVideoBatchRepository:
                 if row is None:
                     raise VideoBatchNotFoundError(batch_id)
                 status = VideoBatchStatus(row.status)
-                if status in {VideoBatchStatus.RENDERING, VideoBatchStatus.RENDERED}:
+                if status in {
+                    VideoBatchStatus.PROCESSING_BATCH_TTS,
+                    VideoBatchStatus.RENDERING,
+                    VideoBatchStatus.RENDERED,
+                }:
                     raise VideoBatchConflictError(
-                        "A rendering or rendered batch cannot be deleted because its claims are "
-                        "audit evidence."
+                        "A batch with active synthesis, rendering, or rendered output cannot be "
+                        "deleted because its claims are audit evidence."
                     )
                 await session.execute(
                     delete(VideoStoryClaimRow).where(VideoStoryClaimRow.batch_id == str(batch_id))
@@ -233,7 +256,7 @@ class SqlAlchemyVideoBatchRepository:
             ).all()
         result: list[Path] = []
         for payload in payloads:
-            batch = VideoBatch.model_validate_json(payload)
+            batch = _parse_batch_payload(payload)
             result.extend(Path(asset.local_path) for asset in batch.input_assets)
         return result
 

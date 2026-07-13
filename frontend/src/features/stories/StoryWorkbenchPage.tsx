@@ -7,6 +7,7 @@ import {
   deleteStory,
   getProductionManifest,
   getStory,
+  listRoles,
   listReviews,
   listTransitions,
   reopenStory,
@@ -23,7 +24,9 @@ import {AudioPanel} from '../audio/AudioPanel';
 import {HistoryPanel} from '../history/HistoryPanel';
 import {FirstReviewPanel} from '../reviews/FirstReviewPanel';
 import {ResumePanel} from '../reviews/ResumePanel';
+import {ScriptReviewPanel} from '../reviews/ScriptReviewPanel';
 import {SecondReviewPanel} from '../reviews/SecondReviewPanel';
+import {TtsSynthesisPanel} from '../reviews/TtsSynthesisPanel';
 import {ScriptEditor} from '../script/ScriptEditor';
 
 export function StoryWorkbenchPage() {
@@ -39,8 +42,13 @@ export function StoryWorkbenchPage() {
     enabled: storyId !== '',
     refetchInterval: (state) => {
       const status = state.state.data?.status;
-      return status === 'PROCESSING_SCRIPT' || status === 'SCRIPT_READY' ? 2_000 : false;
+      return status === 'PROCESSING_SCRIPT' || status === 'PROCESSING_TTS' ? 2_000 : false;
     },
+  });
+  const rolesQuery = useQuery({
+    queryKey: queryKeys.roles(),
+    queryFn: () => listRoles(),
+    enabled: storyQuery.data?.script !== null && storyQuery.data?.script !== undefined,
   });
   const reviewQuery = useQuery({
     queryKey: queryKeys.reviews(storyId),
@@ -109,8 +117,11 @@ export function StoryWorkbenchPage() {
   };
   const sourceIsUrl = story.source.kind === 'url';
   const isArchived = story.status === 'ARCHIVED';
-  const recoverable = ['FETCHED', 'TRANSLATED', 'PROCESSING_SCRIPT', 'SCRIPT_READY'].includes(story.status)
-    || (story.status === 'PENDING_SECOND_REVIEW' && story.audio == null);
+  const recoverable = ['FETCHED', 'TRANSLATED', 'PROCESSING_SCRIPT', 'PROCESSING_TTS'].includes(story.status);
+  const scriptCanBeEdited = story.status === 'SCRIPT_READY' || story.status === 'PENDING_SECOND_REVIEW';
+  const hasUnsavedScriptChanges = serverScript !== null
+    && scriptDraft !== null
+    && JSON.stringify(serverScript) !== JSON.stringify(scriptDraft);
 
   return (
     <div className="page workbench-page">
@@ -242,7 +253,11 @@ export function StoryWorkbenchPage() {
                 <ScriptEditor
                   script={scriptDraft}
                   onChange={setScriptDraft}
-                  readOnly={story.status !== 'PENDING_SECOND_REVIEW'}
+                  roles={rolesQuery.data ?? []}
+                  readOnly={!scriptCanBeEdited}
+                  storyId={story.story_id}
+                  storyVersion={story.version}
+                  visualAssetsMutable={scriptCanBeEdited && !hasUnsavedScriptChanges}
                 />
               </div>
             </section>
@@ -297,6 +312,14 @@ export function StoryWorkbenchPage() {
         <aside className="action-inspector" aria-label="当前审核操作">
           {story.status === 'PENDING_FIRST_REVIEW' ? (
             <FirstReviewPanel story={story} />
+          ) : story.status === 'SCRIPT_READY' && scriptDraft !== null ? (
+            <ScriptReviewPanel
+              story={story}
+              revisedScript={scriptDraft}
+              hasUnsavedChanges={hasUnsavedScriptChanges}
+            />
+          ) : story.status === 'PENDING_TTS' ? (
+            <TtsSynthesisPanel story={story} />
           ) : story.status === 'PENDING_SECOND_REVIEW' && story.audio !== null && story.audio !== undefined && scriptDraft !== null ? (
             <SecondReviewPanel story={story} revisedScript={scriptDraft} />
           ) : story.status === 'ARCHIVED' ? (

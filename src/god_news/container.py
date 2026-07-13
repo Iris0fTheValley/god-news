@@ -8,6 +8,7 @@ import httpx
 from god_news.application.memory import MemoryCoordinator
 from god_news.application.source_runs import SourceRunService
 from god_news.application.video_batches import VideoBatchService
+from god_news.application.visual_assets import VisualAssetService
 from god_news.application.workflow import StoryWorkflow
 from god_news.config import MemoryProviderName, Settings
 from god_news.domain.models import HealthReport
@@ -18,6 +19,7 @@ from god_news.domain.ports import (
     StoryRepository,
     TextGenerator,
 )
+from god_news.domain.video_ports import BatchNarrationComposer
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.fetchers.chain import FetcherChain
 from god_news.infrastructure.fetchers.drission import DrissionPageFetcher
@@ -25,11 +27,16 @@ from god_news.infrastructure.fetchers.jina import JinaReaderFetcher
 from god_news.infrastructure.fetchers.scrapy import ScrapyTrafilaturaFetcher
 from god_news.infrastructure.fetchers.url_policy import UrlPolicy
 from god_news.infrastructure.llm.openai_compatible import (
+    OpenAICompatibleBatchNarrationComposer,
     OpenAICompatibleTextGenerator,
+    UnavailableBatchNarrationComposer,
     UnavailableTextGenerator,
 )
 from god_news.infrastructure.memory import ChromaDBMemoryProvider, NoopMemoryProvider
-from god_news.infrastructure.repositories import SqlAlchemyStoryRepository
+from god_news.infrastructure.repositories import (
+    SqlAlchemyLiveScriptRoleUsageGuard,
+    SqlAlchemyStoryRepository,
+)
 from god_news.infrastructure.role_profiles import SqlAlchemyRoleProfileRepository
 from god_news.infrastructure.source_health import (
     HttpSourceReachabilityProbe,
@@ -46,10 +53,16 @@ from god_news.infrastructure.video_host import (
     UnavailableBatchVideoRenderer,
 )
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
-from god_news.operations.retention import RetentionCleanupHandler
+from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
+from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
+from god_news.operations.retention import (
+    CompositeRetentionAssetProtector,
+    RetentionCleanupHandler,
+)
 from god_news.operations.roles import RoleProfileService
 from god_news.operations.scheduler import IntervalScheduler, OperationDispatcher
 from god_news.sources.collectors.factory import create_source_collectors
+from god_news.sources.collectors.rate_limited import RateLimitedSourceCollectorGateway
 from god_news.sources.health import SourceHealthMonitor
 from god_news.sources.registry import SourceNormalizerRegistry, create_default_source_registry
 
@@ -68,6 +81,7 @@ class AppContainer:
     source_runs: SourceRunService | None = None
     video_batches: VideoBatchService | None = None
     role_profiles: RoleProfileService | None = None
+    visual_assets: VisualAssetService | None = None
     operations: OperationDispatcher | None = None
     operation_scheduler: IntervalScheduler | None = None
     database: Database | None = None
@@ -160,6 +174,7 @@ class AppContainer:
 
 async def build_container(settings: Settings) -> AppContainer:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
+    settings.visual_asset_root.mkdir(parents=True, exist_ok=True)
     database = Database(
         settings.database_url,
         sqlite_busy_timeout_ms=settings.database_busy_timeout_ms,
@@ -168,7 +183,12 @@ async def build_container(settings: Settings) -> AppContainer:
         await database.create_schema()
     repository = SqlAlchemyStoryRepository(database.sessions)
     role_profile_repository = SqlAlchemyRoleProfileRepository(database.sessions)
-    role_profiles = RoleProfileService(role_profile_repository)
+    visual_asset_repository = SqlAlchemyVisualAssetRepository(
+        database.sessions,
+        storage_root=settings.visual_asset_root,
+    )
+    live_script_role_usage_guard = SqlAlchemyLiveScriptRoleUsageGuard(database.sessions)
+    role_profiles = RoleProfileService(role_profile_repository, live_script_role_usage_guard)
     asset_lifecycle_lock = asyncio.Lock()
     video_batch_repository = SqlAlchemyVideoBatchRepository(database.sessions)
     retention_handler = RetentionCleanupHandler(
@@ -177,7 +197,10 @@ async def build_container(settings: Settings) -> AppContainer:
         media_retention_days=settings.retention_media_days,
         uploaded_mp4_retention_days=settings.retention_uploaded_mp4_days,
         media_extensions=settings.retention_media_extensions,
-        asset_protector=video_batch_repository,
+        asset_protector=CompositeRetentionAssetProtector(
+            video_batch_repository,
+            visual_asset_repository,
+        ),
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
     operations = OperationDispatcher(
@@ -262,11 +285,13 @@ async def build_container(settings: Settings) -> AppContainer:
 
     api_key = settings.active_llm_api_key
     if api_key is None:
-        generator: TextGenerator = UnavailableTextGenerator(
-            "The selected LLM provider has no configured API key."
+        unavailable_llm_reason = "The selected LLM provider has no configured API key."
+        generator: TextGenerator = UnavailableTextGenerator(unavailable_llm_reason)
+        narration_composer: BatchNarrationComposer = UnavailableBatchNarrationComposer(
+            unavailable_llm_reason
         )
     else:
-        generator = OpenAICompatibleTextGenerator(
+        openai_generator = OpenAICompatibleTextGenerator(
             provider=settings.llm_provider,
             api_key=api_key.get_secret_value(),
             base_url=settings.active_llm_base_url,
@@ -280,6 +305,8 @@ async def build_container(settings: Settings) -> AppContainer:
             max_memory_characters=settings.memory_max_context_characters,
             thinking_enabled=settings.llm_thinking_enabled,
         )
+        generator = openai_generator
+        narration_composer = OpenAICompatibleBatchNarrationComposer(openai_generator)
 
     if settings.memory_provider is MemoryProviderName.NOOP:
         memory_provider: MemoryProvider = NoopMemoryProvider()
@@ -332,6 +359,8 @@ async def build_container(settings: Settings) -> AppContainer:
             repetition_penalty=settings.tts_repetition_penalty,
             parallel_infer=settings.tts_parallel_infer,
             max_concurrency=settings.tts_max_concurrency,
+            voice_resolver=role_profiles,
+            trusted_voice_asset_roots=settings.tts_trusted_asset_roots,
         )
     else:
         synthesizer = UnavailableSpeechSynthesizer("Local TTS is disabled by configuration.")
@@ -343,13 +372,26 @@ async def build_container(settings: Settings) -> AppContainer:
         memory=memory,
         synthesizer=synthesizer,
         source_normalizer=source_normalizers,
+        voice_resolver=role_profiles,
+    )
+    visual_assets = VisualAssetService(
+        stories=repository,
+        repository=visual_asset_repository,
+        store=LocalVisualAssetStore(
+            settings.visual_asset_root,
+            max_upload_bytes=settings.visual_asset_max_upload_bytes,
+            max_pixels=settings.visual_asset_max_pixels,
+        ),
+        asset_lifecycle_lock=asset_lifecycle_lock,
     )
     source_runs = SourceRunService(
         repository=SqlAlchemySourceRunRepository(database.sessions),
-        collectors=create_source_collectors(
-            settings=settings,
-            client=http_client,
-            fetcher=fetcher,
+        collectors=RateLimitedSourceCollectorGateway(
+            create_source_collectors(
+                settings=settings,
+                client=http_client,
+                fetcher=fetcher,
+            )
         ),
         normalizer=source_normalizers,
         ingestor=workflow,
@@ -359,6 +401,8 @@ async def build_container(settings: Settings) -> AppContainer:
         story_pool=workflow,
         repository=video_batch_repository,
         host_renderer=PlaceholderHostRenderer(),
+        narration_composer=narration_composer,
+        synthesizer=synthesizer,
         video_renderer=UnavailableBatchVideoRenderer(),
         bgm_catalog=LocalBgmCatalog(settings.video_bgm_directory),
         audio_root=settings.output_dir,
@@ -378,6 +422,7 @@ async def build_container(settings: Settings) -> AppContainer:
         source_runs=source_runs,
         video_batches=video_batches,
         role_profiles=role_profiles,
+        visual_assets=visual_assets,
         operations=operations,
         operation_scheduler=operation_scheduler,
         database=database,

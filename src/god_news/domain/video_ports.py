@@ -6,7 +6,7 @@ from typing import Protocol
 from uuid import UUID
 
 from god_news.domain.enums import StoryStatus
-from god_news.domain.models import ProductionManifest, Story
+from god_news.domain.models import ProductionManifest, ScriptDocument, Story
 from god_news.domain.video import (
     BgmSelection,
     BgmTrack,
@@ -14,6 +14,7 @@ from god_news.domain.video import (
     RemotionVideoProps,
     VideoBatch,
     VideoBatchStatus,
+    VideoBatchStory,
     VideoRenderArtifact,
 )
 
@@ -44,6 +45,26 @@ class HostRenderer(Protocol):
     def name(self) -> str: ...
 
     async def prepare(self, stories: Sequence[Story]) -> HostVisualReservations: ...
+
+
+class BatchNarrationComposer(Protocol):
+    """Compose multiple immutable story scripts into one reviewable narration.
+
+    This is intentionally separate from ``TextGenerator``.  A future LLM,
+    rules engine, or human-assisted adapter can change only this boundary while
+    batch storage, TTS, asset snapshotting, and rendering keep the same contract.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    async def compose(
+        self,
+        *,
+        batch_id: UUID,
+        title: str,
+        sources: Sequence[VideoBatchStory],
+    ) -> ScriptDocument: ...
 
 
 class BgmCatalog(Protocol):

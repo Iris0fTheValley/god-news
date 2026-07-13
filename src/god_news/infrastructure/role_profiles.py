@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, select, update
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -19,17 +20,32 @@ from god_news.operations.models import RoleKind, RoleProfile, RoleVisualAssets
 
 class RoleProfileRow(Base):
     __tablename__ = "role_profiles"
+    __table_args__ = (
+        # Disabled profiles remain historical audit records and may reuse a
+        # speaker id. Exactly one enabled profile may be selected at runtime.
+        Index(
+            "uq_role_profiles_enabled_speaker_id",
+            "speaker_id",
+            unique=True,
+            sqlite_where=text("enabled = 1"),
+        ),
+    )
 
     profile_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     speaker_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    character_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     default_emotion: Mapped[str] = mapped_column(String(100), nullable=False)
     default_speed: Mapped[float] = mapped_column(Float, nullable=False)
     default_pitch: Mapped[float] = mapped_column(Float, nullable=False)
     gpt_weights_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     sovits_weights_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    tts_model_profile: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    reference_language: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    emotion_refs_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    tts_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     visual_assets_json: Mapped[str] = mapped_column(Text, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -49,11 +65,21 @@ def _row_values(profile: RoleProfile) -> dict[str, object]:
         "display_name": profile.display_name,
         "kind": profile.kind.value,
         "speaker_id": profile.speaker_id,
+        "character_prompt": profile.character_prompt,
         "default_emotion": profile.default_emotion,
         "default_speed": profile.default_speed,
         "default_pitch": profile.default_pitch,
         "gpt_weights_path": profile.gpt_weights_path,
         "sovits_weights_path": profile.sovits_weights_path,
+        "tts_model_profile": profile.tts_model_profile,
+        "reference_language": profile.reference_language,
+        "emotion_refs_json": json.dumps(
+            profile.model_dump(mode="json")["emotion_refs"],
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        "tts_enabled": profile.tts_enabled,
         "visual_assets_json": profile.visual_assets.model_dump_json(),
         "enabled": profile.enabled,
         "version": profile.version,
@@ -69,11 +95,16 @@ def _to_profile(row: RoleProfileRow) -> RoleProfile:
         display_name=row.display_name,
         kind=RoleKind(row.kind),
         speaker_id=row.speaker_id,
+        character_prompt=row.character_prompt,
         default_emotion=row.default_emotion,
         default_speed=row.default_speed,
         default_pitch=row.default_pitch,
         gpt_weights_path=row.gpt_weights_path,
         sovits_weights_path=row.sovits_weights_path,
+        tts_model_profile=row.tts_model_profile,
+        reference_language=row.reference_language,
+        emotion_refs=json.loads(row.emotion_refs_json),
+        tts_enabled=row.tts_enabled,
         visual_assets=RoleVisualAssets.model_validate_json(row.visual_assets_json),
         enabled=row.enabled,
         version=row.version,
@@ -92,7 +123,9 @@ class SqlAlchemyRoleProfileRepository:
             async with self._sessions() as session, session.begin():
                 session.add(row)
         except IntegrityError as exc:
-            raise RoleProfileConflictError("A role profile with that slug already exists.") from exc
+            raise RoleProfileConflictError(
+                "A role profile with that slug or enabled speaker_id already exists."
+            ) from exc
         return profile
 
     async def get(self, profile_id: UUID) -> RoleProfile:
@@ -111,6 +144,21 @@ class SqlAlchemyRoleProfileRepository:
             rows = (await session.scalars(statement)).all()
         return [_to_profile(row) for row in rows]
 
+    async def get_enabled_by_speaker_id(self, speaker_id: str) -> RoleProfile | None:
+        statement = (
+            select(RoleProfileRow)
+            .where(
+                RoleProfileRow.speaker_id == speaker_id,
+                RoleProfileRow.enabled.is_(True),
+            )
+            .limit(2)
+        )
+        async with self._sessions() as session:
+            rows = (await session.scalars(statement)).all()
+        if len(rows) > 1:
+            raise RoleProfileConflictError("Enabled speaker_id is not unique.")
+        return None if not rows else _to_profile(rows[0])
+
     async def replace(self, profile: RoleProfile, *, expected_version: int) -> RoleProfile:
         values = _row_values(profile)
         values.pop("created_at")
@@ -126,7 +174,9 @@ class SqlAlchemyRoleProfileRepository:
                 )
                 rowcount = result.rowcount if isinstance(result, CursorResult) else 0
         except IntegrityError as exc:
-            raise RoleProfileConflictError("A role profile with that slug already exists.") from exc
+            raise RoleProfileConflictError(
+                "A role profile with that slug or enabled speaker_id already exists."
+            ) from exc
         if rowcount != 1:
             await self._raise_missing_or_conflict(profile.profile_id)
         return profile
@@ -154,6 +204,7 @@ class InMemoryRoleProfileRepository:
         async with self._lock:
             if any(existing.slug == profile.slug for existing in self._profiles.values()):
                 raise RoleProfileConflictError("A role profile with that slug already exists.")
+            self._ensure_enabled_speaker_available(profile)
             self._profiles[profile.profile_id] = copy.deepcopy(profile)
         return copy.deepcopy(profile)
 
@@ -173,6 +224,17 @@ class InMemoryRoleProfileRepository:
             ]
         return sorted(profiles, key=lambda profile: profile.slug)
 
+    async def get_enabled_by_speaker_id(self, speaker_id: str) -> RoleProfile | None:
+        async with self._lock:
+            matches = [
+                profile
+                for profile in self._profiles.values()
+                if profile.enabled and profile.speaker_id == speaker_id
+            ]
+            if len(matches) > 1:
+                raise RoleProfileConflictError("Enabled speaker_id is not unique.")
+            return None if not matches else copy.deepcopy(matches[0])
+
     async def replace(self, profile: RoleProfile, *, expected_version: int) -> RoleProfile:
         async with self._lock:
             current = self._profiles.get(profile.profile_id)
@@ -185,5 +247,22 @@ class InMemoryRoleProfileRepository:
                 for item in self._profiles.values()
             ):
                 raise RoleProfileConflictError("A role profile with that slug already exists.")
+            self._ensure_enabled_speaker_available(profile, excluding=profile.profile_id)
             self._profiles[profile.profile_id] = copy.deepcopy(profile)
         return copy.deepcopy(profile)
+
+    def _ensure_enabled_speaker_available(
+        self,
+        profile: RoleProfile,
+        *,
+        excluding: UUID | None = None,
+    ) -> None:
+        if not profile.enabled:
+            return
+        if any(
+            item.profile_id != excluding
+            and item.enabled
+            and item.speaker_id == profile.speaker_id
+            for item in self._profiles.values()
+        ):
+            raise RoleProfileConflictError("An enabled role already owns that speaker_id.")
