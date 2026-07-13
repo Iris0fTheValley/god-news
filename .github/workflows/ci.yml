@@ -28,7 +28,10 @@ jobs:
       - name: Install uv and Python
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
-          python-version: "3.12"
+          # Keep CI on the lowest supported runtime so mypy and locked
+          # dependency stubs are checked against the public compatibility
+          # contract in pyproject.toml.
+          python-version: "3.11"
           enable-cache: true
 
       - name: Restore locked environment
@@ -58,7 +61,7 @@ jobs:
       - name: Install uv and Python
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
-          python-version: "3.12"
+          python-version: "3.11"
           enable-cache: true
 
       - name: Restore backend runtime for OpenAPI generation
