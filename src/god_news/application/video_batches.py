@@ -137,7 +137,6 @@ class VideoBatchService:
         async with self._asset_lifecycle_lock:
             selected = await self._select_stories(request)
             ordered = sorted(selected, key=self._story_order_key)
-            host = await self._host_renderer.prepare(ordered)
             bgm = None
             if request.bgm_track_id is not None:
                 bgm = await self._bgm_catalog.resolve(
@@ -169,7 +168,7 @@ class VideoBatchService:
                 stories=stories,
                 narration=narration,
                 bgm=bgm,
-                visual_reservations=host,
+                visual_reservations=HostVisualReservations(),
             )
             return await self._repository.create(batch)
 
@@ -291,6 +290,11 @@ class VideoBatchService:
                 script=running.narration.script,
                 audio=audio,
             )
+            host = await self._host_renderer.prepare(
+                batch_id=running.batch_id,
+                script=running.narration.script,
+                audio=audio,
+            )
             source_videos = list(
                 await self._source_video_library.approved_for_stories(
                     [story.story_id for story in running.stories]
@@ -302,7 +306,7 @@ class VideoBatchService:
                 subtitle=running.subtitle,
                 manifest=manifest,
                 bgm=(running.bgm.render_spec() if running.bgm is not None else None),
-                host=running.visual_reservations,
+                host=host,
                 source_videos=source_videos,
             )
             input_assets = await asyncio.to_thread(self._snapshot_input_assets, props)
@@ -331,6 +335,7 @@ class VideoBatchService:
                     "status": VideoBatchStatus.PENDING_TIMELINE_REVIEW,
                     "narration": narration,
                     "remotion_props": props,
+                    "visual_reservations": host,
                     "input_assets": input_assets,
                     "render_input_sha256": self._render_hash(props, input_assets),
                     "narration_failure": None,
@@ -794,6 +799,10 @@ class VideoBatchService:
         candidates.extend(
             (VideoInputAssetKind.SOURCE_VIDEO, asset.local_path)
             for asset in props.source_videos
+        )
+        candidates.extend(
+            (VideoInputAssetKind.HOST_VIDEO, asset.local_path)
+            for asset in props.visual_reservations.host_videos
         )
         if props.bgm is not None:
             candidates.append((VideoInputAssetKind.BGM, props.bgm.local_path))

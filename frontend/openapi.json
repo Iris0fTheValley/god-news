@@ -2370,6 +2370,13 @@
               }
             ]
           },
+          "host_videos": {
+            "items": {
+              "$ref": "#/components/schemas/PublicRenderedHostVideo"
+            },
+            "title": "Host Videos",
+            "type": "array"
+          },
           "live2d": {
             "anyOf": [
               {
@@ -2381,13 +2388,17 @@
             ]
           },
           "renderer": {
-            "const": "placeholder",
+            "enum": [
+              "placeholder",
+              "live2d_prerender"
+            ],
             "title": "Renderer",
             "type": "string"
           }
         },
         "required": [
-          "renderer"
+          "renderer",
+          "host_videos"
         ],
         "title": "PublicHostVisualReservations",
         "type": "object"
@@ -2575,6 +2586,88 @@
           "output_profiles"
         ],
         "title": "PublicRemotionVideoProps",
+        "type": "object"
+      },
+      "PublicRenderedHostVideo": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "format": "uuid",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "audio_sha256": {
+            "title": "Audio Sha256",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "fps": {
+            "title": "Fps",
+            "type": "integer"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "model_sha256": {
+            "title": "Model Sha256",
+            "type": "string"
+          },
+          "role_profile_id": {
+            "format": "uuid",
+            "title": "Role Profile Id",
+            "type": "string"
+          },
+          "role_profile_version": {
+            "title": "Role Profile Version",
+            "type": "integer"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "speaker_id": {
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "video_codec": {
+            "title": "Video Codec",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asset_id",
+          "segment_id",
+          "speaker_id",
+          "role_profile_id",
+          "role_profile_version",
+          "model_sha256",
+          "audio_sha256",
+          "sha256",
+          "size_bytes",
+          "duration_ms",
+          "width",
+          "height",
+          "fps",
+          "video_codec"
+        ],
+        "title": "PublicRenderedHostVideo",
         "type": "object"
       },
       "PublicSourceVideoRenderAsset": {

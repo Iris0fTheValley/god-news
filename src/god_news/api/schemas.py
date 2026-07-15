@@ -146,8 +146,27 @@ class PublicDifferentialArtReservation(ApiModel):
     layers: list[PublicDifferentialArtLayer]
 
 
+class PublicRenderedHostVideo(ApiModel):
+    asset_id: UUID
+    segment_id: UUID
+    speaker_id: str
+    role_profile_id: UUID
+    role_profile_version: int
+    model_sha256: str
+    audio_sha256: str
+    local_path: str = Field(exclude=True)
+    sha256: str
+    size_bytes: int
+    duration_ms: int
+    width: int
+    height: int
+    fps: int
+    video_codec: str
+
+
 class PublicHostVisualReservations(ApiModel):
-    renderer: Literal["placeholder"]
+    renderer: Literal["placeholder", "live2d_prerender"]
+    host_videos: list[PublicRenderedHostVideo]
     live2d: PublicLive2DReservation | None = None
     differential_art: PublicDifferentialArtReservation | None = None
 

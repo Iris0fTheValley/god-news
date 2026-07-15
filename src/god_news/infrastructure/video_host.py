@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from god_news.domain.models import Story
+from god_news.domain.models import AudioBundle, ScriptDocument
 from god_news.domain.video import (
     HostVisualReservations,
     RemotionVideoProps,
@@ -18,9 +18,16 @@ class PlaceholderHostRenderer:
     def name(self) -> str:
         return "placeholder"
 
-    async def prepare(self, stories: Sequence[Story]) -> HostVisualReservations:
-        if not stories:
-            raise ValueError("host preparation requires at least one story")
+    async def prepare(
+        self,
+        *,
+        batch_id: UUID,
+        script: ScriptDocument,
+        audio: AudioBundle,
+    ) -> HostVisualReservations:
+        del batch_id
+        if not script.segments or not audio.clips:
+            raise ValueError("host preparation requires synthesized narration")
         return HostVisualReservations(renderer="placeholder")
 
 

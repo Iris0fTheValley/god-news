@@ -45,6 +45,70 @@ describe('GodNewsVideoPropsSchema', () => {
     );
   });
 
+  it('accepts immutable Live2D host media for every reviewed segment', () => {
+    const input = structuredClone(validProps);
+    input.visual_reservations = {
+      renderer: 'live2d_prerender',
+      host_videos: input.manifest.timeline.map((segment, index) => ({
+        asset_id: index === 0
+          ? '4aebecf9-4092-4816-84d1-1ce05c1600dc'
+          : '247b4a03-533f-44f7-bbd4-3fd3f462e169',
+        segment_id: segment.segment_id,
+        speaker_id: segment.speaker_id,
+        role_profile_id: index === 0
+          ? '6b5eeefc-c4c2-4263-8764-6a8596938308'
+          : 'ec0a064d-265e-40d6-8cbb-300e02561c58',
+        role_profile_version: 2,
+        model_sha256: 'a'.repeat(64),
+        audio_sha256: 'b'.repeat(64),
+        local_path: `hosts/${segment.segment_id}.webm`,
+        sha256: 'c'.repeat(64),
+        size_bytes: 2048,
+        duration_ms: segment.end_ms - segment.start_ms,
+        width: 720,
+        height: 720,
+        fps: 30,
+        video_codec: 'vp9',
+      })),
+    };
+
+    expect(parseGodNewsVideoProps(input).visual_reservations.renderer).toBe(
+      'live2d_prerender',
+    );
+  });
+
+  it('rejects Live2D host media that drifts from reviewed speaker identity', () => {
+    const input = structuredClone(validProps);
+    input.visual_reservations = {
+      renderer: 'live2d_prerender',
+      host_videos: input.manifest.timeline.map((segment, index) => ({
+        asset_id: index === 0
+          ? '4aebecf9-4092-4816-84d1-1ce05c1600dc'
+          : '247b4a03-533f-44f7-bbd4-3fd3f462e169',
+        segment_id: segment.segment_id,
+        speaker_id: index === 0 ? 'different-speaker' : segment.speaker_id,
+        role_profile_id: index === 0
+          ? '6b5eeefc-c4c2-4263-8764-6a8596938308'
+          : 'ec0a064d-265e-40d6-8cbb-300e02561c58',
+        role_profile_version: 2,
+        model_sha256: 'a'.repeat(64),
+        audio_sha256: 'b'.repeat(64),
+        local_path: `hosts/${segment.segment_id}.webm`,
+        sha256: 'c'.repeat(64),
+        size_bytes: 2048,
+        duration_ms: segment.end_ms - segment.start_ms,
+        width: 720,
+        height: 720,
+        fps: 30,
+        video_codec: 'vp9',
+      })),
+    };
+
+    expect(() => parseGodNewsVideoProps(input)).toThrow(
+      /host identity and duration must match narration/u,
+    );
+  });
+
   it('requires the active output profile to come from the semantic snapshot', () => {
     const invalid = structuredClone(validProps);
     invalid.output_profiles = invalid.output_profiles.filter(

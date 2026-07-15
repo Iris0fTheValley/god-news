@@ -2,6 +2,7 @@ import {z} from 'zod';
 
 const nonBlank = z.string().trim().min(1);
 const localPath = nonBlank.max(4096);
+const sha256 = z.string().regex(/^[a-f0-9]{64}$/u);
 
 export const OutputProfileIdSchema = z.enum([
   'douyin_vertical',
@@ -106,7 +107,7 @@ export const SourceVideoRenderAssetSchema = z
       })
       .strict(),
     local_path: localPath,
-    sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    sha256,
     size_bytes: z.number().int().positive(),
     duration_ms: z.number().int().positive(),
     width: z.number().int().positive(),
@@ -405,13 +406,66 @@ const DifferentialArtReservationSchema = z
   })
   .strict();
 
+const RenderedHostVideoSchema = z
+  .object({
+    asset_id: z.string().uuid(),
+    segment_id: z.string().uuid(),
+    speaker_id: nonBlank,
+    role_profile_id: z.string().uuid(),
+    role_profile_version: z.number().int().min(1),
+    model_sha256: sha256,
+    audio_sha256: sha256,
+    local_path: localPath,
+    sha256,
+    size_bytes: z.number().int().positive(),
+    duration_ms: z.number().int().positive(),
+    width: z.number().int().positive().max(4096),
+    height: z.number().int().positive().max(4096),
+    fps: z.number().int().min(1).max(120),
+    video_codec: nonBlank,
+  })
+  .strict();
+
 const VisualReservationsSchema = z
   .object({
-    renderer: z.literal('placeholder').default('placeholder'),
+    renderer: z.enum(['placeholder', 'live2d_prerender']).default('placeholder'),
+    host_videos: z.array(RenderedHostVideoSchema).max(100).default([]),
     live2d: Live2DReservationSchema.nullable().optional(),
     differential_art: DifferentialArtReservationSchema.nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((reservation, context) => {
+    const segmentIds = reservation.host_videos.map((asset) => asset.segment_id);
+    const assetIds = reservation.host_videos.map((asset) => asset.asset_id);
+    if (new Set(segmentIds).size !== segmentIds.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'host videos must be unique by narration segment',
+        path: ['host_videos'],
+      });
+    }
+    if (new Set(assetIds).size !== assetIds.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'host video asset IDs must be unique',
+        path: ['host_videos'],
+      });
+    }
+    if (reservation.renderer === 'placeholder' && reservation.host_videos.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'placeholder renderer cannot retain host videos',
+        path: ['host_videos'],
+      });
+    }
+    if (reservation.renderer === 'live2d_prerender' && reservation.host_videos.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Live2D renderer requires host videos',
+        path: ['host_videos'],
+      });
+    }
+  });
 
 export const BgmSchema = z
   .object({
@@ -424,6 +478,7 @@ export const BgmSchema = z
 const RuntimeAssetsSchema = z
   .object({
     audio_by_segment_id: z.record(z.string().uuid(), nonBlank).default({}),
+    host_video_by_segment_id: z.record(z.string().uuid(), nonBlank).default({}),
     bgm_src: nonBlank.optional(),
     output_profile_id: OutputProfileIdSchema.default('douyin_vertical'),
   })
@@ -445,12 +500,16 @@ export const GodNewsVideoPropsSchema = z
       signal: '#e4a853',
     }),
     bgm: BgmSchema.nullable().optional(),
-    visual_reservations: VisualReservationsSchema.default({renderer: 'placeholder'}),
+    visual_reservations: VisualReservationsSchema.default({
+      renderer: 'placeholder',
+      host_videos: [],
+    }),
     episode_plan: EpisodePlanSchema.nullable().optional(),
     source_videos: z.array(SourceVideoRenderAssetSchema).max(100).default([]),
     output_profiles: z.array(OutputProfileSchema).min(1).max(8).default(defaultOutputProfiles),
     runtime_assets: RuntimeAssetsSchema.default({
       audio_by_segment_id: {},
+      host_video_by_segment_id: {},
       output_profile_id: 'douyin_vertical',
     }),
   })
@@ -467,6 +526,42 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
           code: z.ZodIssueCode.custom,
           message: 'runtime audio binding references an unknown segment_id',
           path: ['runtime_assets', 'audio_by_segment_id', segmentId],
+        });
+      }
+    }
+    for (const segmentId of Object.keys(props.runtime_assets.host_video_by_segment_id)) {
+      if (!segmentIds.has(segmentId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'runtime host-video binding references an unknown segment_id',
+          path: ['runtime_assets', 'host_video_by_segment_id', segmentId],
+        });
+      }
+    }
+    if (props.visual_reservations.renderer === 'live2d_prerender') {
+      const timeline = props.manifest.timeline;
+      const hosts = props.visual_reservations.host_videos;
+      if (hosts.length !== timeline.length) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Live2D host videos must cover the narration timeline',
+          path: ['visual_reservations', 'host_videos'],
+        });
+      } else {
+        hosts.forEach((host, index) => {
+          const segment = timeline[index];
+          if (
+            !segment ||
+            host.segment_id !== segment.segment_id ||
+            host.speaker_id !== segment.speaker_id ||
+            host.duration_ms !== segment.end_ms - segment.start_ms
+          ) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Live2D host identity and duration must match narration',
+              path: ['visual_reservations', 'host_videos', index],
+            });
+          }
         });
       }
     }

@@ -1,6 +1,13 @@
 import type {CSSProperties} from 'react';
-import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import {
+  AbsoluteFill,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+  Video,
+} from 'remotion';
 
+import {sourceForBrowser} from '../browser-assets';
 import type {SceneTrack} from '../render-plan';
 import type {GodNewsVideoProps} from '../schema';
 
@@ -83,6 +90,9 @@ export const HostEvidenceScene = ({
     extrapolateRight: 'clamp',
   });
   const {segment} = track;
+  const hostSource = sourceForBrowser(
+    props.runtime_assets.host_video_by_segment_id[segment.segment_id],
+  );
   const cornerHost = track.scene.host_slot === 'corner';
   const enterProgress = track.scene.host_enter
     ? interpolate(frame, [0, 10], [0, 1], {
@@ -158,7 +168,30 @@ export const HostEvidenceScene = ({
             transform: `translateX(${hostShift}px)`,
           }}
         >
-          <HostSilhouette accent={props.theme.accent} />
+          {hostSource ? (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                minHeight: 220,
+                overflow: 'hidden',
+                borderRadius: 30,
+                background: `radial-gradient(circle at 50% 30%, ${props.theme.accent}28, transparent 58%)`,
+              }}
+            >
+              <Video
+                src={hostSource}
+                muted
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
+          ) : (
+            <HostSilhouette accent={props.theme.accent} />
+          )}
         </div>
         <div
           style={{

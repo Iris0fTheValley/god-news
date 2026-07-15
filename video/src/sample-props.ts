@@ -62,6 +62,7 @@ export const sampleProps: GodNewsVideoProps = {
   },
   visual_reservations: {
     renderer: 'placeholder',
+    host_videos: [],
   },
   episode_plan: {
     schema_version: '1.0',
@@ -112,6 +113,7 @@ export const sampleProps: GodNewsVideoProps = {
   ],
   runtime_assets: {
     audio_by_segment_id: {},
+    host_video_by_segment_id: {},
     output_profile_id: 'douyin_vertical',
   },
 };

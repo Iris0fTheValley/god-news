@@ -1796,12 +1796,14 @@ export interface components {
         /** PublicHostVisualReservations */
         PublicHostVisualReservations: {
             differential_art?: components["schemas"]["PublicDifferentialArtReservation"] | null;
+            /** Host Videos */
+            host_videos: components["schemas"]["PublicRenderedHostVideo"][];
             live2d?: components["schemas"]["PublicLive2DReservation"] | null;
             /**
              * Renderer
-             * @constant
+             * @enum {string}
              */
-            renderer: "placeholder";
+            renderer: "placeholder" | "live2d_prerender";
         };
         /** PublicLegacyVideoRenderArtifact */
         PublicLegacyVideoRenderArtifact: {
@@ -1864,6 +1866,46 @@ export interface components {
             /** Transition Duration Ms */
             transition_duration_ms: number;
             visual_reservations: components["schemas"]["PublicHostVisualReservations"];
+        };
+        /** PublicRenderedHostVideo */
+        PublicRenderedHostVideo: {
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id: string;
+            /** Audio Sha256 */
+            audio_sha256: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Fps */
+            fps: number;
+            /** Height */
+            height: number;
+            /** Model Sha256 */
+            model_sha256: string;
+            /**
+             * Role Profile Id
+             * Format: uuid
+             */
+            role_profile_id: string;
+            /** Role Profile Version */
+            role_profile_version: number;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Speaker Id */
+            speaker_id: string;
+            /** Video Codec */
+            video_codec: string;
+            /** Width */
+            width: number;
         };
         /** PublicSourceVideoRenderAsset */
         PublicSourceVideoRenderAsset: {

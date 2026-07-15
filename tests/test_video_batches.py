@@ -46,7 +46,10 @@ from god_news.domain.video import (
 )
 from god_news.errors import TTSGenerationError
 from god_news.infrastructure.database import Database
-from god_news.infrastructure.repositories import SqlAlchemyStoryRepository
+from god_news.infrastructure.repositories import (
+    SqlAlchemyLiveScriptRoleUsageGuard,
+    SqlAlchemyStoryRepository,
+)
 from god_news.infrastructure.video_assets import LocalBgmCatalog
 from god_news.infrastructure.video_host import PlaceholderHostRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
@@ -719,6 +722,10 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
         batch = await service.create(
             CreateVideoBatch(title="Persistent cut", story_ids=[story.story_id])
         )
+        guard = SqlAlchemyLiveScriptRoleUsageGuard(database.sessions)
+        assert await guard.has_live_script_reference(
+            batch.narration.script.segments[0].speaker_id
+        )
         synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
         approved = await service.submit_timeline_review(
             synthesized.batch_id,
@@ -760,6 +767,9 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
         assert reloaded.narration.manifest == rendered.narration.manifest
         assert reloaded.stories[0].used_at == rendered.stories[0].used_at
         assert await repository.unavailable_story_ids([story.story_id]) == {story.story_id}
+        assert not await guard.has_live_script_reference(
+            rendered.narration.script.segments[0].speaker_id
+        )
 
         assert rendered.artifact is not None
         current_output = rendered.artifact.outputs[0]

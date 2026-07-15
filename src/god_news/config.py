@@ -116,6 +116,16 @@ class Settings(BaseSettings):
     video_render_timeout_seconds: float = Field(default=3_600, gt=0, le=14_400)
     video_render_max_parallel_batches: int = Field(default=1, ge=1, le=4)
     video_render_concurrency: int = Field(default=2, ge=1, le=8)
+    video_live2d_enabled: bool = False
+    video_live2d_python_executable: Path | None = None
+    video_live2d_worker_script: Path = Path("./scripts/render_live2d_host.py")
+    video_live2d_trusted_asset_roots: tuple[Path, ...] = ()
+    video_live2d_output_dir: Path | None = None
+    video_live2d_timeout_seconds: float = Field(default=900, gt=0, le=7_200)
+    video_live2d_max_parallel_segments: int = Field(default=1, ge=1, le=4)
+    video_live2d_width: int = Field(default=720, ge=256, le=2_048, multiple_of=2)
+    video_live2d_height: int = Field(default=720, ge=256, le=2_048, multiple_of=2)
+    video_live2d_fps: int = Field(default=30, ge=1, le=60)
     retention_media_days: int = Field(default=7, ge=1, le=3_650)
     retention_uploaded_mp4_days: int = Field(default=3, ge=1, le=3_650)
     retention_media_extensions: tuple[str, ...] = (
@@ -130,6 +140,7 @@ class Settings(BaseSettings):
         ".jpeg",
         ".webp",
         ".mp4",
+        ".webm",
     )
     operations_history_limit: int = Field(default=100, ge=1, le=10_000)
     operations_scheduler_enabled: bool = False
@@ -423,6 +434,8 @@ class Settings(BaseSettings):
         "visual_asset_dir",
         "source_media_dir",
         "video_render_output_dir",
+        "video_live2d_python_executable",
+        "video_live2d_output_dir",
         mode="before",
     )
     @classmethod
@@ -442,6 +455,19 @@ class Settings(BaseSettings):
         if not value.strip():
             raise ValueError("video_node_command cannot be blank")
         return value.strip()
+
+    @field_validator("video_live2d_trusted_asset_roots")
+    @classmethod
+    def validate_live2d_trusted_asset_roots(
+        cls,
+        value: tuple[Path, ...],
+    ) -> tuple[Path, ...]:
+        roots = tuple(path.expanduser().resolve(strict=False) for path in value)
+        if len(roots) != len(set(roots)):
+            raise ValueError("video_live2d_trusted_asset_roots must not contain duplicates")
+        if any(root.parent == root for root in roots):
+            raise ValueError("video_live2d_trusted_asset_roots cannot include a filesystem root")
+        return roots
 
     @field_validator("tts_trusted_asset_roots")
     @classmethod
@@ -474,6 +500,15 @@ class Settings(BaseSettings):
             raise ValueError("production requires a configured memory provider")
         if (self.tts_gpt_weights is None) is not (self.tts_sovits_weights is None):
             raise ValueError("tts_gpt_weights and tts_sovits_weights must be set together")
+        if self.video_live2d_enabled:
+            if self.video_live2d_python_executable is None:
+                raise ValueError(
+                    "video_live2d_python_executable is required when Live2D is enabled"
+                )
+            if not self.video_live2d_trusted_asset_roots:
+                raise ValueError(
+                    "video_live2d_trusted_asset_roots is required when Live2D is enabled"
+                )
         if self.fetch_max_keepalive_connections > self.fetch_max_connections:
             raise ValueError("fetch_max_keepalive_connections cannot exceed fetch_max_connections")
         media_root = self.output_dir.expanduser().resolve(strict=False)
@@ -506,6 +541,11 @@ class Settings(BaseSettings):
         video_render_root = self.video_render_root
         if video_render_root == media_root or not video_render_root.is_relative_to(media_root):
             raise ValueError("video_render_output_dir must be a child directory of output_dir")
+        live2d_output_root = self.video_live2d_output_root
+        if live2d_output_root == media_root or not live2d_output_root.is_relative_to(media_root):
+            raise ValueError("video_live2d_output_dir must be a child directory of output_dir")
+        if live2d_output_root == video_render_root:
+            raise ValueError("video Live2D and final render output directories must differ")
         if (
             self.environment is Environment.PRODUCTION
             and self.enable_drission_fetcher
@@ -541,6 +581,12 @@ class Settings(BaseSettings):
     def video_render_root(self) -> Path:
         configured = self.video_render_output_dir
         root = configured if configured is not None else self.output_dir / "video-renders"
+        return root.expanduser().resolve(strict=False)
+
+    @property
+    def video_live2d_output_root(self) -> Path:
+        configured = self.video_live2d_output_dir
+        root = configured if configured is not None else self.output_dir / "live2d-hosts"
         return root.expanduser().resolve(strict=False)
 
     @property

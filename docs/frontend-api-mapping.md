@@ -83,7 +83,7 @@ pnpm --dir frontend check
 | 新建批次 | `POST /api/v1/video/batches` | 从未占用的 `DONE` 故事快照各自的脚本，再由 LLM 生成一份含过渡句的统一批次口播；可选择本地 BGM。 |
 | 列表/详情 | `GET /api/v1/video/batches`、`GET /api/v1/video/batches/{batch_id}` | 返回来源脚本快照、统一口播、审核、输入资产快照和版本。 |
 | 审核合并口播 | `POST /api/v1/video/batches/{batch_id}/narration-review` | `APPROVE` / `REJECT` 仅初始 `PENDING_NARRATION_REVIEW` 可用；携带 `revised_script` 的 `REVISE` 也可在 `PENDING_BATCH_TTS` 或 `PENDING_TIMELINE_REVIEW` 提交，会清除派生音频和时间轴并返回口播审核门。 |
-| 手动合成合并口播 | `POST /api/v1/video/batches/{batch_id}/narration/synthesize` | 仅 `PENDING_BATCH_TTS` 可用；独立本地 TTS 成功后才进入 `PENDING_TIMELINE_REVIEW`。 |
+| 手动合成合并口播 | `POST /api/v1/video/batches/{batch_id}/narration/synthesize` | 仅 `PENDING_BATCH_TTS` 可用；独立本地 TTS 成功后，若启用了 Live2D，会按最终脚本段角色在隔离子进程中预渲染透明角色媒体；全部成功才进入 `PENDING_TIMELINE_REVIEW`。 |
 | 试听统一旁白 | `GET /api/v1/video/batches/{batch_id}/audio/{segment_id}` | 仅返回该批次已持久化的合并旁白段。服务端会校验段归属、输出目录边界与文件存在性；未合成、无效或越界路径均返回 `409`，不会暴露本地文件。 |
 | 审阅时间轴 | `POST /api/v1/video/batches/{batch_id}/timeline-review` | 统一口播音频和 Manifest 就绪后才可审；批准后进入 `READY_TO_RENDER`。 |
 | 渲染 | `POST /api/v1/video/batches/{batch_id}/render` | 需要 `expected_batch_version`。启用 `GOD_NEWS_VIDEO_RENDERER_ENABLED` 后，本地进程适配器会从同一语义快照原子生成抖音竖屏与 Bilibili 横屏两件制品，并用 Remotion 自带 ffprobe 验证。 |
@@ -103,5 +103,5 @@ pnpm --dir frontend check
 ## 已知边界
 
 - 真实四源采集仍取决于合法授权、凭据和站点条款；离线测试不替代现场运行证据。
-- GPT-SoVITS 多角色与七情绪参考音频选择已通过可替换角色解析器接入；真实 Remotion 双格式批量渲染已经接入，EpisodePlan、证据素材和 Live2D 执行仍是后续纵向切片。
+- GPT-SoVITS 多角色与七情绪参考音频、严格 `EpisodePlan`、审核后原始视频和 DSakiko Cubism 2 Live2D 预渲染均已通过可替换边界接入。Live2D 模型只允许从后端配置的可信本地根解析；API 返回角色版本和哈希证据，不暴露模型或生成媒体的本地路径。节目导演的故事重排、串联词与更丰富证据场景仍是后续纵向切片。
 - 任何前端请求应通过 `frontend/src/api/client.ts`，不得自行拼接未写入 OpenAPI 的接口。

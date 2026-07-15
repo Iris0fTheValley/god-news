@@ -6,7 +6,7 @@ from typing import Protocol
 from uuid import UUID
 
 from god_news.domain.enums import StoryStatus
-from god_news.domain.models import ProductionManifest, ScriptDocument, Story
+from god_news.domain.models import AudioBundle, ProductionManifest, ScriptDocument, Story
 from god_news.domain.video import (
     BgmSelection,
     BgmTrack,
@@ -46,7 +46,13 @@ class HostRenderer(Protocol):
     @property
     def name(self) -> str: ...
 
-    async def prepare(self, stories: Sequence[Story]) -> HostVisualReservations: ...
+    async def prepare(
+        self,
+        *,
+        batch_id: UUID,
+        script: ScriptDocument,
+        audio: AudioBundle,
+    ) -> HostVisualReservations: ...
 
 
 class BatchNarrationComposer(Protocol):

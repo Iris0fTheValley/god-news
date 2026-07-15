@@ -23,7 +23,7 @@ from god_news.domain.ports import (
     TextGenerator,
 )
 from god_news.domain.source_transcription import TimedCaptionTranslator
-from god_news.domain.video_ports import BatchNarrationComposer
+from god_news.domain.video_ports import BatchNarrationComposer, HostRenderer
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.fetchers.chain import FetcherChain
 from god_news.infrastructure.fetchers.drission import DrissionPageFetcher
@@ -67,6 +67,7 @@ from god_news.infrastructure.video_host import (
     PlaceholderHostRenderer,
     UnavailableBatchVideoRenderer,
 )
+from god_news.infrastructure.video_live2d import LocalLive2DHostRenderer
 from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
 from god_news.infrastructure.video_source_assets import ApprovedSourceVideoAssetLibrary
@@ -217,6 +218,7 @@ async def build_container(settings: Settings) -> AppContainer:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     settings.visual_asset_root.mkdir(parents=True, exist_ok=True)
     settings.source_media_root.mkdir(parents=True, exist_ok=True)
+    settings.video_live2d_output_root.mkdir(parents=True, exist_ok=True)
     database = Database(
         settings.database_url,
         sqlite_busy_timeout_ms=settings.database_busy_timeout_ms,
@@ -516,10 +518,34 @@ async def build_container(settings: Settings) -> AppContainer:
         if settings.video_renderer_enabled
         else UnavailableBatchVideoRenderer()
     )
+    host_renderer: HostRenderer
+    if settings.video_live2d_enabled:
+        if ffprobe is None or settings.video_live2d_python_executable is None:
+            raise ValueError(
+                "Live2D rendering requires its configured Python runtime and ffprobe."
+            )
+        host_renderer = LocalLive2DHostRenderer(
+            profiles=role_profiles,
+            python_executable=settings.video_live2d_python_executable,
+            worker_script=settings.video_live2d_worker_script,
+            inspector=FFprobeSourceVideoInspector(
+                ffprobe,
+                timeout_seconds=settings.source_media_probe_timeout_seconds,
+            ),
+            output_root=settings.video_live2d_output_root,
+            trusted_asset_roots=settings.video_live2d_trusted_asset_roots,
+            timeout_seconds=settings.video_live2d_timeout_seconds,
+            max_parallel_segments=settings.video_live2d_max_parallel_segments,
+            width=settings.video_live2d_width,
+            height=settings.video_live2d_height,
+            fps=settings.video_live2d_fps,
+        )
+    else:
+        host_renderer = PlaceholderHostRenderer()
     video_batches = VideoBatchService(
         story_pool=workflow,
         repository=video_batch_repository,
-        host_renderer=PlaceholderHostRenderer(),
+        host_renderer=host_renderer,
         narration_composer=narration_composer,
         synthesizer=synthesizer,
         video_renderer=video_renderer,

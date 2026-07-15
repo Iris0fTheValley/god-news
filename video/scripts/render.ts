@@ -134,12 +134,25 @@ const stageProps = async (
       local_path: await stageAsset(asset.local_path, inputDirectory, publicDirectory),
     })),
   );
+  const hostVideos = await Promise.all(
+    props.visual_reservations.host_videos.map(async (asset) => ({
+      ...asset,
+      local_path: await stageAsset(asset.local_path, inputDirectory, publicDirectory),
+    })),
+  );
 
   return parseGodNewsVideoProps({
     ...props,
     source_videos: sourceVideos,
+    visual_reservations: {
+      ...props.visual_reservations,
+      host_videos: hostVideos,
+    },
     runtime_assets: {
       audio_by_segment_id: Object.fromEntries(audioEntries),
+      host_video_by_segment_id: Object.fromEntries(
+        hostVideos.map((asset) => [asset.segment_id, asset.local_path]),
+      ),
       ...(bgmSrc ? {bgm_src: bgmSrc} : {}),
       output_profile_id: profile,
     },

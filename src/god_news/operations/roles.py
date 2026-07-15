@@ -107,10 +107,10 @@ class RoleProfileService:
         """Protect authored-but-unrendered scripts from mutable voice lookup.
 
         Scripts intentionally persist ``speaker_id`` rather than a database
-        role revision. Until an immutable voice snapshot is added to the script
-        schema, an enabled TTS profile referenced by a live script must not be
-        disabled or have its synthesis-selection fields changed underneath it.
-        Editorial fields remain freely editable.
+        role revision. Until voice and visual media have been snapshotted after
+        approval, a referenced role must not be disabled or have production
+        asset selection changed underneath it. Editorial fields remain freely
+        editable.
         """
 
         if self._live_script_usage_guard is None:
@@ -125,6 +125,7 @@ class RoleProfileService:
             "reference_language",
             "emotion_refs",
             "default_emotion",
+            "visual_assets",
         )
         selection_changed = not all(
             getattr(current, field) == getattr(replacement, field)

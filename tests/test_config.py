@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -69,4 +70,21 @@ def test_asr_cache_cannot_target_a_filesystem_root() -> None:
         Settings(
             _env_file=None,
             source_media_asr_model_cache_dir=Path(Path.cwd().anchor),
+        )
+
+
+def test_live2d_requires_explicit_runtime_and_trusted_assets(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="video_live2d_python_executable"):
+        Settings(
+            _env_file=None,
+            output_dir=tmp_path / "media",
+            video_live2d_enabled=True,
+        )
+
+    with pytest.raises(ValidationError, match="video_live2d_trusted_asset_roots"):
+        Settings(
+            _env_file=None,
+            output_dir=tmp_path / "media",
+            video_live2d_enabled=True,
+            video_live2d_python_executable=Path(sys.executable),
         )

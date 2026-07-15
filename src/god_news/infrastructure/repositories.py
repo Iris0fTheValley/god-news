@@ -38,8 +38,10 @@ from god_news.domain.models import (
     Story,
     TranslationResult,
 )
+from god_news.domain.video import VideoBatch, VideoBatchStatus
 from god_news.errors import ConcurrentWriteError, DuplicateStoryError, StoryNotFoundError
 from god_news.infrastructure.database import Base
+from god_news.infrastructure.video_repository import VideoBatchRow
 from god_news.sources.models import NormalizedSourceItem
 
 
@@ -454,7 +456,7 @@ class SqlAlchemyStoryRepository:
 
 
 class SqlAlchemyLiveScriptRoleUsageGuard:
-    """Read-only story-side adapter for safe role-profile mutation.
+    """Read-only production-side adapter for safe role-profile mutation.
 
     The role application service owns the policy for changing a voice contract.
     This adapter only identifies scripts that can still be rendered and hence
@@ -470,6 +472,14 @@ class SqlAlchemyLiveScriptRoleUsageGuard:
         StoryStatus.PROCESSING_TTS,
         StoryStatus.PENDING_SECOND_REVIEW,
     )
+    _LIVE_BATCH_STATUSES = (
+        VideoBatchStatus.PENDING_NARRATION_REVIEW,
+        VideoBatchStatus.PENDING_BATCH_TTS,
+        VideoBatchStatus.PROCESSING_BATCH_TTS,
+        VideoBatchStatus.PENDING_TIMELINE_REVIEW,
+        VideoBatchStatus.READY_TO_RENDER,
+        VideoBatchStatus.RENDERING,
+    )
 
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -479,12 +489,25 @@ class SqlAlchemyLiveScriptRoleUsageGuard:
             StoryRow.status.in_(tuple(status.value for status in self._LIVE_SCRIPT_STATUSES)),
             StoryRow.script_json.is_not(None),
         )
+        batch_statement = select(VideoBatchRow.batch_json).where(
+            VideoBatchRow.status.in_(
+                tuple(status.value for status in self._LIVE_BATCH_STATUSES)
+            )
+        )
         async with self._sessions() as session:
             serialized_scripts = (await session.scalars(statement)).all()
+            serialized_batches = (await session.scalars(batch_statement)).all()
         for serialized in serialized_scripts:
             if serialized is None:
                 continue
             script = ScriptDocument.model_validate_json(serialized)
             if any(segment.speaker_id == speaker_id for segment in script.segments):
+                return True
+        for serialized in serialized_batches:
+            batch = VideoBatch.model_validate_json(serialized)
+            if any(
+                segment.speaker_id == speaker_id
+                for segment in batch.narration.script.segments
+            ):
                 return True
         return False

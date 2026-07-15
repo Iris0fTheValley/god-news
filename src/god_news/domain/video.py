@@ -134,6 +134,7 @@ class BgmRenderSpec(DomainModel):
 class VideoInputAssetKind(StrEnum):
     AUDIO = "audio"
     BGM = "bgm"
+    HOST_VIDEO = "host_video"
     SOURCE_VIDEO = "source_video"
 
 
@@ -190,12 +191,57 @@ class DifferentialArtReservation(DomainModel):
         return _require_local_path(value)
 
 
-class HostVisualReservations(DomainModel):
-    """Typed visual reservations kept independent from narration composition."""
+class RenderedHostVideo(DomainModel):
+    """Immutable, segment-scoped host media consumed by the video renderer.
 
-    renderer: Literal["placeholder"] = "placeholder"
+    The Live2D SDK and model tree stay behind the host-renderer boundary.
+    Remotion receives only an ordinary transparent video plus enough evidence
+    to prove which role, role revision, model bytes, and audio bytes produced it.
+    """
+
+    asset_id: UUID = Field(default_factory=uuid4)
+    segment_id: UUID
+    speaker_id: NonBlankStr
+    role_profile_id: UUID
+    role_profile_version: int = Field(ge=1)
+    model_sha256: Sha256
+    audio_sha256: Sha256
+    local_path: NonBlankStr
+    sha256: Sha256
+    size_bytes: int = Field(gt=0)
+    duration_ms: int = Field(gt=0)
+    width: int = Field(gt=0, le=4_096)
+    height: int = Field(gt=0, le=4_096)
+    fps: int = Field(ge=1, le=120)
+    video_codec: NonBlankStr
+
+    @field_validator("local_path")
+    @classmethod
+    def require_local_path(cls, value: str) -> str:
+        return _require_local_path(value)
+
+
+class HostVisualReservations(DomainModel):
+    """Typed visual snapshot kept independent from scene layout decisions."""
+
+    renderer: Literal["placeholder", "live2d_prerender"] = "placeholder"
+    host_videos: list[RenderedHostVideo] = Field(default_factory=list, max_length=100)
     live2d: Live2DReservation | None = None
     differential_art: DifferentialArtReservation | None = None
+
+    @model_validator(mode="after")
+    def validate_renderer_assets(self) -> HostVisualReservations:
+        segment_ids = [asset.segment_id for asset in self.host_videos]
+        asset_ids = [asset.asset_id for asset in self.host_videos]
+        if len(segment_ids) != len(set(segment_ids)):
+            raise ValueError("host videos must be unique by narration segment")
+        if len(asset_ids) != len(set(asset_ids)):
+            raise ValueError("host video asset IDs must be unique")
+        if self.renderer == "placeholder" and self.host_videos:
+            raise ValueError("placeholder host renderer cannot retain rendered host videos")
+        if self.renderer == "live2d_prerender" and not self.host_videos:
+            raise ValueError("Live2D pre-rendering requires at least one host video")
+        return self
 
 
 class VideoOutputProfileId(StrEnum):
@@ -452,6 +498,24 @@ class RemotionVideoProps(DomainModel):
                 raise ValueError("episode source video scenes must match the approved asset set")
         elif self.source_videos:
             raise ValueError("source video assets require a typed episode plan")
+        if self.visual_reservations.renderer == "live2d_prerender":
+            hosts_by_segment = {
+                asset.segment_id: asset
+                for asset in self.visual_reservations.host_videos
+            }
+            if list(hosts_by_segment) != [segment.segment_id for segment in self.manifest.timeline]:
+                raise ValueError(
+                    "pre-rendered host videos must cover the manifest timeline in order"
+                )
+            for segment in self.manifest.timeline:
+                host = hosts_by_segment[segment.segment_id]
+                if (
+                    host.speaker_id != segment.speaker_id
+                    or host.duration_ms != segment.end_ms - segment.start_ms
+                ):
+                    raise ValueError(
+                        "pre-rendered host identity and duration must match narration"
+                    )
         return self
 
 
@@ -830,6 +894,14 @@ class VideoBatch(DomainModel):
             raise ValueError("Remotion title metadata must match the batch")
         if self.remotion_props.visual_reservations != self.visual_reservations:
             raise ValueError("Remotion visual reservations must match the batch snapshot")
+        hosts_by_segment = {
+            asset.segment_id: asset
+            for asset in self.visual_reservations.host_videos
+        }
+        for segment_id, host in hosts_by_segment.items():
+            clip = clips.get(segment_id)
+            if clip is None or host.audio_sha256 != clip.sha256:
+                raise ValueError("pre-rendered host audio evidence must match batch TTS")
         expected_bgm = self.bgm.render_spec() if self.bgm is not None else None
         if self.remotion_props.bgm != expected_bgm:
             raise ValueError("Remotion BGM spec must match the selected catalog track")
@@ -859,6 +931,16 @@ class VideoBatch(DomainModel):
         expected_source_video_paths = {
             asset.local_path for asset in self.remotion_props.source_videos
         }
+        recorded_host_video_paths = {
+            asset.local_path
+            for asset in self.input_assets
+            if asset.kind is VideoInputAssetKind.HOST_VIDEO
+        }
+        expected_host_video_paths = {
+            asset.local_path for asset in self.visual_reservations.host_videos
+        }
+        if recorded_host_video_paths != expected_host_video_paths:
+            raise ValueError("host video input evidence must match visual reservations")
         if recorded_source_video_paths != expected_source_video_paths:
             raise ValueError("source video input evidence must match approved render assets")
         if self.render_input_sha256 != render_input_sha256(self.remotion_props, self.input_assets):

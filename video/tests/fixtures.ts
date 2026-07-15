@@ -48,7 +48,7 @@ export const validProps: GodNewsVideoProps = {
     accent: '#85a77d',
     signal: '#e4a853',
   },
-  visual_reservations: {renderer: 'placeholder'},
+  visual_reservations: {renderer: 'placeholder', host_videos: []},
   episode_plan: {
     schema_version: '1.0',
     batch_id: 'b942617e-7b92-44f6-9601-62291fc60bcc',
@@ -98,6 +98,7 @@ export const validProps: GodNewsVideoProps = {
   ],
   runtime_assets: {
     audio_by_segment_id: {},
+    host_video_by_segment_id: {},
     output_profile_id: 'douyin_vertical',
   },
 };

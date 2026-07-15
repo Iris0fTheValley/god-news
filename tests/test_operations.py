@@ -285,7 +285,7 @@ async def test_role_slug_is_immutable_and_enabled_speaker_lookup_is_unique() -> 
 
 
 @pytest.mark.asyncio
-async def test_live_script_guard_blocks_only_voice_selection_mutations() -> None:
+async def test_live_script_guard_blocks_voice_and_visual_selection_mutations() -> None:
     class Guard:
         def __init__(self) -> None:
             self.calls: list[str] = []
@@ -318,9 +318,21 @@ async def test_live_script_guard_blocks_only_voice_selection_mutations() -> None
         await service.replace(updated.profile_id, voice_edit)
     assert guard.calls == [created.speaker_id]
 
+    visual_values = updated.model_dump(
+        exclude={"profile_id", "version", "created_at", "updated_at"}
+    )
+    visual_values["visual_assets"] = {
+        "live2d_asset_ref": "roles/other/3.model.json",
+        "differential_art": [],
+    }
+    visual_edit = RoleProfileReplace(**visual_values, expected_version=updated.version)
+    with pytest.raises(RoleProfileConflictError, match="live scripts"):
+        await service.replace(updated.profile_id, visual_edit)
+    assert guard.calls == [created.speaker_id, created.speaker_id]
+
     with pytest.raises(RoleProfileConflictError, match="live scripts"):
         await service.delete(updated.profile_id, expected_version=updated.version)
-    assert guard.calls == [created.speaker_id, created.speaker_id]
+    assert guard.calls == [created.speaker_id, created.speaker_id, created.speaker_id]
 
 
 @pytest.mark.asyncio

@@ -226,8 +226,21 @@ class LocalRemotionBatchVideoRenderer:
             asset.model_copy(update={"local_path": staged_path(asset.local_path)})
             for asset in props.source_videos
         ]
+        visual_reservations = props.visual_reservations.model_copy(
+            update={
+                "host_videos": [
+                    asset.model_copy(update={"local_path": staged_path(asset.local_path)})
+                    for asset in props.visual_reservations.host_videos
+                ]
+            }
+        )
         return props.model_copy(
-            update={"manifest": manifest, "bgm": bgm, "source_videos": source_videos}
+            update={
+                "manifest": manifest,
+                "bgm": bgm,
+                "source_videos": source_videos,
+                "visual_reservations": visual_reservations,
+            }
         )
 
     @staticmethod
