@@ -10,6 +10,7 @@ from god_news.domain.models import AudioBundle, ProductionManifest, ScriptDocume
 from god_news.domain.video import (
     BgmSelection,
     BgmTrack,
+    DirectedProgramDraft,
     HostVisualReservations,
     RemotionVideoProps,
     SourceVideoRenderAsset,
@@ -55,24 +56,25 @@ class HostRenderer(Protocol):
     ) -> HostVisualReservations: ...
 
 
-class BatchNarrationComposer(Protocol):
-    """Compose multiple immutable story scripts into one reviewable narration.
+class ProgramDirector(Protocol):
+    """Direct immutable story scripts into one reviewable program.
 
-    This is intentionally separate from ``TextGenerator``.  A future LLM,
-    rules engine, or human-assisted adapter can change only this boundary while
-    batch storage, TTS, asset snapshotting, and rendering keep the same contract.
+    A future LLM, rules engine, or human-assisted director can change only this
+    boundary. It returns typed editorial semantics plus a compiled script while
+    batch storage, TTS, asset snapshotting, and rendering stay independent.
     """
 
     @property
     def name(self) -> str: ...
 
-    async def compose(
+    async def direct(
         self,
         *,
         batch_id: UUID,
         title: str,
         sources: Sequence[VideoBatchStory],
-    ) -> ScriptDocument: ...
+        source_video_story_ids: frozenset[UUID],
+    ) -> DirectedProgramDraft: ...
 
 
 class BgmCatalog(Protocol):

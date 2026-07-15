@@ -81,11 +81,11 @@ pnpm --dir frontend check
 | --- | --- | --- |
 | 本地 BGM 目录 | `GET /api/v1/video/bgm` | 仅返回 `track_id`、`display_name`、`relative_path`、`size_bytes`；当前没有媒体流/试听接口。 |
 | 新建批次 | `POST /api/v1/video/batches` | 从未占用的 `DONE` 故事快照各自的脚本，再由 LLM 生成一份含过渡句的统一批次口播；可选择本地 BGM。 |
-| 列表/详情 | `GET /api/v1/video/batches`、`GET /api/v1/video/batches/{batch_id}` | 返回来源脚本快照、统一口播、审核、输入资产快照和版本。 |
-| 审核合并口播 | `POST /api/v1/video/batches/{batch_id}/narration-review` | `APPROVE` / `REJECT` 仅初始 `PENDING_NARRATION_REVIEW` 可用；携带 `revised_script` 的 `REVISE` 也可在 `PENDING_BATCH_TTS` 或 `PENDING_TIMELINE_REVIEW` 提交，会清除派生音频和时间轴并返回口播审核门。 |
-| 手动合成合并口播 | `POST /api/v1/video/batches/{batch_id}/narration/synthesize` | 仅 `PENDING_BATCH_TTS` 可用；独立本地 TTS 成功后，若启用了 Live2D，会按最终脚本段角色在隔离子进程中预渲染透明角色媒体；全部成功才进入 `PENDING_TIMELINE_REVIEW`。 |
-| 试听统一旁白 | `GET /api/v1/video/batches/{batch_id}/audio/{segment_id}` | 仅返回该批次已持久化的合并旁白段。服务端会校验段归属、输出目录边界与文件存在性；未合成、无效或越界路径均返回 `409`，不会暴露本地文件。 |
-| 审阅时间轴 | `POST /api/v1/video/batches/{batch_id}/timeline-review` | 统一口播音频和 Manifest 就绪后才可审；批准后进入 `READY_TO_RENDER`。 |
+| 列表/详情 | `GET /api/v1/video/batches`、`GET /api/v1/video/batches/{batch_id}` | 返回不可变来源脚本快照、`direction` 节目导演计划、节目口播、审核、输入资产快照和版本。导演计划显式区分来源段与相邻故事串联段。 |
+| 审核节目口播 | `POST /api/v1/video/batches/{batch_id}/narration-review` | `APPROVE` / `REJECT` 仅初始 `PENDING_NARRATION_REVIEW` 可用；携带 `revised_script` 的 `REVISE` 也可在 `PENDING_BATCH_TTS` 或 `PENDING_TIMELINE_REVIEW` 提交，会清除派生音频和时间轴并返回口播审核门。修订必须保留导演计划拥有的段落 ID 与顺序。 |
+| 手动合成节目口播 | `POST /api/v1/video/batches/{batch_id}/narration/synthesize` | 仅 `PENDING_BATCH_TTS` 可用；独立本地 TTS 成功后，按导演计划将已批准原视频交错插入故事位置；若启用了 Live2D，会按最终脚本段角色在隔离子进程中预渲染透明角色媒体；全部成功才进入 `PENDING_TIMELINE_REVIEW`。 |
+| 试听节目旁白 | `GET /api/v1/video/batches/{batch_id}/audio/{segment_id}` | 仅返回该批次已持久化的节目旁白段。服务端会校验段归属、输出目录边界与文件存在性；未合成、无效或越界路径均返回 `409`，不会暴露本地文件。 |
+| 审阅时间轴 | `POST /api/v1/video/batches/{batch_id}/timeline-review` | 节目口播音频、导演场景计划和 Manifest 就绪后才可审；批准后进入 `READY_TO_RENDER`。 |
 | 渲染 | `POST /api/v1/video/batches/{batch_id}/render` | 需要 `expected_batch_version`。启用 `GOD_NEWS_VIDEO_RENDERER_ENABLED` 后，本地进程适配器会从同一语义快照原子生成抖音竖屏与 Bilibili 横屏两件制品，并用 Remotion 自带 ffprobe 验证。 |
 | 播放成片 | `GET /api/v1/video/batches/{batch_id}/outputs/{profile_id}` | 只接受平台注册 ID，不接受文件路径。服务端在同一已打开文件句柄上核对大小与 SHA-256 后流式返回；旧版单输出制品只读保留，不伪装成双平台成片。 |
 | 取消/删除 | `POST /api/v1/video/batches/{batch_id}/cancel`、`DELETE /api/v1/video/batches/{batch_id}` | 未渲染批次可释放故事；渲染中无安全取消契约，已渲染批次是不可变审计证据。 |

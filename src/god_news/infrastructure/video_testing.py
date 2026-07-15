@@ -10,7 +10,13 @@ from uuid import UUID
 from god_news.application.video_batches import require_video_transition
 from god_news.domain.models import ScriptDocument, ScriptSegment, utc_now
 from god_news.domain.video import (
+    DirectedProgramDraft,
+    EpisodeSceneModule,
+    ProgramBridge,
+    ProgramDirectorPlan,
+    ProgramStoryDirection,
     RemotionVideoProps,
+    SourceVideoPlacement,
     SourceVideoRenderAsset,
     VideoBatch,
     VideoBatchStatus,
@@ -159,8 +165,8 @@ class InMemoryVideoBatchRepository:
         return None
 
 
-class DeterministicBatchNarrationComposer:
-    """Offline fixture that proves merged narration is a separate artifact."""
+class DeterministicProgramDirector:
+    """Offline fixture for immutable stories plus explicit bridge utterances."""
 
     def __init__(self) -> None:
         self.calls = 0
@@ -168,45 +174,81 @@ class DeterministicBatchNarrationComposer:
 
     @property
     def name(self) -> str:
-        return "deterministic-offline-batch-narration"
+        return "deterministic-offline-program-director"
 
-    async def compose(
+    async def direct(
         self,
         *,
         batch_id: UUID,
         title: str,
         sources: Sequence[VideoBatchStory],
-    ) -> ScriptDocument:
+        source_video_story_ids: frozenset[UUID],
+    ) -> DirectedProgramDraft:
         del batch_id
         self.calls += 1
         if self.fail_next:
             self.fail_next = False
-            raise RuntimeError("injected deterministic batch narration failure")
+            raise RuntimeError("injected deterministic program direction failure")
         if not sources:
-            raise ValueError("batch narration needs at least one source")
+            raise ValueError("program direction needs at least one source")
         languages = {source.script.spoken_language for source in sources}
+        direction_stories: list[ProgramStoryDirection] = []
+        bridges: list[ProgramBridge] = []
         segments: list[ScriptSegment] = []
-        for sequence, source in enumerate(sources):
+        for source_index, source in enumerate(sources):
             anchor = source.script.segments[0]
-            bridge = "" if sequence == 0 else "Next, "
-            segments.append(
-                ScriptSegment(
-                    sequence=sequence,
-                    text=f"{bridge}{source.title}: {anchor.text}",
-                    speaker_id=anchor.speaker_id,
-                    emotion=anchor.emotion,
-                    scene_transition=anchor.scene_transition,
-                    speed=anchor.speed,
-                    pitch=anchor.pitch,
-                    visual_hint=anchor.visual_hint,
+            direction_stories.append(
+                ProgramStoryDirection(
+                    story_id=source.story_id,
+                    source_segment_ids=[segment.segment_id for segment in source.script.segments],
+                    narration_module=EpisodeSceneModule.HOST_EVIDENCE,
+                    source_video_placement=(
+                        SourceVideoPlacement.AFTER_STORY
+                        if source.story_id in source_video_story_ids
+                        else SourceVideoPlacement.OMIT
+                    ),
                 )
             )
-        return ScriptDocument(
+            segments.extend(source.script.segments)
+            if source_index + 1 >= len(sources):
+                continue
+            following = sources[source_index + 1]
+            bridge_segment = ScriptSegment(
+                sequence=0,
+                text=f"Next, {following.title}.",
+                speaker_id=anchor.speaker_id,
+                emotion=anchor.emotion,
+                scene_transition=anchor.scene_transition,
+                speed=anchor.speed,
+                pitch=anchor.pitch,
+                visual_hint="Natural bridge to the next reviewed story.",
+            )
+            segments.append(bridge_segment)
+            bridges.append(
+                ProgramBridge(
+                    from_story_id=source.story_id,
+                    to_story_id=following.story_id,
+                    segment_id=bridge_segment.segment_id,
+                )
+            )
+        direction = ProgramDirectorPlan(
+            story_order=[source.story_id for source in sources],
+            stories=direction_stories,
+            bridges=bridges,
+        )
+        script = ScriptDocument(
             revision=1,
             title=title,
             language=next(iter(languages)) if len(languages) == 1 else "multilingual",
-            segments=segments,
+            segments=[
+                ScriptSegment(
+                    **segment.model_dump(exclude={"sequence"}),
+                    sequence=sequence,
+                )
+                for sequence, segment in enumerate(segments)
+            ],
         )
+        return DirectedProgramDraft(direction=direction, script=script)
 
 
 class EmptySourceVideoAssetLibrary:

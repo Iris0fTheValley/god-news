@@ -150,7 +150,7 @@ async def batch_audio_clip(
 
     The stored clip path is never trusted as a request path.  It must still
     resolve underneath the configured output root and refer to the exact
-    segment persisted in the merged narration artifact.
+    segment persisted in the reviewed program narration artifact.
     """
 
     batch = await service.get(batch_id)

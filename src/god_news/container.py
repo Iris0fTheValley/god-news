@@ -23,7 +23,7 @@ from god_news.domain.ports import (
     TextGenerator,
 )
 from god_news.domain.source_transcription import TimedCaptionTranslator
-from god_news.domain.video_ports import BatchNarrationComposer, HostRenderer
+from god_news.domain.video_ports import HostRenderer, ProgramDirector
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.fetchers.chain import FetcherChain
 from god_news.infrastructure.fetchers.drission import DrissionPageFetcher
@@ -31,10 +31,10 @@ from god_news.infrastructure.fetchers.jina import JinaReaderFetcher
 from god_news.infrastructure.fetchers.scrapy import ScrapyTrafilaturaFetcher
 from god_news.infrastructure.fetchers.url_policy import UrlPolicy
 from god_news.infrastructure.llm.openai_compatible import (
-    OpenAICompatibleBatchNarrationComposer,
+    OpenAICompatibleProgramDirector,
     OpenAICompatibleTextGenerator,
     OpenAICompatibleTimedCaptionTranslator,
-    UnavailableBatchNarrationComposer,
+    UnavailableProgramDirector,
     UnavailableTextGenerator,
     UnavailableTimedCaptionTranslator,
 )
@@ -338,7 +338,7 @@ async def build_container(settings: Settings) -> AppContainer:
         unavailable_llm_reason = "The selected LLM provider has no configured API key."
         caption_translator: TimedCaptionTranslator
         generator: TextGenerator = UnavailableTextGenerator(unavailable_llm_reason)
-        narration_composer: BatchNarrationComposer = UnavailableBatchNarrationComposer(
+        program_director: ProgramDirector = UnavailableProgramDirector(
             unavailable_llm_reason
         )
         caption_translator = UnavailableTimedCaptionTranslator(unavailable_llm_reason)
@@ -358,7 +358,7 @@ async def build_container(settings: Settings) -> AppContainer:
             thinking_enabled=settings.llm_thinking_enabled,
         )
         generator = openai_generator
-        narration_composer = OpenAICompatibleBatchNarrationComposer(openai_generator)
+        program_director = OpenAICompatibleProgramDirector(openai_generator)
         caption_translator = OpenAICompatibleTimedCaptionTranslator(openai_generator)
 
     if settings.memory_provider is MemoryProviderName.NOOP:
@@ -546,7 +546,7 @@ async def build_container(settings: Settings) -> AppContainer:
         story_pool=workflow,
         repository=video_batch_repository,
         host_renderer=host_renderer,
-        narration_composer=narration_composer,
+        program_director=program_director,
         synthesizer=synthesizer,
         video_renderer=video_renderer,
         bgm_catalog=LocalBgmCatalog(settings.video_bgm_directory),

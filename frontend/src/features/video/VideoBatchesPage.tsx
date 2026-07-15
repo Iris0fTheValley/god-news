@@ -35,7 +35,7 @@ import {ScriptEditor} from '../script/ScriptEditor';
 import {canEditNarration, canPreviewBatchNarration} from './narrationReviewState';
 
 const STATUS_LABELS: Record<VideoBatchStatus, string> = {
-  PENDING_NARRATION_REVIEW: '等待合并口播审核',
+  PENDING_NARRATION_REVIEW: '等待节目口播审核',
   PENDING_BATCH_TTS: '等待批次语音合成',
   PROCESSING_BATCH_TTS: '合成批次语音中',
   PENDING_TIMELINE_REVIEW: '等待时间轴审阅',
@@ -73,12 +73,12 @@ function BatchNarrationAudioPreview({batch}: {batch: VideoBatch}) {
     <section className="review-form" style={{marginTop: 16}}>
       <div className="panel-header">
         <div>
-          <p className="eyebrow">MERGED NARRATION AUDIO</p>
-          <h3>试听统一旁白</h3>
+          <p className="eyebrow">PROGRAM NARRATION AUDIO</p>
+          <h3>试听节目旁白</h3>
         </div>
         <span className="metadata">revision {String(audio.revision)}</span>
       </div>
-      <p className="review-help">逐段试听本次已合成的统一旁白，再决定是否批准时间轴。</p>
+      <p className="review-help">逐段试听来源故事与串联词组成的节目旁白，再决定是否批准时间轴。</p>
       <div className="audio-list">
         {audio.clips.map((clip, index) => {
           const segment = segments.get(clip.segment_id);
@@ -105,6 +105,38 @@ function BatchNarrationAudioPreview({batch}: {batch: VideoBatch}) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function ProgramDirectionSummary({batch}: {batch: VideoBatch}) {
+  const direction = batch.narration.direction;
+  if (direction === null || direction === undefined) return null;
+  const titles = new Map(batch.stories.map((story) => [story.story_id, story.title]));
+
+  return (
+    <section style={{marginTop: 18}}>
+      <div className="panel-header">
+        <div><p className="eyebrow">PROGRAM DIRECTOR PLAN</p><h3>节目导演计划</h3></div>
+        <span className="metadata">schema {direction.schema_version}</span>
+      </div>
+      <p className="field-hint">已审核故事段落保持原样；导演层只负责顺序、注册场景、原视频插入和相邻故事串联词。</p>
+      <div className="table-container">
+        <table className="table dense">
+          <thead><tr><th>顺序</th><th>故事</th><th>场景</th><th>原视频</th></tr></thead>
+          <tbody>
+            {direction.stories.map((story, index) => (
+              <tr key={story.story_id}>
+                <td className="metadata">{String(index + 1).padStart(2, '0')}</td>
+                <td>{titles.get(story.story_id) ?? story.story_id}</td>
+                <td className="metadata">{story.narration_module}</td>
+                <td className="metadata">{story.source_video_placement === 'after_story' ? '故事后播放' : '不插入'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="metadata">自然串联词：{String(direction.bridges?.length ?? 0)} 段</p>
     </section>
   );
 }
@@ -154,6 +186,16 @@ function BatchDetail({
   const canRender = batch.status === 'READY_TO_RENDER' || batch.status === 'FAILED';
   const narrationChanged = JSON.stringify(script) !== JSON.stringify(batch.narration.script);
   const totalDuration = batch.narration.manifest?.total_duration_ms ?? 0;
+  const segmentLabels: Record<string, string> = {};
+  const storyTitles = new Map(batch.stories.map((story) => [story.story_id, story.title]));
+  for (const story of batch.narration.direction?.stories ?? []) {
+    for (const segmentId of story.source_segment_ids) {
+      segmentLabels[segmentId] = `来源：${storyTitles.get(story.story_id) ?? story.story_id}`;
+    }
+  }
+  for (const bridge of batch.narration.direction?.bridges ?? []) {
+    segmentLabels[bridge.segment_id] = `串联：${storyTitles.get(bridge.from_story_id) ?? '上一条'} → ${storyTitles.get(bridge.to_story_id) ?? '下一条'}`;
+  }
 
   return (
     <>
@@ -180,34 +222,35 @@ function BatchDetail({
         <div className="info-item"><span className="label">状态</span><span className={`badge ${statusTone(batch.status)}`}>{STATUS_LABELS[batch.status]}</span></div>
         <div className="info-item"><span className="label">版本</span><span className="value">v{String(batch.version)}</span></div>
         <div className="info-item"><span className="label">来源故事</span><span className="value">{String(batch.stories.length)}</span></div>
-        <div className="info-item"><span className="label">合并时长</span><span className="value">{totalDuration === 0 ? '待合成' : `${(totalDuration / 1000).toFixed(1)}s`}</span></div>
+        <div className="info-item"><span className="label">节目口播时长</span><span className="value">{totalDuration === 0 ? '待合成' : `${(totalDuration / 1000).toFixed(1)}s`}</span></div>
       </div>
       {batch.narration_failure === undefined || batch.narration_failure === null ? null : <div className="error-banner" style={{marginTop: 16}}><strong>旁白合成失败：</strong>{batch.narration_failure.message}</div>}
       {batch.last_failure === undefined || batch.last_failure === null ? null : <div className="error-banner" style={{marginTop: 16}}><strong>渲染失败：</strong>{batch.last_failure.message}</div>}
 
+      <ProgramDirectionSummary batch={batch} />
       <section style={{marginTop: 18}}>
-        <div className="panel-header"><div><p className="eyebrow">MERGED NARRATION</p><h3>统一口播文本</h3></div><span className="metadata">revision {String(batch.narration.script.revision)}</span></div>
-        <p className="field-hint">这是由多故事口播合并出的唯一批次叙事；来源故事只保留为证据，不会直接拼接进渲染时间轴。</p>
-        <ScriptEditor script={script} onChange={setScript} roles={roles ?? []} readOnly={!editableNarration} />
+        <div className="panel-header"><div><p className="eyebrow">DIRECTED PROGRAM SCRIPT</p><h3>节目口播文本</h3></div><span className="metadata">revision {String(batch.narration.script.revision)}</span></div>
+        <p className="field-hint">来源故事沿用已审核段落；带新段落 ID 的内容是导演生成的自然串联词。修改文本时必须保留段落身份与顺序。</p>
+        <ScriptEditor script={script} onChange={setScript} roles={roles ?? []} readOnly={!editableNarration} structureLocked={batch.narration.direction !== null && batch.narration.direction !== undefined} segmentLabels={segmentLabels} />
       </section>
 
       {editableNarration ? (
         <section className="review-form" style={{marginTop: 16}}>
           <p className="eyebrow">NARRATION REVIEW</p>
-          <h3>{batch.status === 'PENDING_NARRATION_REVIEW' ? '人工审核统一口播' : '时间轴后修订口播'}</h3>
+          <h3>{batch.status === 'PENDING_NARRATION_REVIEW' ? '人工审核节目口播' : '时间轴后修订口播'}</h3>
           <label className="field"><span>审核人</span><input className="input" value={reviewerId} onChange={(event) => setReviewerId(event.target.value)} /></label>
           <label className="field"><span>审核说明</span><textarea className="textarea compact" value={note} onChange={(event) => setNote(event.target.value)} /></label>
           {narrationChanged ? <p className="pending-note">当前口播有未提交修订。保存后会清除已生成的批次音频与时间轴。</p> : null}
           <div className="review-actions stacked">
             <button className="button secondary" type="button" disabled={isMutating || !narrationChanged} onClick={() => onNarrationReview(batch, 'revise', script, note, reviewerId)}>保存修订并回到口播审核</button>
-            {canApproveNarration ? <button className="button primary" type="button" disabled={isMutating || narrationChanged} onClick={() => onNarrationReview(batch, 'approve', undefined, note, reviewerId)}><CheckCircle2 size={17} aria-hidden="true" /> 批准统一口播</button> : null}
+            {canApproveNarration ? <button className="button primary" type="button" disabled={isMutating || narrationChanged} onClick={() => onNarrationReview(batch, 'approve', undefined, note, reviewerId)}><CheckCircle2 size={17} aria-hidden="true" /> 批准节目口播</button> : null}
             {canApproveNarration ? <button className="button danger" type="button" disabled={isMutating || note.trim() === '' || narrationChanged} onClick={() => onNarrationReview(batch, 'reject', undefined, note, reviewerId)}><XCircle size={17} aria-hidden="true" /> 驳回批次</button> : null}
           </div>
         </section>
       ) : null}
 
       {canSynthesize ? (
-        <section className="review-form" style={{marginTop: 16}}><p className="eyebrow">LOCAL BATCH TTS</p><h3>手动合成统一口播</h3><p className="review-help">旁白已批准。此操作会按合并脚本的角色和情绪逐段执行本地 TTS。</p><button className="button primary" type="button" disabled={isMutating} onClick={() => setConfirmSynthesis(true)}><Mic2 size={17} aria-hidden="true" /> 启动批次 TTS</button></section>
+        <section className="review-form" style={{marginTop: 16}}><p className="eyebrow">LOCAL PROGRAM TTS</p><h3>手动合成节目口播</h3><p className="review-help">口播已批准。此操作会按已审核故事与串联词的角色、语言和情绪逐段执行本地 TTS。</p><button className="button primary" type="button" disabled={isMutating} onClick={() => setConfirmSynthesis(true)}><Mic2 size={17} aria-hidden="true" /> 启动批次 TTS</button></section>
       ) : null}
       {batch.status === 'PROCESSING_BATCH_TTS' ? <p className="pending-note" role="status">本地批次 TTS 正在运行，页面会自动刷新。</p> : null}
       {canPreviewNarration ? <BatchNarrationAudioPreview batch={batch} /> : null}
@@ -225,7 +268,7 @@ function BatchDetail({
         <h3>来源证据</h3>
         <div className="table-container" style={{maxHeight: 300, overflowY: 'auto'}}><table className="table dense"><thead><tr><th>故事</th><th>脚本版本</th><th>段数</th></tr></thead><tbody>{batch.stories.map((story) => <tr key={story.story_id}><td>{story.title}</td><td className="metadata">v{String(story.script.revision)}</td><td className="metadata">{String(story.script.segments.length)}</td></tr>)}</tbody></table></div>
       </section>
-      <ConfirmDialog open={confirmSynthesis} title="启动批次本地 TTS" message="将为统一口播生成一套新的批次音频和 ProductionManifest。请勿重复提交。" confirmLabel="启动合成" onConfirm={() => { onSynthesize(batch); setConfirmSynthesis(false); }} onCancel={() => setConfirmSynthesis(false)} />
+      <ConfirmDialog open={confirmSynthesis} title="启动批次本地 TTS" message="将为已审核节目口播生成一套新的批次音频和 ProductionManifest。请勿重复提交。" confirmLabel="启动合成" onConfirm={() => { onSynthesize(batch); setConfirmSynthesis(false); }} onCancel={() => setConfirmSynthesis(false)} />
     </>
   );
 }
@@ -251,14 +294,14 @@ export function VideoBatchesPage() {
   const refreshSelected = (batch: VideoBatch) => { if (batch.batch_id !== undefined) void queryClient.invalidateQueries({queryKey: queryKeys.videoBatch(batch.batch_id)}); };
   const createMutation = useMutation({
     mutationFn: createVideoBatch,
-    onSuccess: (batch) => { refreshBatches(); setShowCreate(false); setCreateForm(newBatchForm()); if (batch.batch_id !== undefined) setSelectedId(batch.batch_id); pushToast({message: '批次已创建，先审核统一口播文本。', durationMs: 3000}); },
+    onSuccess: (batch) => { refreshBatches(); setShowCreate(false); setCreateForm(newBatchForm()); if (batch.batch_id !== undefined) setSelectedId(batch.batch_id); pushToast({message: '批次已创建，请先审核导演计划和节目口播。', durationMs: 3000}); },
   });
   const narrationReviewMutation = useMutation({
     mutationFn: ({batch, decision, revisedScript, note, reviewerId}: {batch: VideoBatch; decision: NarrationReviewDecision; revisedScript?: ScriptDocument; note?: string; reviewerId?: string}) => {
       if (batch.batch_id === undefined) throw new Error('批次缺少标识。');
       return submitVideoBatchNarrationReview(batch.batch_id, {expected_batch_version: batch.version, decision, reviewer_id: reviewerId?.trim() || 'web-operator', note: note?.trim() || null, revised_script: revisedScript ?? null});
     },
-    onSuccess: (batch) => { refreshBatches(); refreshSelected(batch); pushToast({message: '统一口播审核已保存。', durationMs: 3000}); },
+    onSuccess: (batch) => { refreshBatches(); refreshSelected(batch); pushToast({message: '节目口播审核已保存。', durationMs: 3000}); },
   });
   const synthesizeMutation = useMutation({
     mutationFn: (batch: VideoBatch) => {
@@ -286,8 +329,8 @@ export function VideoBatchesPage() {
 
   return (
     <div className="page video-page">
-      <div className="page-heading"><div><p className="eyebrow">VIDEO PRODUCTION</p><h1>视频批次</h1><p>先合并多故事口播，再人工审核、手动合成统一音频，最后才生成供渲染审阅的时间轴。</p></div><button className="button primary" type="button" onClick={() => setShowCreate(true)} disabled={showCreate}><Plus size={18} aria-hidden="true" /> 新建批次</button></div>
-      {query.isLoading ? <div className="loading-state">正在加载视频批次…</div> : query.error !== null ? <ApiErrorNotice error={query.error} onRetry={() => void query.refetch()} /> : batches.length === 0 ? <EmptyState title="尚无视频批次" description="创建批次会从可用的 DONE 故事生成一篇统一口播。" action={{label: '新建批次', onClick: () => setShowCreate(true)}} /> : <div className="table-container"><table className="table"><thead><tr><th>标题</th><th>状态</th><th>版本</th><th>创建时间</th><th className="actions-cell">操作</th></tr></thead><tbody>{batches.map((batch) => { const batchId = batch.batch_id; return <tr key={batchId ?? `${batch.title}-${batch.created_at ?? batch.version}`}><td><strong>{batch.title}</strong></td><td><span className={`badge ${statusTone(batch.status)}`}>{batch.status === 'RENDERING' || batch.status === 'PROCESSING_BATCH_TTS' ? <RefreshCw className="spinning" size={12} aria-hidden="true" /> : null} {STATUS_LABELS[batch.status]}</span></td><td>v{String(batch.version)}</td><td className="metadata">{batch.created_at ?? '—'}</td><td className="actions-cell">{batchId === undefined ? null : <button className="icon-button" type="button" aria-label="查看详情" onClick={() => setSelectedId(batchId)}><Eye size={16} aria-hidden="true" /></button>}</td></tr>; })}</tbody></table></div>}
+      <div className="page-heading"><div><p className="eyebrow">VIDEO PRODUCTION</p><h1>视频批次</h1><p>节目导演只编排已审核故事、注册场景、原视频和自然串联词；人工批准后才执行本地 TTS 与确定性双比例渲染。</p></div><button className="button primary" type="button" onClick={() => setShowCreate(true)} disabled={showCreate}><Plus size={18} aria-hidden="true" /> 新建批次</button></div>
+      {query.isLoading ? <div className="loading-state">正在加载视频批次…</div> : query.error !== null ? <ApiErrorNotice error={query.error} onRetry={() => void query.refetch()} /> : batches.length === 0 ? <EmptyState title="尚无视频批次" description="创建批次会从可用的 DONE 故事生成一份可审核节目导演计划。" action={{label: '新建批次', onClick: () => setShowCreate(true)}} /> : <div className="table-container"><table className="table"><thead><tr><th>标题</th><th>状态</th><th>版本</th><th>创建时间</th><th className="actions-cell">操作</th></tr></thead><tbody>{batches.map((batch) => { const batchId = batch.batch_id; return <tr key={batchId ?? `${batch.title}-${batch.created_at ?? batch.version}`}><td><strong>{batch.title}</strong></td><td><span className={`badge ${statusTone(batch.status)}`}>{batch.status === 'RENDERING' || batch.status === 'PROCESSING_BATCH_TTS' ? <RefreshCw className="spinning" size={12} aria-hidden="true" /> : null} {STATUS_LABELS[batch.status]}</span></td><td>v{String(batch.version)}</td><td className="metadata">{batch.created_at ?? '—'}</td><td className="actions-cell">{batchId === undefined ? null : <button className="icon-button" type="button" aria-label="查看详情" onClick={() => setSelectedId(batchId)}><Eye size={16} aria-hidden="true" /></button>}</td></tr>; })}</tbody></table></div>}
 
       {selectedId === null ? null : <dialog className="create-drawer wide-drawer" open onCancel={(event) => { event.preventDefault(); setSelectedId(null); }}><div className="panel-header"><div><p className="eyebrow">BATCH DETAIL</p><h2>批次详情</h2></div><button className="icon-button" type="button" onClick={() => setSelectedId(null)} aria-label="关闭">✕</button></div><div className="panel-body">{detailQuery.isLoading ? <div className="loading-state">正在加载批次详情…</div> : detailQuery.error !== null ? <ApiErrorNotice error={detailQuery.error} onRetry={() => void detailQuery.refetch()} /> : detailQuery.data === undefined ? null : <BatchDetail key={`${detailQuery.data.batch_id ?? 'batch'}-${String(detailQuery.data.version)}`} batch={detailQuery.data} roles={rolesQuery.data} isMutating={narrationReviewMutation.isPending || synthesizeMutation.isPending || timelineMutation.isPending || renderMutation.isPending || cancelMutation.isPending || deleteMutation.isPending} onDelete={setDeleteTarget} onCancel={(batchId) => cancelMutation.mutate(batchId)} onNarrationReview={(batch, decision, revisedScript, note, reviewerId) => narrationReviewMutation.mutate({batch, decision, revisedScript, note, reviewerId})} onSynthesize={(batch) => synthesizeMutation.mutate(batch)} onTimelineReview={(batch, decision, note, reviewerId) => timelineMutation.mutate({batch, decision, note, reviewerId})} onRender={(batch) => renderMutation.mutate(batch)} />}{mutationError === null ? null : <ApiErrorNotice error={mutationError} />}</div></dialog>}
 

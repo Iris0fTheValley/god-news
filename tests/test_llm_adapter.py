@@ -21,7 +21,7 @@ from god_news.domain.source_transcription import CaptionTranslationInput
 from god_news.domain.video import VideoBatchStory, model_sha256
 from god_news.errors import LLMGenerationError
 from god_news.infrastructure.llm.openai_compatible import (
-    OpenAICompatibleBatchNarrationComposer,
+    OpenAICompatibleProgramDirector,
     OpenAICompatibleTextGenerator,
 )
 
@@ -368,7 +368,7 @@ async def test_script_output_uses_valid_llm_emotion_and_transition_with_safe_fal
 
 
 @pytest.mark.asyncio
-async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks() -> None:
+async def test_program_director_preserves_reviewed_scripts_and_adds_typed_bridge() -> None:
     _, script, audio = make_artifacts()
     source_id = uuid4()
     clip = audio.clips[0]
@@ -413,6 +413,30 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
         source_manifest=source_manifest,
         source_manifest_sha256=model_sha256(source_manifest),
     )
+    second_id = uuid4()
+    second_segment = segment.model_copy(update={"segment_id": uuid4()})
+    second_script = script.model_copy(update={"segments": [second_segment]})
+    second_manifest = source_manifest.model_copy(
+        update={
+            "story_id": second_id,
+            "timeline": [
+                source_manifest.timeline[0].model_copy(
+                    update={"segment_id": second_segment.segment_id}
+                )
+            ],
+        }
+    )
+    second_source = VideoBatchStory(
+        sequence=1,
+        story_id=second_id,
+        story_version=4,
+        category=ContentCategory.CATS_DOGS,
+        title="Second reviewed source",
+        script=second_script,
+        script_sha256=model_sha256(second_script),
+        source_manifest=second_manifest,
+        source_manifest_sha256=model_sha256(second_manifest),
+    )
     completion = SimpleNamespace(
         choices=[
             SimpleNamespace(
@@ -420,22 +444,35 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
                 message=SimpleNamespace(
                     content=json.dumps(
                         {
-                            "segments": [
+                            "story_order": [str(second_id), str(source_id)],
+                            "stories": [
                                 {
-                                    "spoken_text": "A natural opening connects the stories.",
-                                    "caption_text": "A natural opening connects the stories.",
-                                    "speaker_id": "unapproved-speaker",
-                                    "emotion": "unknown-emotion",
-                                    "scene_transition": "crossfade",
+                                    "story_id": str(second_id),
+                                    "narration_module": "evidence_fullscreen",
+                                    "source_video_placement": "omit",
                                 },
                                 {
-                                    "spoken_text": "The next source follows with its facts.",
-                                    "caption_text": "The next source follows with its facts.",
+                                    "story_id": str(source_id),
+                                    "narration_module": "host_evidence",
+                                    "source_video_placement": "after_story",
+                                },
+                            ],
+                            "bridges": [
+                                {
+                                    "from_story_id": str(second_id),
+                                    "to_story_id": str(source_id),
+                                    "spoken_text": (
+                                        "From that gentle result, we turn to another act of care."
+                                    ),
+                                    "caption_text": (
+                                        "From that gentle result, we turn to another act of care."
+                                    ),
                                     "speaker_id": "narrator",
-                                    "emotion": "fear",
-                                    "scene_transition": "not-a-transition",
-                                },
-                            ]
+                                    "emotion": "like",
+                                    "scene_transition": "crossfade",
+                                    "visual_hint": "A restrained thematic bridge.",
+                                }
+                            ],
                         }
                     )
                 ),
@@ -463,26 +500,26 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
         close=AsyncMock(),
     )
 
-    merged = await OpenAICompatibleBatchNarrationComposer(generator).compose(
+    directed = await OpenAICompatibleProgramDirector(generator).direct(
         batch_id=uuid4(),
-        title="Daily merged narration",
-        sources=[source],
+        title="Daily directed program",
+        sources=[source, second_source],
+        source_video_story_ids=frozenset({source_id}),
     )
 
-    assert merged.title == "Daily merged narration"
-    assert [item.speaker_id for item in merged.segments] == ["narrator", "narrator"]
-    assert [item.emotion for item in merged.segments] == [
-        SpeechEmotion.HAPPINESS,
-        SpeechEmotion.FEAR,
-    ]
-    assert [item.scene_transition for item in merged.segments] == [
-        SceneTransition.CROSSFADE,
-        SceneTransition.BLACK,
-    ]
-    assert [item.speed for item in merged.segments] == [segment.speed, segment.speed]
+    assert directed.direction.story_order == [second_id, source_id]
+    assert directed.script.title == "Daily directed program"
+    assert directed.script.segments[0].segment_id == second_segment.segment_id
+    assert directed.script.segments[0].spoken_text == second_segment.spoken_text
+    assert directed.script.segments[2].segment_id == segment.segment_id
+    bridge = directed.script.segments[1]
+    assert bridge.emotion is SpeechEmotion.LIKE
+    assert bridge.scene_transition is SceneTransition.CROSSFADE
+    assert directed.direction.bridges[0].segment_id == bridge.segment_id
+    assert directed.direction.stories[1].source_video_placement.value == "after_story"
     system_prompt = create.await_args.kwargs["messages"][0]["content"]
     assert "available_speakers" in system_prompt
-    assert "multiple independently reviewed" in system_prompt
+    assert "Do not rewrite" in system_prompt
 
 
 @pytest.mark.asyncio

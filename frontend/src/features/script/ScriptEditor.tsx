@@ -46,6 +46,9 @@ interface ScriptEditorProps {
   storyVersion?: number;
   /** False while the script itself has unsaved changes or the workflow is immutable. */
   visualAssetsMutable?: boolean;
+  /** Preserve externally owned segment identity/order while still allowing copy edits. */
+  structureLocked?: boolean;
+  segmentLabels?: Readonly<Record<string, string>>;
 }
 
 function resequence(segments: ScriptSegment[]): ScriptSegment[] {
@@ -91,6 +94,8 @@ export function ScriptEditor({
   storyId,
   storyVersion,
   visualAssetsMutable = !readOnly,
+  structureLocked = false,
+  segmentLabels = {},
 }: ScriptEditorProps) {
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -347,6 +352,9 @@ export function ScriptEditor({
             <li key={segment.segment_id ?? `${String(index)}-${segment.spoken_text}`} className="segment-block">
               <div className="segment-identity">
                 <span className="segment-number metadata">{String(index + 1).padStart(2, '0')}</span>
+                {segmentId === undefined || segmentLabels[segmentId] === undefined ? null : (
+                  <span className="badge info">{segmentLabels[segmentId]}</span>
+                )}
                 <label className="field">
                   <span>说话人</span>
                   <input
@@ -454,7 +462,7 @@ export function ScriptEditor({
                     <Link2 size={13} aria-hidden="true" /> 原始新闻页候选 <ExternalLink size={12} aria-hidden="true" />
                   </a>
                 )}
-                {readOnly ? null : (
+                {readOnly || structureLocked ? null : (
                   <div className="segment-visual-actions">
                     <button
                       className="button secondary"
@@ -513,7 +521,7 @@ export function ScriptEditor({
           );
         })}
       </ol>
-      {readOnly ? null : (
+      {readOnly || structureLocked ? null : (
         <button className="button" type="button" onClick={add}>
           <Plus size={17} aria-hidden="true" /> 添加段落
         </button>

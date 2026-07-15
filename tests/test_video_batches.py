@@ -54,8 +54,8 @@ from god_news.infrastructure.video_assets import LocalBgmCatalog
 from god_news.infrastructure.video_host import PlaceholderHostRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
 from god_news.infrastructure.video_testing import (
-    DeterministicBatchNarrationComposer,
     DeterministicBatchVideoRenderer,
+    DeterministicProgramDirector,
     EmptySourceVideoAssetLibrary,
     InMemoryVideoBatchRepository,
 )
@@ -161,17 +161,17 @@ def _service(
 ) -> tuple[
     VideoBatchService,
     InMemoryVideoBatchRepository,
-    DeterministicBatchNarrationComposer,
+    DeterministicProgramDirector,
     DeterministicBatchVideoRenderer,
 ]:
     repository = InMemoryVideoBatchRepository()
-    composer = DeterministicBatchNarrationComposer()
+    composer = DeterministicProgramDirector()
     renderer = DeterministicBatchVideoRenderer(tmp_path / "videos")
     service = VideoBatchService(
         story_pool=stack.workflow,
         repository=repository,
         host_renderer=PlaceholderHostRenderer(),
-        narration_composer=composer,
+        program_director=composer,
         synthesizer=stack.synthesizer,
         video_renderer=renderer,
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
@@ -237,9 +237,15 @@ async def test_batch_keeps_source_snapshots_but_exposes_no_render_plan_before_ba
     source_segment_ids = {
         segment.segment_id for story in batch.stories for segment in story.script.segments
     }
-    assert source_segment_ids.isdisjoint(
-        {segment.segment_id for segment in batch.narration.script.segments}
-    )
+    program_segment_ids = {
+        segment.segment_id for segment in batch.narration.script.segments
+    }
+    assert source_segment_ids.issubset(program_segment_ids)
+    assert len(program_segment_ids - source_segment_ids) == 1
+    assert batch.narration.direction is not None
+    assert batch.narration.direction.story_order == [
+        story.story_id for story in batch.stories
+    ]
 
     with pytest.raises(VideoBatchConflictError):
         await service.synthesize_narration(
@@ -346,7 +352,7 @@ async def test_approved_source_video_is_snapshotted_and_compiled_after_narration
         story_pool=stack.workflow,
         repository=repository,
         host_renderer=PlaceholderHostRenderer(),
-        narration_composer=DeterministicBatchNarrationComposer(),
+        program_director=DeterministicProgramDirector(),
         synthesizer=stack.synthesizer,
         video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
@@ -359,7 +365,7 @@ async def test_approved_source_video_is_snapshotted_and_compiled_after_narration
 
     synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
 
-    assert library.calls == 1
+    assert library.calls == 2
     assert synthesized.remotion_props is not None
     assert synthesized.remotion_props.source_videos == [asset]
     assert synthesized.remotion_props.episode_plan is not None
@@ -371,6 +377,93 @@ async def test_approved_source_video_is_snapshotted_and_compiled_after_narration
     ]
     assert len(source_inputs) == 1
     assert source_inputs[0].sha256 == asset.sha256
+
+
+@pytest.mark.asyncio
+async def test_director_interleaves_original_video_before_the_adjacent_story_bridge(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    first = await _done_story(stack, "Neighbors restored a public garden together.")
+    second = await _done_story(stack, "Students delivered books to a rural library.")
+    asset = _source_video_asset(tmp_path, first.story_id)
+    library = _StaticSourceVideoLibrary(asset)
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=InMemoryVideoBatchRepository(),
+        host_renderer=PlaceholderHostRenderer(),
+        program_director=DeterministicProgramDirector(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=library,
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(
+            title="Directed sequence",
+            story_ids=[first.story_id, second.story_id],
+            max_stories=2,
+        )
+    )
+    assert batch.narration.direction is not None
+    assert batch.narration.direction.story_order[0] == first.story_id
+
+    synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
+
+    assert synthesized.remotion_props is not None
+    assert synthesized.remotion_props.episode_plan is not None
+    scenes = synthesized.remotion_props.episode_plan.scenes
+    first_source_segment = batch.stories[0].script.segments[0].segment_id
+    bridge_segment = batch.narration.direction.bridges[0].segment_id
+    second_source_segment = batch.stories[1].script.segments[0].segment_id
+    assert [
+        (scene.module_id.value, scene.narration_segment_id, scene.source_video_asset_id)
+        for scene in scenes
+    ] == [
+        ("host_evidence", first_source_segment, None),
+        ("source_video", None, asset.asset_id),
+        ("host_evidence", bridge_segment, None),
+        ("host_evidence", second_source_segment, None),
+    ]
+    assert scenes[0].host_exit is True
+    assert scenes[2].host_enter is True
+
+
+@pytest.mark.asyncio
+async def test_narration_revision_cannot_delete_director_owned_segment_identity(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    first = await _done_story(stack, "A neighborhood choir raised funds for families.")
+    second = await _done_story(stack, "Volunteers repaired a community kitchen.")
+    service, _, _, _ = _service(stack, tmp_path)
+    batch = await service.create(
+        CreateVideoBatch(
+            title="Protected structure",
+            story_ids=[first.story_id, second.story_id],
+            max_stories=2,
+        )
+    )
+    shortened = batch.narration.script.model_copy(
+        update={
+            "segments": [
+                segment.model_copy(update={"sequence": index})
+                for index, segment in enumerate(batch.narration.script.segments[:-1])
+            ]
+        }
+    )
+
+    with pytest.raises(VideoBatchConflictError, match="segment identity and order"):
+        await service.submit_narration_review(
+            batch.batch_id,
+            SubmitNarrationReview(
+                expected_batch_version=batch.version,
+                decision=NarrationReviewDecision.REVISE,
+                reviewer_id="program-editor",
+                revised_script=shortened,
+            ),
+        )
 
 
 @pytest.mark.asyncio
@@ -539,7 +632,7 @@ async def test_render_cancellation_persists_retryable_failed_state(
         story_pool=stack.workflow,
         repository=repository,
         host_renderer=PlaceholderHostRenderer(),
-        narration_composer=DeterministicBatchNarrationComposer(),
+        program_director=DeterministicProgramDirector(),
         synthesizer=stack.synthesizer,
         video_renderer=renderer,
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
@@ -596,7 +689,7 @@ async def test_render_commit_finishes_before_cancellation_propagates(
         story_pool=stack.workflow,
         repository=repository,
         host_renderer=PlaceholderHostRenderer(),
-        narration_composer=DeterministicBatchNarrationComposer(),
+        program_director=DeterministicProgramDirector(),
         synthesizer=stack.synthesizer,
         video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
@@ -712,7 +805,7 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
             story_pool=stack.workflow,
             repository=repository,
             host_renderer=PlaceholderHostRenderer(),
-            narration_composer=DeterministicBatchNarrationComposer(),
+            program_director=DeterministicProgramDirector(),
             synthesizer=stack.synthesizer,
             video_renderer=renderer,
             bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),

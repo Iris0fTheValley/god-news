@@ -751,7 +751,7 @@ export interface paths {
          *
          *     The stored clip path is never trusted as a request path.  It must still
          *     resolve underneath the configured output root and refer to the exact
-         *     segment persisted in the merged narration artifact.
+         *     segment persisted in the reviewed program narration artifact.
          */
         get: operations["getVideoBatchAudioClip"];
         put?: never;
@@ -1008,7 +1008,7 @@ export interface components {
         };
         /**
          * BatchNarrationSourceEvidence
-         * @description Stable provenance consumed by a merged narration generation.
+         * @description Stable source provenance consumed by a program director.
          */
         BatchNarrationSourceEvidence: {
             /** Script Revision */
@@ -1714,6 +1714,67 @@ export interface components {
             /** Total Duration Ms */
             total_duration_ms: number;
         };
+        /**
+         * ProgramBridge
+         * @description Identity and adjacency proof for one generated transition utterance.
+         */
+        ProgramBridge: {
+            /**
+             * From Story Id
+             * Format: uuid
+             */
+            from_story_id: string;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /**
+             * To Story Id
+             * Format: uuid
+             */
+            to_story_id: string;
+        };
+        /**
+         * ProgramDirectorPlan
+         * @description Strict editorial IR produced by AI and executed deterministically.
+         *
+         *     The model may order stories and choose registered presentation policies,
+         *     but it never emits frame numbers, filesystem paths, or renderer options.
+         *     Source story segments remain identifiable and bridges are explicit new
+         *     utterances, so editorial review can distinguish facts from connective copy.
+         */
+        ProgramDirectorPlan: {
+            /** Bridges */
+            bridges?: components["schemas"]["ProgramBridge"][];
+            /**
+             * Schema Version
+             * @default 1.0
+             * @constant
+             */
+            schema_version: "1.0";
+            /** Stories */
+            stories: components["schemas"]["ProgramStoryDirection"][];
+            /** Story Order */
+            story_order: string[];
+        };
+        /**
+         * ProgramStoryDirection
+         * @description Director-owned presentation decisions for one immutable story script.
+         */
+        ProgramStoryDirection: {
+            /** @default host_evidence */
+            narration_module: components["schemas"]["EpisodeSceneModule"];
+            /** Source Segment Ids */
+            source_segment_ids: string[];
+            /** @default omit */
+            source_video_placement: components["schemas"]["SourceVideoPlacement"];
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+        };
         /** PublicAudioBundle */
         PublicAudioBundle: {
             /** Clips */
@@ -1756,6 +1817,7 @@ export interface components {
              * Format: date-time
              */
             composed_at: string;
+            direction?: components["schemas"]["ProgramDirectorPlan"] | null;
             manifest?: components["schemas"]["PublicProductionManifest"] | null;
             script: components["schemas"]["ScriptDocument"];
             /** Source Evidence */
@@ -3471,6 +3533,12 @@ export interface components {
          * @enum {string}
          */
         SourceVideoAudioMode: "original" | "muted";
+        /**
+         * SourceVideoPlacement
+         * @description Editorial placement policy for review-approved original media.
+         * @enum {string}
+         */
+        SourceVideoPlacement: "omit" | "after_story";
         /** SourceVideoProbe */
         SourceVideoProbe: {
             /** Audio Codec */

@@ -14,6 +14,7 @@ from god_news.domain.video import (
     BatchNarrationSourceEvidence,
     EpisodePlan,
     NarrationReview,
+    ProgramDirectorPlan,
     SourceVideoAudioMode,
     TimelineReview,
     VideoBatchStatus,
@@ -175,6 +176,7 @@ class PublicBatchNarrationArtifact(ApiModel):
     source_evidence: list[BatchNarrationSourceEvidence]
     source_evidence_sha256: str
     script: ScriptDocument
+    direction: ProgramDirectorPlan | None = None
     audio: PublicAudioBundle | None = None
     manifest: PublicProductionManifest | None = None
     composed_at: datetime

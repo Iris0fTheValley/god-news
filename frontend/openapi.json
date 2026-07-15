@@ -292,7 +292,7 @@
       },
       "BatchNarrationSourceEvidence": {
         "additionalProperties": false,
-        "description": "Stable provenance consumed by a merged narration generation.",
+        "description": "Stable source provenance consumed by a program director.",
         "properties": {
           "script_revision": {
             "minimum": 1.0,
@@ -2133,6 +2133,114 @@
         "title": "ProductionManifest",
         "type": "object"
       },
+      "ProgramBridge": {
+        "additionalProperties": false,
+        "description": "Identity and adjacency proof for one generated transition utterance.",
+        "properties": {
+          "from_story_id": {
+            "format": "uuid",
+            "title": "From Story Id",
+            "type": "string"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "to_story_id": {
+            "format": "uuid",
+            "title": "To Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_story_id",
+          "to_story_id",
+          "segment_id"
+        ],
+        "title": "ProgramBridge",
+        "type": "object"
+      },
+      "ProgramDirectorPlan": {
+        "additionalProperties": false,
+        "description": "Strict editorial IR produced by AI and executed deterministically.\n\nThe model may order stories and choose registered presentation policies,\nbut it never emits frame numbers, filesystem paths, or renderer options.\nSource story segments remain identifiable and bridges are explicit new\nutterances, so editorial review can distinguish facts from connective copy.",
+        "properties": {
+          "bridges": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramBridge"
+            },
+            "maxItems": 14,
+            "title": "Bridges",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "stories": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramStoryDirection"
+            },
+            "maxItems": 15,
+            "minItems": 1,
+            "title": "Stories",
+            "type": "array"
+          },
+          "story_order": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 15,
+            "minItems": 1,
+            "title": "Story Order",
+            "type": "array"
+          }
+        },
+        "required": [
+          "story_order",
+          "stories"
+        ],
+        "title": "ProgramDirectorPlan",
+        "type": "object"
+      },
+      "ProgramStoryDirection": {
+        "additionalProperties": false,
+        "description": "Director-owned presentation decisions for one immutable story script.",
+        "properties": {
+          "narration_module": {
+            "$ref": "#/components/schemas/EpisodeSceneModule",
+            "default": "host_evidence"
+          },
+          "source_segment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Source Segment Ids",
+            "type": "array"
+          },
+          "source_video_placement": {
+            "$ref": "#/components/schemas/SourceVideoPlacement",
+            "default": "omit"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "source_segment_ids"
+        ],
+        "title": "ProgramStoryDirection",
+        "type": "object"
+      },
       "PublicAudioBundle": {
         "additionalProperties": false,
         "properties": {
@@ -2231,6 +2339,16 @@
             "format": "date-time",
             "title": "Composed At",
             "type": "string"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProgramDirectorPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "manifest": {
             "anyOf": [
@@ -6738,6 +6856,15 @@
           "muted"
         ],
         "title": "SourceVideoAudioMode",
+        "type": "string"
+      },
+      "SourceVideoPlacement": {
+        "description": "Editorial placement policy for review-approved original media.",
+        "enum": [
+          "omit",
+          "after_story"
+        ],
+        "title": "SourceVideoPlacement",
         "type": "string"
       },
       "SourceVideoProbe": {
@@ -12962,7 +13089,7 @@
     },
     "/api/v1/video/batches/{batch_id}/audio/{segment_id}": {
       "get": {
-        "description": "Serve one reviewed batch-narration clip from the managed output root.\n\nThe stored clip path is never trusted as a request path.  It must still\nresolve underneath the configured output root and refer to the exact\nsegment persisted in the merged narration artifact.",
+        "description": "Serve one reviewed batch-narration clip from the managed output root.\n\nThe stored clip path is never trusted as a request path.  It must still\nresolve underneath the configured output root and refer to the exact\nsegment persisted in the reviewed program narration artifact.",
         "operationId": "getVideoBatchAudioClip",
         "parameters": [
           {

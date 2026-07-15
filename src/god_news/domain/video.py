@@ -314,6 +314,101 @@ class SourceVideoAudioMode(StrEnum):
     MUTED = "muted"
 
 
+class SourceVideoPlacement(StrEnum):
+    """Editorial placement policy for review-approved original media."""
+
+    OMIT = "omit"
+    AFTER_STORY = "after_story"
+
+
+class ProgramStoryDirection(DomainModel):
+    """Director-owned presentation decisions for one immutable story script."""
+
+    story_id: UUID
+    source_segment_ids: list[UUID] = Field(min_length=1, max_length=100)
+    narration_module: EpisodeSceneModule = EpisodeSceneModule.HOST_EVIDENCE
+    source_video_placement: SourceVideoPlacement = SourceVideoPlacement.OMIT
+
+    @model_validator(mode="after")
+    def validate_story_direction(self) -> ProgramStoryDirection:
+        if len(self.source_segment_ids) != len(set(self.source_segment_ids)):
+            raise ValueError("program story source segment IDs must be unique")
+        if self.narration_module is EpisodeSceneModule.SOURCE_VIDEO:
+            raise ValueError("story narration cannot use the source_video scene module")
+        return self
+
+
+class ProgramBridge(DomainModel):
+    """Identity and adjacency proof for one generated transition utterance."""
+
+    from_story_id: UUID
+    to_story_id: UUID
+    segment_id: UUID
+
+    @model_validator(mode="after")
+    def reject_self_bridge(self) -> ProgramBridge:
+        if self.from_story_id == self.to_story_id:
+            raise ValueError("program bridges must connect two different stories")
+        return self
+
+
+class ProgramDirectorPlan(DomainModel):
+    """Strict editorial IR produced by AI and executed deterministically.
+
+    The model may order stories and choose registered presentation policies,
+    but it never emits frame numbers, filesystem paths, or renderer options.
+    Source story segments remain identifiable and bridges are explicit new
+    utterances, so editorial review can distinguish facts from connective copy.
+    """
+
+    schema_version: Literal["1.0"] = "1.0"
+    story_order: list[UUID] = Field(min_length=1, max_length=15)
+    stories: list[ProgramStoryDirection] = Field(min_length=1, max_length=15)
+    bridges: list[ProgramBridge] = Field(default_factory=list, max_length=14)
+
+    @model_validator(mode="after")
+    def validate_program_structure(self) -> ProgramDirectorPlan:
+        if len(self.story_order) != len(set(self.story_order)):
+            raise ValueError("program director story_order must contain unique IDs")
+        if [story.story_id for story in self.stories] != self.story_order:
+            raise ValueError("program story directions must follow story_order exactly")
+        expected_edges = list(zip(self.story_order, self.story_order[1:], strict=False))
+        actual_edges = [
+            (bridge.from_story_id, bridge.to_story_id) for bridge in self.bridges
+        ]
+        if actual_edges != expected_edges:
+            raise ValueError("program bridges must cover each adjacent story pair exactly once")
+        segment_ids = self.narration_segment_ids()
+        if len(segment_ids) != len(set(segment_ids)):
+            raise ValueError("program narration segment IDs must be globally unique")
+        return self
+
+    def narration_segment_ids(self) -> list[UUID]:
+        bridges_by_source = {bridge.from_story_id: bridge for bridge in self.bridges}
+        ordered: list[UUID] = []
+        for story in self.stories:
+            ordered.extend(story.source_segment_ids)
+            bridge = bridges_by_source.get(story.story_id)
+            if bridge is not None:
+                ordered.append(bridge.segment_id)
+        return ordered
+
+
+class DirectedProgramDraft(DomainModel):
+    """Validated result returned by a replaceable program-director adapter."""
+
+    direction: ProgramDirectorPlan
+    script: ScriptDocument
+
+    @model_validator(mode="after")
+    def validate_script_identity(self) -> DirectedProgramDraft:
+        if self.direction.narration_segment_ids() != [
+            segment.segment_id for segment in self.script.segments
+        ]:
+            raise ValueError("directed script must follow the program narration identity")
+        return self
+
+
 class SourceVideoRenderAsset(DomainModel):
     """Immutable, review-approved source video exposed to the episode compiler."""
 
@@ -426,7 +521,7 @@ class EpisodePlan(DomainModel):
 class RemotionVideoProps(DomainModel):
     """Backend-owned subset of ``video/src/schema.ts``.
 
-    This object is deliberately absent until batch narration has been manually
+    This object is deliberately absent until program narration has been manually
     synthesized. It therefore cannot accidentally encode an unreviewed or
     source-story-flat render plan.
     """
@@ -520,11 +615,11 @@ class RemotionVideoProps(DomainModel):
 
 
 class VideoBatchStory(DomainModel):
-    """Immutable source-story evidence for one input to a merged narration.
+    """Immutable source-story evidence for one directed program.
 
-    ``source_manifest`` is intentionally not a chapter in the eventual batch
-    timeline. It remains a point-in-time source snapshot only; the separate
-    batch narration artifact is the sole input to Remotion.
+    ``source_manifest`` remains point-in-time timing evidence. The director may
+    reorder the story, but the compiled program reuses its reviewed script
+    segment identities instead of asking a model to paraphrase the facts.
     """
 
     sequence: int = Field(ge=0, le=14)
@@ -588,7 +683,7 @@ class VideoBatchStory(DomainModel):
 
 
 class BatchNarrationSourceEvidence(DomainModel):
-    """Stable provenance consumed by a merged narration generation."""
+    """Stable source provenance consumed by a program director."""
 
     story_id: UUID
     story_version: int = Field(ge=1)
@@ -604,11 +699,12 @@ def narration_source_evidence_sha256(
 
 
 class BatchNarrationArtifact(DomainModel):
-    """The reviewable, batch-level narration and its optional synthesized media."""
+    """The reviewable program narration and its optional synthesized media."""
 
     source_evidence: list[BatchNarrationSourceEvidence] = Field(min_length=1, max_length=15)
     source_evidence_sha256: Sha256
     script: ScriptDocument
+    direction: ProgramDirectorPlan | None = None
     audio: AudioBundle | None = None
     manifest: ProductionManifest | None = None
     composed_at: datetime = Field(default_factory=utc_now)
@@ -628,6 +724,10 @@ class BatchNarrationArtifact(DomainModel):
             raise ValueError("batch narration source evidence must have unique story IDs")
         if self.source_evidence_sha256 != narration_source_evidence_sha256(self.source_evidence):
             raise ValueError("source_evidence_sha256 does not match source evidence")
+        if self.direction is not None and self.direction.narration_segment_ids() != [
+            segment.segment_id for segment in self.script.segments
+        ]:
+            raise ValueError("program direction must cover the narration script in order")
         if (self.audio is None) != (self.manifest is None):
             raise ValueError("batch narration audio and manifest must appear together")
         if self.audio is None and self.synthesized_at is not None:
@@ -824,6 +924,21 @@ class VideoBatch(DomainModel):
         ]
         if self.narration.source_evidence != expected_evidence:
             raise ValueError("batch narration source evidence must match source-story snapshots")
+        if self.narration.direction is not None:
+            direction = self.narration.direction
+            if direction.story_order != story_ids:
+                raise ValueError("program director order must match immutable batch story order")
+            source_segments = {
+                story.story_id: [segment.segment_id for segment in story.script.segments]
+                for story in self.stories
+            }
+            for story_direction in direction.stories:
+                if source_segments.get(story_direction.story_id) != (
+                    story_direction.source_segment_ids
+                ):
+                    raise ValueError(
+                        "program direction must preserve each source story segment identity"
+                    )
 
         generated = self.narration.audio is not None
         if generated:

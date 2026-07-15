@@ -34,7 +34,9 @@ from god_news.domain.video import (
     HostVisualReservations,
     NarrationReview,
     NarrationReviewDecision,
+    ProgramDirectorPlan,
     RemotionVideoProps,
+    SourceVideoPlacement,
     SourceVideoRenderAsset,
     SubmitNarrationReview,
     SubmitTimelineReview,
@@ -53,10 +55,10 @@ from god_news.domain.video import (
     render_input_sha256,
 )
 from god_news.domain.video_ports import (
-    BatchNarrationComposer,
     BatchVideoRenderer,
     BgmCatalog,
     HostRenderer,
+    ProgramDirector,
     SourceVideoAssetLibrary,
     StoryManifestPool,
     VideoBatchRepository,
@@ -79,11 +81,12 @@ CATEGORY_ORDER: dict[ContentCategory, int] = {
 
 
 class VideoBatchService:
-    """Review-gated orchestration for one merged, multi-story narration.
+    """Review-gated orchestration for one directed, multi-story program.
 
     Source stories are claimed once and retained as immutable provenance.  The
-    compositor produces a separate batch script; only its manually synthesized
-    audio is ever turned into Remotion props or file snapshots.
+    director can order them and add explicit bridges but cannot rewrite their
+    reviewed segment identities. Only manually approved program audio becomes
+    Remotion props or file snapshots.
     """
 
     def __init__(
@@ -92,7 +95,7 @@ class VideoBatchService:
         story_pool: StoryManifestPool,
         repository: VideoBatchRepository,
         host_renderer: HostRenderer,
-        narration_composer: BatchNarrationComposer,
+        program_director: ProgramDirector,
         synthesizer: SpeechSynthesizer,
         video_renderer: BatchVideoRenderer,
         bgm_catalog: BgmCatalog,
@@ -106,7 +109,7 @@ class VideoBatchService:
         self._story_pool = story_pool
         self._repository = repository
         self._host_renderer = host_renderer
-        self._narration_composer = narration_composer
+        self._program_director = program_director
         self._synthesizer = synthesizer
         self._video_renderer = video_renderer
         self._bgm_catalog = bgm_catalog
@@ -127,7 +130,7 @@ class VideoBatchService:
         return len(recovered)
 
     async def create(self, request: CreateVideoBatch) -> VideoBatch:
-        """Reserve DONE stories and compose a *draft* batch narration.
+        """Reserve DONE stories and direct a reviewable program draft.
 
         No source audio is copied into a render plan here.  If the composer is
         unavailable, no batch or source claim is persisted, keeping retry and
@@ -147,19 +150,31 @@ class VideoBatchService:
 
             batch_id = uuid4()
             stories = await self._build_batch_stories(ordered, reserved_at=utc_now())
-            composed_script = await self._narration_composer.compose(
+            approved_source_videos = await self._source_video_library.approved_for_stories(
+                [story.story_id for story in stories]
+            )
+            directed = await self._program_director.direct(
                 batch_id=batch_id,
                 title=request.title,
                 sources=stories,
+                source_video_story_ids=frozenset(
+                    asset.story_id for asset in approved_source_videos
+                ),
             )
+            stories_by_id = {story.story_id: story for story in stories}
+            stories = [
+                stories_by_id[story_id].model_copy(update={"sequence": sequence})
+                for sequence, story_id in enumerate(directed.direction.story_order)
+            ]
             # A new batch owns its own revision history.  Composer internals
             # cannot accidentally leak a source-story revision into it.
-            script = composed_script.model_copy(update={"revision": 1})
+            script = directed.script.model_copy(update={"revision": 1})
             evidence = self._source_evidence(stories)
             narration = BatchNarrationArtifact(
                 source_evidence=evidence,
                 source_evidence_sha256=narration_source_evidence_sha256(evidence),
                 script=script,
+                direction=directed.direction,
             )
             batch = VideoBatch(
                 batch_id=batch_id,
@@ -189,7 +204,7 @@ class VideoBatchService:
         batch_id: UUID,
         submission: SubmitNarrationReview,
     ) -> VideoBatch:
-        """Approve, revise, or reject the merged script before batch TTS.
+        """Approve, revise, or reject the directed script before batch TTS.
 
         A revision from the post-TTS timeline gate is intentionally allowed: it
         clears derived media and returns to script review rather than letting a
@@ -214,6 +229,12 @@ class VideoBatchService:
                 target = VideoBatchStatus.REJECTED
             else:
                 assert submission.revised_script is not None
+                if batch.narration.direction is not None and [
+                    segment.segment_id for segment in submission.revised_script.segments
+                ] != batch.narration.direction.narration_segment_ids():
+                    raise VideoBatchConflictError(
+                        "Narration edits must preserve director-owned segment identity and order."
+                    )
                 script = submission.revised_script.model_copy(
                     update={"revision": narration.script.revision + 1}
                 )
@@ -305,6 +326,8 @@ class VideoBatchService:
                 title=running.title,
                 subtitle=running.subtitle,
                 manifest=manifest,
+                direction=running.narration.direction,
+                stories=running.stories,
                 bgm=(running.bgm.render_spec() if running.bgm is not None else None),
                 host=host,
                 source_videos=source_videos,
@@ -369,7 +392,7 @@ class VideoBatchService:
                 )
             if submission.story_order is not None and submission.story_order != expected_order:
                 raise VideoBatchConflictError(
-                    "Merged narration fixes source order; create a replacement batch to "
+                    "The reviewed director plan fixes source order; create a replacement batch to "
                     "reorder stories."
                 )
             review = TimelineReview(
@@ -707,16 +730,25 @@ class VideoBatchService:
         title: str,
         subtitle: str | None,
         manifest: ProductionManifest,
+        direction: ProgramDirectorPlan | None,
+        stories: Sequence[VideoBatchStory],
         bgm: BgmRenderSpec | None,
         host: HostVisualReservations,
         source_videos: Sequence[SourceVideoRenderAsset],
     ) -> RemotionVideoProps:
         if manifest.story_id != batch_id:
             raise VideoBatchConflictError("Merged manifest must be owned by the video batch.")
+        selected_source_videos = VideoBatchService._select_directed_source_videos(
+            direction,
+            stories,
+            source_videos,
+        )
         episode_plan = VideoBatchService._build_episode_plan(
             batch_id,
             manifest,
-            source_videos,
+            direction=direction,
+            stories=stories,
+            source_videos=selected_source_videos,
         )
         return RemotionVideoProps(
             manifest=manifest,
@@ -725,13 +757,45 @@ class VideoBatchService:
             bgm=bgm,
             visual_reservations=host,
             episode_plan=episode_plan,
-            source_videos=list(source_videos),
+            source_videos=selected_source_videos,
         )
+
+    @staticmethod
+    def _select_directed_source_videos(
+        direction: ProgramDirectorPlan | None,
+        stories: Sequence[VideoBatchStory],
+        source_videos: Sequence[SourceVideoRenderAsset],
+    ) -> list[SourceVideoRenderAsset]:
+        if direction is None:
+            return list(source_videos)
+        known_story_ids = {story.story_id for story in stories}
+        assets_by_story: dict[UUID, list[SourceVideoRenderAsset]] = {}
+        for asset in source_videos:
+            if asset.story_id not in known_story_ids:
+                raise VideoBatchConflictError(
+                    "Approved source video does not belong to the directed batch."
+                )
+            assets_by_story.setdefault(asset.story_id, []).append(asset)
+
+        selected: list[SourceVideoRenderAsset] = []
+        for story in direction.stories:
+            if story.source_video_placement is SourceVideoPlacement.OMIT:
+                continue
+            assets = assets_by_story.get(story.story_id, [])
+            if not assets:
+                raise VideoBatchConflictError(
+                    "A director-selected source video is no longer review-approved."
+                )
+            selected.extend(sorted(assets, key=lambda item: str(item.asset_id)))
+        return selected
 
     @staticmethod
     def _build_episode_plan(
         batch_id: UUID,
         manifest: ProductionManifest,
+        *,
+        direction: ProgramDirectorPlan | None = None,
+        stories: Sequence[VideoBatchStory] = (),
         source_videos: Sequence[SourceVideoRenderAsset] = (),
     ) -> EpisodePlan:
         """Compile reviewed narration into replaceable semantic scene modules.
@@ -742,37 +806,107 @@ class VideoBatchService:
         review without changing timing or Remotion internals.
         """
 
-        scenes: list[EpisodeScene] = []
-        for index, segment in enumerate(manifest.timeline):
-            previous = manifest.timeline[index - 1] if index > 0 else None
-            following = (
-                manifest.timeline[index + 1]
-                if index + 1 < len(manifest.timeline)
-                else None
+        segments_by_id = {segment.segment_id: segment for segment in manifest.timeline}
+        source_videos_by_story: dict[UUID, list[SourceVideoRenderAsset]] = {}
+        for source_video in source_videos:
+            source_videos_by_story.setdefault(source_video.story_id, []).append(source_video)
+
+        scene_specs: list[tuple[EpisodeSceneModule, UUID | None, UUID | None]] = []
+        if direction is None:
+            scene_specs.extend(
+                (EpisodeSceneModule.HOST_EVIDENCE, segment.segment_id, None)
+                for segment in manifest.timeline
             )
+            scene_specs.extend(
+                (EpisodeSceneModule.SOURCE_VIDEO, None, source_video.asset_id)
+                for source_video in source_videos
+            )
+        else:
+            story_ids = [story.story_id for story in stories]
+            if direction.story_order != story_ids:
+                raise VideoBatchConflictError(
+                    "Program direction no longer matches the immutable batch story order."
+                )
+            bridges_by_source = {
+                bridge.from_story_id: bridge for bridge in direction.bridges
+            }
+            for story_direction in direction.stories:
+                scene_specs.extend(
+                    (story_direction.narration_module, segment_id, None)
+                    for segment_id in story_direction.source_segment_ids
+                )
+                scene_specs.extend(
+                    (EpisodeSceneModule.SOURCE_VIDEO, None, asset.asset_id)
+                    for asset in source_videos_by_story.get(story_direction.story_id, [])
+                )
+                bridge = bridges_by_source.get(story_direction.story_id)
+                if bridge is not None:
+                    scene_specs.append(
+                        (EpisodeSceneModule.HOST_EVIDENCE, bridge.segment_id, None)
+                    )
+
+        scenes: list[EpisodeScene] = []
+        for index, (module_id, segment_id, source_video_id) in enumerate(scene_specs):
+            if module_id is EpisodeSceneModule.SOURCE_VIDEO:
+                scenes.append(
+                    EpisodeScene(
+                        sequence=index,
+                        module_id=module_id,
+                        source_video_asset_id=source_video_id,
+                        host_visibility=EpisodeHostVisibility.HIDDEN,
+                    )
+                )
+                continue
+            if segment_id is None:
+                raise VideoBatchConflictError(
+                    "Narration scene is missing its reviewed segment identity."
+                )
+            segment = segments_by_id.get(segment_id)
+            if segment is None:
+                raise VideoBatchConflictError(
+                    "Program direction references narration outside the reviewed manifest."
+                )
+            visible = module_id is EpisodeSceneModule.HOST_EVIDENCE
             scenes.append(
                 EpisodeScene(
                     sequence=index,
-                    module_id=EpisodeSceneModule.HOST_EVIDENCE,
+                    module_id=module_id,
                     narration_segment_id=segment.segment_id,
                     speaker_id=segment.speaker_id,
-                    host_visibility=EpisodeHostVisibility.VISIBLE,
-                    host_slot=EpisodeHostSlot.PRIMARY,
-                    host_enter=previous is None or previous.speaker_id != segment.speaker_id,
-                    host_exit=following is None or following.speaker_id != segment.speaker_id,
+                    host_visibility=(
+                        EpisodeHostVisibility.VISIBLE
+                        if visible
+                        else EpisodeHostVisibility.HIDDEN
+                    ),
+                    host_slot=EpisodeHostSlot.PRIMARY if visible else None,
                     transition_type=segment.scene_transition,
                 )
             )
-        for source_video in source_videos:
-            scenes.append(
-                EpisodeScene(
-                    sequence=len(scenes),
-                    module_id=EpisodeSceneModule.SOURCE_VIDEO,
-                    source_video_asset_id=source_video.asset_id,
-                    host_visibility=EpisodeHostVisibility.HIDDEN,
+
+        resolved: list[EpisodeScene] = []
+        for index, scene in enumerate(scenes):
+            if scene.host_visibility is EpisodeHostVisibility.HIDDEN:
+                resolved.append(scene)
+                continue
+            previous = scenes[index - 1] if index > 0 else None
+            following = scenes[index + 1] if index + 1 < len(scenes) else None
+            resolved.append(
+                scene.model_copy(
+                    update={
+                        "host_enter": (
+                            previous is None
+                            or previous.host_visibility is EpisodeHostVisibility.HIDDEN
+                            or previous.speaker_id != scene.speaker_id
+                        ),
+                        "host_exit": (
+                            following is None
+                            or following.host_visibility is EpisodeHostVisibility.HIDDEN
+                            or following.speaker_id != scene.speaker_id
+                        ),
+                    }
                 )
             )
-        return EpisodePlan(batch_id=batch_id, scenes=scenes)
+        return EpisodePlan(batch_id=batch_id, scenes=resolved)
 
     @staticmethod
     def _validate_audio_snapshot_evidence(
