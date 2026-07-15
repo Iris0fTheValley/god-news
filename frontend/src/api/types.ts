@@ -35,6 +35,7 @@ export type EmotionReference = components['schemas']['EmotionReference'];
 export type SourceRun = components['schemas']['SourceRun'];
 export type SourceRunRequest = components['schemas']['SourceRunRequest'];
 export type SourceRunStatus = components['schemas']['SourceRunStatus'];
+export type SourceScheduleSnapshot = components['schemas']['SourceScheduleSnapshot'];
 export type SourceItemIngestionResult = components['schemas']['SourceItemIngestionResult'];
 export type CollectionErrorEvidence = components['schemas']['CollectionErrorEvidence'];
 export type BgmTrack = components['schemas']['BgmTrack'];

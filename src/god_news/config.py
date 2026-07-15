@@ -164,6 +164,11 @@ class Settings(BaseSettings):
     # configured endpoints and must first map data into the typed raw contracts.
     source_health_network_probes_enabled: bool = False
     source_run_max_pending: int = Field(default=8, ge=1, le=100)
+    # Operator policy only. These values are deliberately absent from the UI;
+    # users may start/stop automation but cannot weaken collection cadence.
+    source_auto_collection_initially_enabled: bool = False
+    source_auto_collection_interval_seconds: float = Field(default=1_800, ge=30)
+    source_auto_collection_poll_seconds: float = Field(default=5, gt=0, le=60)
     source_dazhong_enabled: bool = True
     source_dazhong_endpoint: str = "https://m.dzplus.dzng.com/"
     source_dazhong_public_page_use_authorized: bool = False

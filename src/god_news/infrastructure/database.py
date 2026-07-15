@@ -63,6 +63,7 @@ class Database:
         from god_news.infrastructure import repositories as _repositories  # noqa: F401
         from god_news.infrastructure import role_profiles as _role_profiles  # noqa: F401
         from god_news.infrastructure import source_runs as _source_runs  # noqa: F401
+        from god_news.infrastructure import source_schedule as _source_schedule  # noqa: F401
         from god_news.infrastructure import video_repository as _video_repository  # noqa: F401
         from god_news.infrastructure import visual_repository as _visual_repository  # noqa: F401
 

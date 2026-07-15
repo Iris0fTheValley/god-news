@@ -1,8 +1,16 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
-import {AlertTriangle, CheckCircle2, Eye, Info, Play, RefreshCw, Square, XCircle} from 'lucide-react';
+import {AlertTriangle, CheckCircle2, Eye, Info, Pause, Play, RefreshCw, Square, XCircle} from 'lucide-react';
 import {useState} from 'react';
 
-import {cancelSourceRun, getSourceRun, listSourceRuns, startSourceRun} from '../../api/client';
+import {
+  cancelSourceRun,
+  getSourceRun,
+  getSourceSchedule,
+  listSourceRuns,
+  startSourceRun,
+  startSourceSchedule,
+  stopSourceSchedule,
+} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {SourceRun, SourceRunRequest, SourceRunStatus} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
@@ -179,6 +187,11 @@ export function SourceRunsPage() {
     queryFn: () => listSourceRuns(),
     refetchInterval: 10_000,
   });
+  const scheduleQuery = useQuery({
+    queryKey: queryKeys.sourceSchedule(),
+    queryFn: getSourceSchedule,
+    refetchInterval: 10_000,
+  });
   const detailQuery = useQuery({
     queryKey: queryKeys.sourceRun(selectedRunId ?? ''),
     queryFn: () => getSourceRun(selectedRunId ?? ''),
@@ -204,6 +217,20 @@ export function SourceRunsPage() {
       pushToast({message: '采集运行已取消并保留审计记录。', variant: 'caution', durationMs: 3000});
     },
   });
+  const scheduleMutation = useMutation({
+    mutationFn: (enable: boolean) => enable ? startSourceSchedule() : stopSourceSchedule(),
+    onSuccess: (schedule) => {
+      queryClient.setQueryData(queryKeys.sourceSchedule(), schedule);
+      void queryClient.invalidateQueries({queryKey: queryKeys.sourceRuns()});
+      pushToast({
+        message: schedule.enabled
+          ? '自动采集已启动；只会运行已就绪的来源。'
+          : '自动采集已停止；当前运行不会被强制中断。',
+        variant: schedule.enabled ? undefined : 'caution',
+        durationMs: 4000,
+      });
+    },
+  });
 
   const runs = listQuery.data ?? [];
 
@@ -219,6 +246,35 @@ export function SourceRunsPage() {
           <Play size={17} aria-hidden="true" /> 开始采集
         </button>
       </div>
+
+      {scheduleQuery.error !== null ? (
+        <ApiErrorNotice error={scheduleQuery.error} onRetry={() => void scheduleQuery.refetch()} />
+      ) : scheduleQuery.data === undefined ? (
+        <div className="loading-state">正在加载自动采集状态…</div>
+      ) : (
+        <section className="source-policy-note" aria-live="polite">
+          <div>
+            <strong>自动采集：{scheduleQuery.data.enabled ? '运行中' : '已停止'}</strong>
+            <p>
+              {scheduleQuery.data.enabled
+                ? `已就绪来源 ${String(scheduleQuery.data.ready_sources.length)} 个；当前运行 ${String(scheduleQuery.data.active_runs.length)} 个。`
+                : '服务启动不会自行持续抓取；手动采集仍可独立使用。'}
+            </p>
+            {scheduleQuery.data.enabled && scheduleQuery.data.next_run_at !== null ? (
+              <p className="metadata">下一轮：{scheduleQuery.data.next_run_at}</p>
+            ) : null}
+          </div>
+          <button
+            className={`button ${scheduleQuery.data.enabled ? '' : 'primary'}`}
+            type="button"
+            disabled={scheduleMutation.isPending}
+            onClick={() => scheduleMutation.mutate(!scheduleQuery.data.enabled)}
+          >
+            {scheduleQuery.data.enabled ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+            {scheduleMutation.isPending ? '处理中…' : scheduleQuery.data.enabled ? '停止自动采集' : '启动自动采集'}
+          </button>
+        </section>
+      )}
 
       {listQuery.isLoading ? <div className="loading-state">正在加载运行记录…</div>
         : listQuery.error !== null ? <ApiErrorNotice error={listQuery.error} onRetry={() => void listQuery.refetch()} />

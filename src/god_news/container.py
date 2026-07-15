@@ -7,6 +7,7 @@ import httpx
 
 from god_news.application.memory import MemoryCoordinator
 from god_news.application.source_runs import SourceRunService
+from god_news.application.source_schedule import SourceCollectionScheduler
 from god_news.application.video_batches import VideoBatchService
 from god_news.application.visual_assets import VisualAssetService
 from god_news.application.workflow import StoryWorkflow
@@ -43,6 +44,7 @@ from god_news.infrastructure.source_health import (
     build_source_policies,
 )
 from god_news.infrastructure.source_runs import SqlAlchemySourceRunRepository
+from god_news.infrastructure.source_schedule import SqlAlchemySourceScheduleRepository
 from god_news.infrastructure.tts.gpt_sovits import (
     GPTSoVITSSpeechSynthesizer,
     UnavailableSpeechSynthesizer,
@@ -80,6 +82,7 @@ class AppContainer:
     source_normalizers: SourceNormalizerRegistry
     source_health: SourceHealthMonitor
     source_runs: SourceRunService | None = None
+    source_scheduler: SourceCollectionScheduler | None = None
     video_batches: VideoBatchService | None = None
     role_profiles: RoleProfileService | None = None
     visual_assets: VisualAssetService | None = None
@@ -91,6 +94,8 @@ class AppContainer:
     async def start(self) -> None:
         if self.source_runs is not None:
             await self.source_runs.recover_interrupted()
+        if self.source_scheduler is not None:
+            await self.source_scheduler.start()
         if self.video_batches is not None:
             await self.video_batches.recover_interrupted()
         if self.operation_scheduler is not None:
@@ -160,6 +165,8 @@ class AppContainer:
     async def aclose(self) -> None:
         if self.operation_scheduler is not None:
             await self.operation_scheduler.aclose()
+        if self.source_scheduler is not None:
+            await self.source_scheduler.aclose()
         if self.source_runs is not None:
             await self.source_runs.aclose()
         await asyncio.gather(
@@ -400,6 +407,19 @@ async def build_container(settings: Settings) -> AppContainer:
         ingestor=workflow,
         max_pending_runs=settings.source_run_max_pending,
     )
+    source_scheduler = SourceCollectionScheduler(
+        repository=SqlAlchemySourceScheduleRepository(database.sessions),
+        source_runs=source_runs,
+        interval_seconds=settings.source_auto_collection_interval_seconds,
+        poll_interval_seconds=settings.source_auto_collection_poll_seconds,
+        initially_enabled=settings.source_auto_collection_initially_enabled,
+        collection_limits={
+            "dazhong": settings.source_dazhong_collection_limit,
+            "reddit": settings.source_reddit_collection_limit,
+            "guardian": settings.source_guardian_collection_limit,
+            "pikabu": settings.source_pikabu_collection_limit,
+        },
+    )
     video_renderer = (
         LocalRemotionBatchVideoRenderer(
             package_dir=settings.video_remotion_package_dir,
@@ -435,6 +455,7 @@ async def build_container(settings: Settings) -> AppContainer:
         source_normalizers=source_normalizers,
         source_health=source_health,
         source_runs=source_runs,
+        source_scheduler=source_scheduler,
         video_batches=video_batches,
         role_profiles=role_profiles,
         visual_assets=visual_assets,

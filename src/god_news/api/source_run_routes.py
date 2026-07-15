@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, status
 from god_news.api.dependencies import get_container
 from god_news.api.schemas import ProblemDetail
 from god_news.application.source_runs import SourceRunService
+from god_news.application.source_schedule import SourceCollectionScheduler
 from god_news.container import AppContainer
 from god_news.errors import ConfigurationError
 from god_news.logging import trace_id_var
@@ -18,6 +19,7 @@ from god_news.sources.run_models import (
     SourceRunRequest,
     SourceRunStatus,
 )
+from god_news.sources.schedule_models import SourceScheduleSnapshot
 
 PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
     404: {"model": ProblemDetail},
@@ -35,6 +37,12 @@ def _service(container: AppContainer) -> SourceRunService:
     return container.source_runs
 
 
+def _scheduler(container: AppContainer) -> SourceCollectionScheduler:
+    if container.source_scheduler is None:
+        raise ConfigurationError("Automatic source collection is not configured.")
+    return container.source_scheduler
+
+
 @router.get(
     "/sources/collectors",
     response_model=SourceRunReadiness,
@@ -42,6 +50,33 @@ def _service(container: AppContainer) -> SourceRunService:
 )
 async def collector_readiness(container: ContainerDependency) -> SourceRunReadiness:
     return SourceRunReadiness(collectors=list(_service(container).readiness()))
+
+
+@router.get(
+    "/source-schedule",
+    response_model=SourceScheduleSnapshot,
+    operation_id="getSourceSchedule",
+)
+async def get_source_schedule(container: ContainerDependency) -> SourceScheduleSnapshot:
+    return await _scheduler(container).snapshot()
+
+
+@router.post(
+    "/source-schedule/start",
+    response_model=SourceScheduleSnapshot,
+    operation_id="startSourceSchedule",
+)
+async def start_source_schedule(container: ContainerDependency) -> SourceScheduleSnapshot:
+    return await _scheduler(container).enable()
+
+
+@router.post(
+    "/source-schedule/stop",
+    response_model=SourceScheduleSnapshot,
+    operation_id="stopSourceSchedule",
+)
+async def stop_source_schedule(container: ContainerDependency) -> SourceScheduleSnapshot:
+    return await _scheduler(container).disable()
 
 
 @router.post(

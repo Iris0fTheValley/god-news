@@ -70,17 +70,37 @@ class SourceRunService:
 
     async def start(self, request: SourceRunRequest, *, trace_id: UUID) -> SourceRun:
         async with self._task_lock:
-            active = sum(not task.done() for task in self._tasks.values())
-            if self._closing or active >= self._max_pending_runs:
-                raise SourceRunCapacityError()
-            run = await self._repository.create(SourceRun(trace_id=trace_id, request=request))
-            task = asyncio.create_task(
-                self._execute(run.run_id),
-                name=f"god-news-source-run-{run.run_id}",
+            return await self._start_locked(request, trace_id=trace_id)
+
+    async def start_if_source_idle(
+        self,
+        request: SourceRunRequest,
+        *,
+        trace_id: UUID,
+    ) -> SourceRun | None:
+        """Atomically avoid scheduler/manual overlap for one source."""
+
+        async with self._task_lock:
+            if await self._has_active_run(request.source):
+                return None
+            return await self._start_locked(request, trace_id=trace_id)
+
+    async def active_runs(self) -> Sequence[SourceRun]:
+        runs: list[SourceRun] = []
+        for status in (
+            SourceRunStatus.QUEUED,
+            SourceRunStatus.COLLECTING,
+            SourceRunStatus.INGESTING,
+        ):
+            runs.extend(
+                await self._repository.list(
+                    source=None,
+                    status=status,
+                    limit=self._max_pending_runs,
+                    offset=0,
+                )
             )
-            self._tasks[run.run_id] = task
-            task.add_done_callback(partial(self._task_finished, run.run_id))
-        return run
+        return sorted(runs, key=lambda item: item.created_at)
 
     async def get(self, run_id: UUID) -> SourceRun:
         return await self._repository.get(run_id)
@@ -142,6 +162,35 @@ class SourceRunService:
             await asyncio.gather(*tasks, return_exceptions=True)
         async with self._task_lock:
             self._tasks.clear()
+
+    async def _start_locked(self, request: SourceRunRequest, *, trace_id: UUID) -> SourceRun:
+        active = sum(not task.done() for task in self._tasks.values())
+        if self._closing or active >= self._max_pending_runs:
+            raise SourceRunCapacityError()
+        run = await self._repository.create(SourceRun(trace_id=trace_id, request=request))
+        task = asyncio.create_task(
+            self._execute(run.run_id),
+            name=f"god-news-source-run-{run.run_id}",
+        )
+        self._tasks[run.run_id] = task
+        task.add_done_callback(partial(self._task_finished, run.run_id))
+        return run
+
+    async def _has_active_run(self, source: SourceName) -> bool:
+        for status in (
+            SourceRunStatus.QUEUED,
+            SourceRunStatus.COLLECTING,
+            SourceRunStatus.INGESTING,
+        ):
+            active = await self._repository.list(
+                source=source,
+                status=status,
+                limit=1,
+                offset=0,
+            )
+            if active:
+                return True
+        return False
 
     def _task_finished(self, run_id: UUID, task: asyncio.Task[None]) -> None:
         self._tasks.pop(run_id, None)

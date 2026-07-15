@@ -317,6 +317,24 @@ export async function getSourceRun(runId: string) {
   return result.data;
 }
 
+export async function getSourceSchedule() {
+  const result = await api.GET('/api/v1/source-schedule');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function startSourceSchedule() {
+  const result = await api.POST('/api/v1/source-schedule/start');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function stopSourceSchedule() {
+  const result = await api.POST('/api/v1/source-schedule/stop');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
 /* ── Video ── */
 
 export async function listBgmTracks(): Promise<BgmTrack[]> {

@@ -1,6 +1,36 @@
 {
   "components": {
     "schemas": {
+      "ActiveScheduledSourceRun": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SourceRunStatus"
+          }
+        },
+        "required": [
+          "source",
+          "run_id",
+          "status"
+        ],
+        "title": "ActiveScheduledSourceRun",
+        "type": "object"
+      },
       "Attribution": {
         "additionalProperties": false,
         "properties": {
@@ -5627,6 +5657,104 @@
         "title": "SourceRunStatus",
         "type": "string"
       },
+      "SourceScheduleSnapshot": {
+        "additionalProperties": false,
+        "description": "Public control-plane view; cadence remains an operator-only backend policy.",
+        "properties": {
+          "active_runs": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveScheduledSourceRun"
+            },
+            "title": "Active Runs",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "last_started_run_ids": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "propertyNames": {
+              "enum": [
+                "dazhong",
+                "reddit",
+                "guardian",
+                "pikabu"
+              ]
+            },
+            "title": "Last Started Run Ids",
+            "type": "object"
+          },
+          "last_tick_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Tick At"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "ready_sources": {
+            "items": {
+              "enum": [
+                "dazhong",
+                "reddit",
+                "guardian",
+                "pikabu"
+              ],
+              "type": "string"
+            },
+            "title": "Ready Sources",
+            "type": "array"
+          },
+          "schedule_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "enabled",
+          "next_run_at",
+          "last_tick_at",
+          "last_started_run_ids",
+          "ready_sources",
+          "active_runs",
+          "version",
+          "updated_at"
+        ],
+        "title": "SourceScheduleSnapshot",
+        "type": "object"
+      },
       "SourceSnapshot": {
         "additionalProperties": false,
         "properties": {
@@ -7990,6 +8118,189 @@
           }
         },
         "summary": "Cancel Source Run",
+        "tags": [
+          "source-runs"
+        ]
+      }
+    },
+    "/api/v1/source-schedule": {
+      "get": {
+        "operationId": "getSourceSchedule",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceScheduleSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Source Schedule",
+        "tags": [
+          "source-runs"
+        ]
+      }
+    },
+    "/api/v1/source-schedule/start": {
+      "post": {
+        "operationId": "startSourceSchedule",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceScheduleSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Start Source Schedule",
+        "tags": [
+          "source-runs"
+        ]
+      }
+    },
+    "/api/v1/source-schedule/stop": {
+      "post": {
+        "operationId": "stopSourceSchedule",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceScheduleSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Stop Source Schedule",
         "tags": [
           "source-runs"
         ]

@@ -35,6 +35,8 @@ def test_production_browser_requires_real_egress_isolation_flag() -> None:
 
 def test_example_environment_file_is_parseable() -> None:
     settings = Settings(_env_file=Path(".env.example"))
+    assert settings.source_auto_collection_initially_enabled is False
+    assert settings.source_auto_collection_interval_seconds >= 30
     assert settings.allowed_source_ports == (80, 443)
     assert settings.deepseek_api_key is None
     assert settings.tts_model_profile == "v2Pro"

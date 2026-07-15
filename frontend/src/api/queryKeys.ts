@@ -10,6 +10,7 @@ export const queryKeys = {
   roles: (enabled?: boolean | null) => ['roles', enabled ?? 'all'] as const,
   role: (profileId: string) => ['roles', profileId] as const,
   sourceRuns: () => ['source-runs'] as const,
+  sourceSchedule: () => ['source-schedule'] as const,
   sourceRun: (runId: string) => ['source-runs', runId] as const,
   sourceCollectors: () => ['sources', 'collectors'] as const,
   videoBatches: () => ['video', 'batches'] as const,
