@@ -5,6 +5,7 @@ import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from functools import partial
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
 from god_news.domain.models import SourceItemIngestRequest
@@ -219,6 +220,14 @@ class SourceRunService:
 
         for item in collected.items:
             normalized = self._normalizer.normalize(item)
+            run = await self._save_update(
+                run,
+                current_item_index=len(run.item_results) + 1,
+                current_external_id=normalized.external_id,
+                current_title=normalized.title,
+                current_url=self._sanitized_display_url(str(normalized.canonical_url)),
+                updated_at=datetime.now(UTC),
+            )
             request = SourceItemIngestRequest(
                 item=item,
                 target_language=run.request.target_language,
@@ -278,6 +287,10 @@ class SourceRunService:
             await self._save_update(
                 run,
                 status=SourceRunStatus.FAILED,
+                current_item_index=None,
+                current_external_id=None,
+                current_title=None,
+                current_url=None,
                 finished_at=datetime.now(UTC),
                 updated_at=datetime.now(UTC),
                 run_error=CollectionErrorEvidence(
@@ -290,6 +303,10 @@ class SourceRunService:
         await self._save_update(
             run,
             status=SourceRunStatus.COMPLETED,
+            current_item_index=None,
+            current_external_id=None,
+            current_title=None,
+            current_url=None,
             finished_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
         )
@@ -308,6 +325,10 @@ class SourceRunService:
             await self._save_update(
                 run,
                 status=SourceRunStatus.CANCELLED,
+                current_item_index=None,
+                current_external_id=None,
+                current_title=None,
+                current_url=None,
                 started_at=run.started_at or now,
                 finished_at=now,
                 updated_at=now,
@@ -337,6 +358,10 @@ class SourceRunService:
             await self._save_update(
                 run,
                 status=SourceRunStatus.FAILED,
+                current_item_index=None,
+                current_external_id=None,
+                current_title=None,
+                current_url=None,
                 started_at=run.started_at or now,
                 finished_at=now,
                 updated_at=now,
@@ -351,3 +376,10 @@ class SourceRunService:
             candidate.model_dump(exclude_computed_fields=True)
         )
         return await self._repository.save(validated, expected_version=run.version)
+
+    @staticmethod
+    def _sanitized_display_url(value: str) -> str:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname or ""
+        netloc = hostname if parsed.port is None else f"{hostname}:{parsed.port}"
+        return urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))

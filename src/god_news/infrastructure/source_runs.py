@@ -131,6 +131,10 @@ class SqlAlchemySourceRunRepository:
             failed = run.model_copy(
                 update={
                     "status": SourceRunStatus.FAILED,
+                    "current_item_index": None,
+                    "current_external_id": None,
+                    "current_title": None,
+                    "current_url": None,
                     "started_at": run.started_at or now,
                     "finished_at": now,
                     "updated_at": now,
@@ -219,6 +223,10 @@ class InMemorySourceRunRepository:
                 self._runs[run_id] = run.model_copy(
                     update={
                         "status": SourceRunStatus.FAILED,
+                        "current_item_index": None,
+                        "current_external_id": None,
+                        "current_title": None,
+                        "current_url": None,
                         "started_at": run.started_at or now,
                         "finished_at": now,
                         "updated_at": now,

@@ -5091,6 +5091,10 @@
             "title": "Contract Ok",
             "type": "boolean"
           },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -5122,6 +5126,7 @@
         },
         "required": [
           "source",
+          "enabled",
           "configured",
           "authorized",
           "reachable",
@@ -5350,6 +5355,55 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "current_external_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current External Id"
+          },
+          "current_item_index": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Item Index"
+          },
+          "current_title": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Title"
+          },
+          "current_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Url"
           },
           "duplicate_count": {
             "readOnly": true,

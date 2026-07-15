@@ -86,6 +86,18 @@ class BlockingCollectorGateway(StaticCollectorGateway):
         return await super().collect(source, limit=limit)
 
 
+class BlockingIngestor:
+    def __init__(self, delegate) -> None:  # type: ignore[no-untyped-def]
+        self._delegate = delegate
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def ingest_source_item(self, request, *, trace_id=None):  # type: ignore[no-untyped-def]
+        self.started.set()
+        await self.release.wait()
+        return await self._delegate.ingest_source_item(request, trace_id=trace_id)
+
+
 class ManualClock:
     def __init__(self) -> None:
         self.now = 0.0
@@ -137,9 +149,53 @@ async def test_source_run_persists_progress_and_deduplicates_items(stack: Stack)
     assert completed.duplicate_count == 1
     assert completed.failed_count == 0
     assert completed.failure_rate == 0
+    assert completed.current_item_index is None
+    assert completed.current_url is None
     assert completed.version >= 5
     stories = await stack.workflow.list(status=StoryStatus.PENDING_FIRST_REVIEW, limit=10, offset=0)
     assert len(stories) == 1
+    await service.aclose()
+
+
+@pytest.mark.asyncio
+async def test_source_run_exposes_sanitized_current_item_while_ingesting(stack: Stack) -> None:
+    item = RawGuardianItem.model_validate(
+        {
+            **GUARDIAN_FIXTURE.model_dump(mode="json"),
+            "web_url": "https://www.theguardian.com/life/story?access_token=secret#private",
+        }
+    )
+    collection = SourceCollectionRun(
+        source="guardian",
+        outcome="succeeded",
+        duration_ms=1,
+        items=[item],
+    )
+    ingestor = BlockingIngestor(stack.workflow)
+    service = SourceRunService(
+        repository=InMemorySourceRunRepository(),
+        collectors=StaticCollectorGateway(collection),
+        normalizer=stack.container.source_normalizers,
+        ingestor=ingestor,
+    )
+    started = await service.start(
+        SourceRunRequest(source="guardian", requested_by="test-editor"),
+        trace_id=uuid4(),
+    )
+    try:
+        await ingestor.started.wait()
+        active = await service.get(started.run_id)
+        assert active.status is SourceRunStatus.INGESTING
+        assert active.current_item_index == 1
+        assert active.current_external_id == f"guardian:{item.article_id}"
+        assert active.current_title == "The kindness of strangers"
+        assert active.current_url == "https://www.theguardian.com/life/story"
+    finally:
+        ingestor.release.set()
+    completed = await service.wait(started.run_id)
+    assert completed.status is SourceRunStatus.COMPLETED
+    assert completed.current_item_index is None
+    assert completed.current_url is None
     await service.aclose()
 
 

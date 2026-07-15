@@ -74,6 +74,19 @@ function RunDetail({detail, onClose, onCancel}: {
         <div className="info-item"><span className="label">结束时间</span><span className="value">{detail.finished_at ?? '—'}</span></div>
       </div>
 
+      {detail.status === 'ingesting' && detail.current_item_index !== null && detail.current_item_index !== undefined ? (
+        <section className="source-policy-note" style={{marginBottom: 16}} aria-live="polite">
+          <RefreshCw className="spinning" size={18} aria-hidden="true" />
+          <div>
+            <strong>正在处理 {String(detail.current_item_index)} / {String(detail.items_discovered)}</strong>
+            <p>{detail.current_title ?? detail.current_external_id ?? '未命名条目'}</p>
+            {detail.current_url === null || detail.current_url === undefined ? null : (
+              <p className="metadata">{detail.current_url}</p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
       {collectionErrors.length > 0 ? (
         <section style={{marginBottom: 16}}>
           <h3 style={{color: 'var(--color-semantic-danger)', display: 'flex', alignItems: 'center', gap: 6}}>

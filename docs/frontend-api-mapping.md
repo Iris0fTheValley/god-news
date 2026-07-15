@@ -48,8 +48,9 @@ pnpm --dir frontend check
 | 前端能力 | API | 语义 |
 | --- | --- | --- |
 | 可用采集器 | `GET /api/v1/sources/collectors` | 返回四个源的配置与授权就绪度。 |
+| 来源健康 | `GET /api/v1/sources/health?probe_network=false` | `enabled`、`configured`、`authorized`、`contract_ok` 与 `reachable` 是独立事实；默认不联网，只有显式 `probe_network=true` 才做轻量探测。 |
 | 启动 | `POST /api/v1/source-runs` | 返回 `202` 和持久化 run；前端不暴露采集频率。每个来源的网络采集间隔和全局并发均由后端固定策略控制。 |
-| 列表/详情 | `GET /api/v1/source-runs`、`GET /api/v1/source-runs/{run_id}` | 包含降级层尝试、标准化导入结果和错误证据。 |
+| 列表/详情 | `GET /api/v1/source-runs`、`GET /api/v1/source-runs/{run_id}` | 包含降级层尝试、标准化导入结果、错误证据，以及运行中当前导入序号、标题、外部 ID 和已移除敏感 query/fragment/userinfo 的展示 URL；终态会清空“当前对象”。 |
 | 取消 | `POST /api/v1/source-runs/{run_id}/cancel` | 协作式停止；记录 `operator_cancelled`，不删除已完成项目。 |
 
 采集保护是服务端策略，不是可调 UI：同一来源上次网络采集完成后至少等待 30 秒，所有来源合计最多 2 个网络采集同时进行。随仓库启动命令固定为单 worker；多进程部署必须先引入持久化租约协调器，不能依赖内存锁。

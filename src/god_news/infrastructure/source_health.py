@@ -35,6 +35,7 @@ def build_source_policies(settings: Settings) -> tuple[SourceAdapterPolicy, ...]
         SourceAdapterPolicy(
             source="dazhong",
             enabled=settings.source_dazhong_enabled,
+            configured=True,
             endpoint=settings.source_dazhong_endpoint,
             access_method="authorized_public_page",
             authorized=settings.source_dazhong_public_page_use_authorized,
@@ -47,6 +48,7 @@ def build_source_policies(settings: Settings) -> tuple[SourceAdapterPolicy, ...]
         SourceAdapterPolicy(
             source="reddit",
             enabled=settings.source_reddit_enabled,
+            configured=reddit_credentials,
             endpoint=settings.source_reddit_endpoint,
             access_method="official_api",
             authorized=(reddit_credentials and settings.source_reddit_api_use_authorized),
@@ -59,6 +61,7 @@ def build_source_policies(settings: Settings) -> tuple[SourceAdapterPolicy, ...]
         SourceAdapterPolicy(
             source="guardian",
             enabled=settings.source_guardian_enabled,
+            configured=guardian_credentials,
             endpoint=settings.source_guardian_endpoint,
             access_method="official_api",
             authorized=(guardian_credentials and settings.source_guardian_ai_use_authorized),
@@ -71,6 +74,7 @@ def build_source_policies(settings: Settings) -> tuple[SourceAdapterPolicy, ...]
         SourceAdapterPolicy(
             source="pikabu",
             enabled=settings.source_pikabu_enabled,
+            configured=True,
             endpoint=settings.source_pikabu_endpoint,
             access_method="authorized_public_page",
             authorized=settings.source_pikabu_public_page_use_authorized,

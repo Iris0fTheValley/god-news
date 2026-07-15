@@ -41,7 +41,8 @@ async def test_source_health_distinguishes_all_four_dimensions() -> None:
     by_source = {item.source: item for item in report.sources}
 
     assert report.network_probed is True
-    assert by_source["dazhong"].configured is False
+    assert by_source["dazhong"].enabled is False
+    assert by_source["dazhong"].configured is True
     assert by_source["dazhong"].authorized is False
     assert by_source["dazhong"].reachable is None
     assert by_source["reddit"].configured is True

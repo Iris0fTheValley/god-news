@@ -2616,6 +2616,8 @@ export interface components {
             configured: boolean;
             /** Contract Ok */
             contract_ok: boolean;
+            /** Enabled */
+            enabled: boolean;
             /** Notes */
             notes?: string[];
             /** Reachable */
@@ -2720,6 +2722,14 @@ export interface components {
              * Format: date-time
              */
             created_at?: string;
+            /** Current External Id */
+            current_external_id?: string | null;
+            /** Current Item Index */
+            current_item_index?: number | null;
+            /** Current Title */
+            current_title?: string | null;
+            /** Current Url */
+            current_url?: string | null;
             /** Duplicate Count */
             readonly duplicate_count: number;
             /** Failed Count */

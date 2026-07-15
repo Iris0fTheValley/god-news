@@ -82,6 +82,10 @@ class SourceRun(DomainModel):
     collection_errors: list[CollectionErrorEvidence] = Field(default_factory=list, max_length=100)
     cooldown_wait_ms: float = Field(default=0, ge=0)
     items_discovered: int = Field(default=0, ge=0, le=100)
+    current_item_index: int | None = Field(default=None, ge=1, le=100)
+    current_external_id: NonBlankStr | None = None
+    current_title: NonBlankStr | None = None
+    current_url: NonBlankStr | None = None
     item_results: list[SourceItemIngestionResult] = Field(default_factory=list, max_length=100)
     run_error: CollectionErrorEvidence | None = None
     version: int = Field(default=1, ge=1)
@@ -154,6 +158,20 @@ class SourceRun(DomainModel):
             raise ValueError("only failed or cancelled source runs may have run_error")
         if len(self.item_results) > self.items_discovered:
             raise ValueError("item results cannot exceed discovered items")
+        progress = (
+            self.current_item_index,
+            self.current_external_id,
+            self.current_title,
+            self.current_url,
+        )
+        if any(value is not None for value in progress):
+            if any(value is None for value in progress):
+                raise ValueError("current item progress must be complete or absent")
+            if self.status is not SourceRunStatus.INGESTING:
+                raise ValueError("current item progress is only valid while ingesting")
+            assert self.current_item_index is not None
+            if self.current_item_index > self.items_discovered:
+                raise ValueError("current item index cannot exceed discovered items")
         if self.status is SourceRunStatus.COMPLETED:
             if self.collector_outcome is None:
                 raise ValueError("completed source runs require a collector outcome")

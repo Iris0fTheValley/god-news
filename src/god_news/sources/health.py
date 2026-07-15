@@ -28,6 +28,7 @@ class SourceAdapterPolicy(DomainModel):
 
     source: SourceName
     enabled: bool
+    configured: bool
     endpoint: AnyHttpUrl
     access_method: SourceAccessMethod
     authorized: bool
@@ -36,6 +37,7 @@ class SourceAdapterPolicy(DomainModel):
 
 class SourceHealth(DomainModel):
     source: SourceName
+    enabled: bool
     configured: bool
     authorized: bool
     reachable: bool | None
@@ -83,12 +85,11 @@ class SourceHealthMonitor:
         should_probe = probe_network and probe is not None
 
         async def check(policy: SourceAdapterPolicy) -> SourceHealth:
-            configured = policy.enabled
             reachable: bool | None = None
             notes = list(policy.notes)
             if probe_network and self._probe is None:
                 notes.append("network_probe_unavailable")
-            elif should_probe and configured:
+            elif should_probe and policy.enabled and policy.configured:
                 assert probe is not None
                 try:
                     reachable = await probe.is_reachable(str(policy.endpoint))
@@ -97,8 +98,9 @@ class SourceHealthMonitor:
                     notes.append("network_probe_failed")
             return SourceHealth(
                 source=policy.source,
-                configured=configured,
-                authorized=configured and policy.authorized,
+                enabled=policy.enabled,
+                configured=policy.configured,
+                authorized=policy.enabled and policy.configured and policy.authorized,
                 reachable=reachable,
                 contract_ok=policy.source in self._normalizers.registered_sources,
                 access_method=policy.access_method,

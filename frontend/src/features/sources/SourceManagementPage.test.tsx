@@ -15,6 +15,7 @@ const report = {
   sources: [
     {
       source: 'dazhong',
+      enabled: true,
       configured: true,
       authorized: false,
       reachable: null,
@@ -24,6 +25,7 @@ const report = {
     },
     {
       source: 'reddit',
+      enabled: true,
       configured: true,
       authorized: true,
       reachable: null,
@@ -33,6 +35,7 @@ const report = {
     },
     {
       source: 'guardian',
+      enabled: true,
       configured: true,
       authorized: true,
       reachable: null,
@@ -42,6 +45,7 @@ const report = {
     },
     {
       source: 'pikabu',
+      enabled: true,
       configured: false,
       authorized: false,
       reachable: null,

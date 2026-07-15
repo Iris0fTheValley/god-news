@@ -21,7 +21,8 @@ const ACCESS_LABELS: Record<SourceHealth['access_method'], string> = {
 };
 
 function availability(item: SourceHealth) {
-  if (!item.configured) return {tone: 'muted', label: '已停用'};
+  if (!item.enabled) return {tone: 'muted', label: '已停用'};
+  if (!item.configured) return {tone: 'warning', label: '缺少配置'};
   if (!item.contract_ok) return {tone: 'danger', label: '契约异常'};
   if (!item.authorized) return {tone: 'warning', label: '等待授权'};
   if (item.reachable === false) return {tone: 'danger', label: '网络不可达'};
@@ -105,7 +106,8 @@ export function SourceManagementPage() {
                   </header>
                   <p className="source-access">{ACCESS_LABELS[item.access_method]}</p>
                   <ul className="source-facts">
-                    <Fact ok={item.configured}>采集器已启用</Fact>
+                    <Fact ok={item.enabled}>采集器已启用</Fact>
+                    <Fact ok={item.configured}>凭据或端点配置完整</Fact>
                     <Fact ok={item.authorized}>访问方式已获操作方确认</Fact>
                     <Fact ok={item.contract_ok}>标准化契约已注册</Fact>
                     <Fact ok={item.reachable !== false}>
