@@ -40,8 +40,13 @@ pnpm --dir frontend check
 | 已采集证据 | `GET /api/v1/stories/{story_id}/source-media` | 返回不可变的来源、署名、权利、SHA-256、大小与 ffprobe 媒体快照；绝不返回主机存储路径。 |
 | 手动采集 | `POST /api/v1/stories/{story_id}/source-media/acquire` | 需要 `expected_story_version`、来源媒体索引和操作方标识；同一故事与媒体索引幂等。只允许已标准化为视频的来源素材，下载受出站 URL 策略、大小上限、MP4 签名和 ffprobe 解码校验约束。 |
 | 审核播放 | `GET /api/v1/stories/{story_id}/source-media/{artifact_id}/content` | 只按故事作用域和制品 ID 读取；发送前重新核对大小和 SHA-256，缺失、越界或被篡改均拒绝。 |
+| 字幕任务 | `POST /api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions`、`GET .../transcriptions` | 本地 faster-whisper 在一次性子进程中生成原文和时间戳；跨语言字幕按有界批次交给 LLM 翻译。任务状态、尝试次数、检测语言、失败证据均持久化，服务重启不会伪装成仍在处理。 |
+| 字幕取消 | `POST /api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/cancel` | 终止受监督的本地识别任务并持久化 `operator_cancelled`；服务关闭使用独立的 `service_shutdown` 证据。 |
+| 字幕人工审核 | `POST /api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/review` | 只允许待审核字幕批准或驳回。编辑者可修订原文/译文，但 cue ID、顺序和时间戳必须与 ASR 证据完全一致。未经批准的字幕不能进入正式节目计划。 |
 
 采集成功不代表获得转载权。`publish_eligible` 只能由采集时冻结的权利字段推导；Reddit 等权利未知或要求人工确认的素材始终显示为“仅供审核”，不能因下载成功自动进入可发布节目。源文件保存在输出根目录内的独立 `source-media` 子树，并加入留存保护，避免仍被数据库引用时遭到清理。
+
+源视频 ASR 默认关闭，启用前需要安装 `asr` 可选依赖并设置 `GOD_NEWS_SOURCE_MEDIA_ASR_ENABLED=true`。默认 `cpu/int8` 是资源隔离策略，避免与近满载的本地 LLM/TTS GPU 争抢显存；模型、设备、计算类型和缓存路径均由强类型配置控制。
 
 ## 角色
 

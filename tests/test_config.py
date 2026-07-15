@@ -43,6 +43,9 @@ def test_example_environment_file_is_parseable() -> None:
     assert settings.memory_provider is MemoryProviderName.CHROMADB
     assert settings.memory_chroma_collection == "god-news-memory-v1"
     assert settings.memory_chroma_embedding_model.value == "all-MiniLM-L6-v2"
+    assert settings.source_media_asr_enabled is False
+    assert settings.source_media_asr_device.value == "cpu"
+    assert settings.source_media_asr_compute_type.value == "int8"
     assert Path("J:/AI friend/DSakiko3.10").resolve() in settings.tts_trusted_asset_roots
 
 
@@ -59,3 +62,11 @@ def test_tts_trusted_asset_roots_must_not_be_empty(tmp_path: Path) -> None:
 def test_chroma_collection_name_follows_upstream_constraints(name: str) -> None:
     with pytest.raises(ValidationError, match="memory_chroma_collection"):
         Settings(_env_file=None, memory_chroma_collection=name)
+
+
+def test_asr_cache_cannot_target_a_filesystem_root() -> None:
+    with pytest.raises(ValidationError, match="source_media_asr_model_cache_dir"):
+        Settings(
+            _env_file=None,
+            source_media_asr_model_cache_dir=Path(Path.cwd().anchor),
+        )

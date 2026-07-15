@@ -6,6 +6,9 @@ export const queryKeys = {
   manifest: (storyId: string) => ['story', storyId, 'manifest'] as const,
   visualAssets: (storyId: string) => ['story', storyId, 'visual-assets'] as const,
   sourceMedia: (storyId: string) => ['story', storyId, 'source-media'] as const,
+  sourceTranscriptions: (storyId: string, artifactId: string) => (
+    ['story', storyId, 'source-media', artifactId, 'transcriptions'] as const
+  ),
   classificationMetrics: () => ['metrics', 'classification'] as const,
   sourceHealth: (probeNetwork: boolean) => ['sources', 'health', {probeNetwork}] as const,
   roles: (enabled?: boolean | null) => ['roles', enabled ?? 'all'] as const,

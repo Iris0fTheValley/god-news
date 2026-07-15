@@ -26,6 +26,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+asr = [
+  "faster-whisper==1.2.1",
+]
 fetchers = [
   "DrissionPage==4.1.1.4",
   "Scrapy==2.17.0",
@@ -67,5 +70,5 @@ plugins = ["pydantic.mypy"]
 packages = ["god_news"]
 
 [[tool.mypy.overrides]]
-module = ["DrissionPage.*", "scrapy.*", "trafilatura.*"]
+module = ["DrissionPage.*", "scrapy.*", "trafilatura.*", "faster_whisper.*"]
 ignore_missing_imports = true

@@ -1484,6 +1484,7 @@ time {
 
 .source-media-artifact {
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .source-media-artifact video {
@@ -1495,6 +1496,72 @@ time {
 
 .source-media-evidence {
   flex: 1;
+}
+
+.source-transcription-panel,
+.source-transcript-cues,
+.source-transcript-review,
+.source-transcript-readonly {
+  display: grid;
+  gap: 12px;
+}
+
+.source-transcription-panel {
+  flex: 1 0 100%;
+  padding: 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 92%, var(--primary) 8%);
+}
+
+.source-transcription-heading,
+.source-transcription-progress,
+.source-transcription-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.source-transcription-heading strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.source-transcription-heading p,
+.source-transcript-readonly p {
+  margin: 4px 0 0;
+}
+
+.source-transcription-controls {
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.source-transcription-controls .field {
+  flex: 1 1 190px;
+}
+
+.source-transcript-cue {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.source-transcript-cue legend {
+  padding: 0 6px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.source-transcript-readonly {
+  max-height: 280px;
+  overflow: auto;
 }
 
 .long-copy {

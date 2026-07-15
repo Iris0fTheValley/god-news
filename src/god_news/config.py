@@ -36,6 +36,17 @@ class ChromaEmbeddingModelName(StrEnum):
     ALL_MINILM_L6_V2 = "all-MiniLM-L6-v2"
 
 
+class ASRDevice(StrEnum):
+    CPU = "cpu"
+    CUDA = "cuda"
+
+
+class ASRComputeType(StrEnum):
+    INT8 = "int8"
+    FLOAT16 = "float16"
+    FLOAT32 = "float32"
+
+
 class Settings(BaseSettings):
     """Single source of truth for mutable runtime configuration."""
 
@@ -74,6 +85,27 @@ class Settings(BaseSettings):
         le=2 * 1024 * 1024 * 1024,
     )
     source_media_probe_timeout_seconds: float = Field(default=30, gt=0, le=300)
+    source_media_asr_enabled: bool = False
+    source_media_asr_model: str = Field(
+        default="base",
+        min_length=1,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+    )
+    source_media_asr_device: ASRDevice = ASRDevice.CPU
+    source_media_asr_compute_type: ASRComputeType = ASRComputeType.INT8
+    source_media_asr_model_cache_dir: Path = Path("./data/faster-whisper")
+    source_media_asr_local_files_only: bool = False
+    source_media_asr_timeout_seconds: float = Field(default=1_800, gt=0, le=7_200)
+    source_media_asr_max_output_bytes: int = Field(
+        default=16 * 1024 * 1024,
+        ge=1024,
+        le=128 * 1024 * 1024,
+    )
+    source_media_asr_cpu_threads: int = Field(default=4, ge=1, le=64)
+    source_media_asr_beam_size: int = Field(default=5, ge=1, le=20)
+    source_media_asr_vad_filter: bool = True
+    source_media_asr_max_pending: int = Field(default=2, ge=1, le=16)
     uploaded_video_dir: Path = Path("./uploads/videos")
     video_bgm_directory: Path = Path("./assets/bgm")
     video_candidate_scan_limit: int = Field(default=1_000, ge=15, le=100_000)
@@ -422,6 +454,14 @@ class Settings(BaseSettings):
         if any(root.parent == root for root in roots):
             raise ValueError("tts_trusted_asset_roots cannot include a filesystem root")
         return roots
+
+    @field_validator("source_media_asr_model_cache_dir")
+    @classmethod
+    def validate_asr_model_cache_dir(cls, value: Path) -> Path:
+        root = value.expanduser().resolve(strict=False)
+        if root.parent == root:
+            raise ValueError("source_media_asr_model_cache_dir cannot be a filesystem root")
+        return root
 
     @model_validator(mode="after")
     def validate_provider_selection(self) -> Settings:

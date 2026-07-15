@@ -10,6 +10,7 @@ import {queryKeys} from '../../api/queryKeys';
 import type {SourceMediaArtifact, Story} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {useToast} from '../../components/toastContext';
+import {SourceTranscriptionPanel} from './SourceTranscriptionPanel';
 
 interface SourceMediaPanelProps {
   story: Story;
@@ -134,6 +135,7 @@ export function SourceMediaPanel({story}: SourceMediaPanelProps) {
                       {formatBytes(artifact.size_bytes)} · SHA-256 {artifact.sha256.slice(0, 12)}… · 权利状态 {artifact.rights.status} · 采集人 {artifact.acquired_by}
                     </p>
                   </div>
+                  <SourceTranscriptionPanel artifact={artifact} story={story} />
                 </div>
               )}
             </article>

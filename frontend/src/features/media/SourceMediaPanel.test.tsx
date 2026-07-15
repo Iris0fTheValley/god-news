@@ -2,19 +2,32 @@ import {screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import type {SourceMediaArtifact, Story} from '../../api/types';
+import type {
+  ReviewSourceTranscriptionRequest,
+  SourceMediaArtifact,
+  SourceMediaTranscription,
+  Story,
+} from '../../api/types';
 import {storyFixture} from '../../test/fixtures';
 import {renderWithApp} from '../../test/render';
 import {SourceMediaPanel} from './SourceMediaPanel';
 
 const apiMocks = vi.hoisted(() => ({
   acquireSourceMedia: vi.fn(),
+  cancelSourceMediaTranscription: vi.fn(),
   listSourceMediaArtifacts: vi.fn(),
+  listSourceMediaTranscriptions: vi.fn(),
+  reviewSourceMediaTranscription: vi.fn(),
+  startSourceMediaTranscription: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
   acquireSourceMedia: apiMocks.acquireSourceMedia,
+  cancelSourceMediaTranscription: apiMocks.cancelSourceMediaTranscription,
   listSourceMediaArtifacts: apiMocks.listSourceMediaArtifacts,
+  listSourceMediaTranscriptions: apiMocks.listSourceMediaTranscriptions,
+  reviewSourceMediaTranscription: apiMocks.reviewSourceMediaTranscription,
+  startSourceMediaTranscription: apiMocks.startSourceMediaTranscription,
   sourceMediaContentUrl: (storyId: string, artifactId: string) => (
     `/api/v1/stories/${storyId}/source-media/${artifactId}/content`
   ),
@@ -108,10 +121,44 @@ const artifact = {
   retrieved_at: '2026-07-15T01:00:00Z',
 } as SourceMediaArtifact;
 
+const pendingTranscription = {
+  artifact_id: artifact.artifact_id,
+  artifact_sha256: artifact.sha256,
+  attempt_count: 1,
+  cues: [{
+    cue_id: 'f6cb6162-c04c-4c04-87fc-b21166a05070',
+    sequence: 0,
+    start_ms: 500,
+    end_ms: 2600,
+    captions: [
+      {kind: 'verbatim', language: 'en', text: 'People rebuilt the library.'},
+      {kind: 'translation', language: 'zh-CN', text: '人们重建了图书馆。'},
+    ],
+  }],
+  detected_language: 'en',
+  language_probability: 0.98,
+  failures: [],
+  model_identity: 'faster-whisper:1.2.1:base:cpu:int8',
+  requested_by: 'story-workbench',
+  reviews: [],
+  source_language_hint: null,
+  status: 'PENDING_REVIEW',
+  story_id: videoStory.story_id,
+  target_caption_language: 'zh-CN',
+  transcription_id: 'c1e789f1-d481-40ce-af8f-0db2027fd113',
+  updated_at: '2026-07-15T02:00:00Z',
+  version: 3,
+} as SourceMediaTranscription;
+
 describe('SourceMediaPanel', () => {
   beforeEach(() => {
     apiMocks.acquireSourceMedia.mockReset();
+    apiMocks.cancelSourceMediaTranscription.mockReset();
     apiMocks.listSourceMediaArtifacts.mockReset();
+    apiMocks.listSourceMediaTranscriptions.mockReset();
+    apiMocks.reviewSourceMediaTranscription.mockReset();
+    apiMocks.startSourceMediaTranscription.mockReset();
+    apiMocks.listSourceMediaTranscriptions.mockResolvedValue([]);
   });
 
   it('acquires a selected source video against the current story version', async () => {
@@ -145,5 +192,70 @@ describe('SourceMediaPanel', () => {
     );
     expect(document.body.textContent).not.toContain('I:\\');
     expect(document.body.textContent).not.toContain('storage_key');
+  });
+
+  it('starts local source-video transcription with explicit language policy', async () => {
+    const user = userEvent.setup();
+    apiMocks.listSourceMediaArtifacts.mockResolvedValue([artifact]);
+    apiMocks.startSourceMediaTranscription.mockResolvedValue({
+      ...pendingTranscription,
+      status: 'QUEUED',
+      cues: [],
+      detected_language: null,
+      language_probability: null,
+      version: 1,
+    });
+    renderWithApp(<SourceMediaPanel story={videoStory} />);
+
+    await user.type(await screen.findByLabelText('原语言提示（可留空自动检测）'), 'en');
+    await user.click(screen.getByRole('button', {name: '生成原视频字幕'}));
+
+    await waitFor(() => expect(apiMocks.startSourceMediaTranscription).toHaveBeenCalledWith(
+      videoStory.story_id,
+      artifact.artifact_id,
+      {
+        expected_story_version: videoStory.version,
+        requested_by: 'story-workbench',
+        source_language_hint: 'en',
+        target_caption_language: videoStory.target_language,
+      },
+    ));
+  });
+
+  it('edits translated captions while preserving ASR timing evidence', async () => {
+    const user = userEvent.setup();
+    apiMocks.listSourceMediaArtifacts.mockResolvedValue([artifact]);
+    apiMocks.listSourceMediaTranscriptions.mockResolvedValue([pendingTranscription]);
+    apiMocks.reviewSourceMediaTranscription.mockResolvedValue({
+      ...pendingTranscription,
+      status: 'APPROVED',
+      version: 4,
+    });
+    renderWithApp(<SourceMediaPanel story={videoStory} />);
+
+    const translation = await screen.findByLabelText('翻译 · zh-CN');
+    await user.clear(translation);
+    await user.type(translation, '大家一起重建了图书馆。');
+    await user.click(screen.getByRole('button', {name: '批准字幕'}));
+
+    await waitFor(() => expect(apiMocks.reviewSourceMediaTranscription).toHaveBeenCalledOnce());
+    const call = apiMocks.reviewSourceMediaTranscription.mock.calls.at(-1) as unknown as [
+      string,
+      string,
+      string,
+      ReviewSourceTranscriptionRequest,
+    ];
+    expect(call.slice(0, 3)).toEqual([
+      videoStory.story_id,
+      artifact.artifact_id,
+      pendingTranscription.transcription_id,
+    ]);
+    expect(call[3].decision).toBe('approve');
+    expect(call[3].expected_version).toBe(pendingTranscription.version);
+    expect(call[3].revised_cues?.[0]?.start_ms).toBe(500);
+    expect(call[3].revised_cues?.[0]?.end_ms).toBe(2600);
+    expect(call[3].revised_cues?.[0]?.captions).toContainEqual(
+      expect.objectContaining({text: '大家一起重建了图书馆。'}),
+    );
   });
 });

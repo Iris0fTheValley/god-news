@@ -541,6 +541,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Source Media Transcriptions */
+        get: operations["listSourceMediaTranscriptions"];
+        put?: never;
+        /** Start Source Media Transcription */
+        post: operations["startSourceMediaTranscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Source Media Transcription */
+        get: operations["getSourceMediaTranscription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Source Media Transcription */
+        post: operations["cancelSourceMediaTranscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Review Source Media Transcription */
+        post: operations["reviewSourceMediaTranscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stories/{story_id}/synthesize": {
         parameters: {
             query?: never;
@@ -2400,6 +2469,18 @@ export interface components {
             /** Translation Sha256 */
             translation_sha256: string;
         };
+        /** ReviewSourceTranscriptionRequest */
+        ReviewSourceTranscriptionRequest: {
+            decision: components["schemas"]["TranscriptReviewDecision"];
+            /** Expected Version */
+            expected_version: number;
+            /** Note */
+            note?: string | null;
+            /** Reviewer Id */
+            reviewer_id: string;
+            /** Revised Cues */
+            revised_cues?: components["schemas"]["TimedCaptionCue"][] | null;
+        };
         /**
          * ReviewStage
          * @enum {string}
@@ -2974,6 +3055,66 @@ export interface components {
              */
             story_id: string;
         };
+        /** SourceMediaTranscription */
+        SourceMediaTranscription: {
+            /**
+             * Artifact Id
+             * Format: uuid
+             */
+            artifact_id: string;
+            /** Artifact Sha256 */
+            artifact_sha256: string;
+            /**
+             * Attempt Count
+             * @default 0
+             */
+            attempt_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /** Cues */
+            cues?: components["schemas"]["TimedCaptionCue"][];
+            /** Detected Language */
+            detected_language?: string | null;
+            /** Failures */
+            failures?: components["schemas"]["SourceTranscriptionFailure"][];
+            /** Language Probability */
+            language_probability?: number | null;
+            /** Model Identity */
+            model_identity: string;
+            /** Requested By */
+            requested_by: string;
+            /** Reviews */
+            reviews?: components["schemas"]["TranscriptReview"][];
+            /** Source Language Hint */
+            source_language_hint?: string | null;
+            /** @default QUEUED */
+            status: components["schemas"]["SourceTranscriptionStatus"];
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Target Caption Language */
+            target_caption_language: string;
+            /**
+             * Transcription Id
+             * Format: uuid
+             */
+            transcription_id?: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
         /** SourceRun */
         SourceRun: {
             /** Attempts */
@@ -3155,6 +3296,25 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** SourceTranscriptionFailure */
+        SourceTranscriptionFailure: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at?: string;
+            /** Retryable */
+            retryable: boolean;
+        };
+        /**
+         * SourceTranscriptionStatus
+         * @enum {string}
+         */
+        SourceTranscriptionStatus: "QUEUED" | "PROCESSING" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "FAILED" | "CANCELLED";
         /** SourceVideoProbe */
         SourceVideoProbe: {
             /** Audio Codec */
@@ -3176,6 +3336,20 @@ export interface components {
          * @enum {string}
          */
         SpeechEmotion: "happiness" | "sadness" | "anger" | "disgust" | "like" | "surprise" | "fear";
+        /** StartSourceTranscriptionRequest */
+        StartSourceTranscriptionRequest: {
+            /** Expected Story Version */
+            expected_story_version: number;
+            /** Requested By */
+            requested_by: string;
+            /** Source Language Hint */
+            source_language_hint?: string | null;
+            /**
+             * Target Caption Language
+             * @default zh-CN
+             */
+            target_caption_language: string;
+        };
         /** StateTransition */
         StateTransition: {
             from_status: components["schemas"]["StoryStatus"];
@@ -3358,6 +3532,26 @@ export interface components {
              */
             title: string;
         };
+        /** TimedCaptionCue */
+        TimedCaptionCue: {
+            /** Average Log Probability */
+            average_log_probability?: number | null;
+            /** Captions */
+            captions: components["schemas"]["CaptionVariant"][];
+            /**
+             * Cue Id
+             * Format: uuid
+             */
+            cue_id?: string;
+            /** End Ms */
+            end_ms: number;
+            /** No Speech Probability */
+            no_speech_probability?: number | null;
+            /** Sequence */
+            sequence: number;
+            /** Start Ms */
+            start_ms: number;
+        };
         /** TimelineReview */
         TimelineReview: {
             decision: components["schemas"]["TimelineReviewDecision"];
@@ -3412,6 +3606,26 @@ export interface components {
             /** Visual Hint */
             visual_hint?: string | null;
         };
+        /** TranscriptReview */
+        TranscriptReview: {
+            decision: components["schemas"]["TranscriptReviewDecision"];
+            /** Note */
+            note?: string | null;
+            /**
+             * Reviewed At
+             * Format: date-time
+             */
+            reviewed_at?: string;
+            /** Reviewed Version */
+            reviewed_version: number;
+            /** Reviewer Id */
+            reviewer_id: string;
+        };
+        /**
+         * TranscriptReviewDecision
+         * @enum {string}
+         */
+        TranscriptReviewDecision: "approve" | "reject";
         /** TranslationResult */
         TranslationResult: {
             /** Key Points */
@@ -6207,6 +6421,402 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listSourceMediaTranscriptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaTranscription"][];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    startSourceMediaTranscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartSourceTranscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaTranscription"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getSourceMediaTranscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                artifact_id: string;
+                transcription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaTranscription"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    cancelSourceMediaTranscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                artifact_id: string;
+                transcription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaTranscription"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    reviewSourceMediaTranscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                artifact_id: string;
+                transcription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewSourceTranscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaTranscription"];
+                };
             };
             /** @description Requested story was not found. */
             404: {

@@ -190,3 +190,42 @@ class SourceMediaAcquisitionError(GodNewsError):
             story_id=story_id,
             retryable=retryable,
         )
+
+
+class SourceTranscriptionNotFoundError(GodNewsError):
+    def __init__(self, transcription_id: UUID) -> None:
+        super().__init__(
+            "source_transcription_not_found",
+            "Source-media transcription was not found.",
+            status_code=404,
+        )
+        self.transcription_id = transcription_id
+
+
+class ConcurrentSourceTranscriptionWriteError(GodNewsError):
+    def __init__(self, story_id: UUID) -> None:
+        super().__init__(
+            "concurrent_source_transcription_write",
+            "Source-media transcription changed concurrently; reload and retry.",
+            status_code=409,
+            story_id=story_id,
+            retryable=True,
+        )
+
+
+class SourceTranscriptionOperationError(GodNewsError):
+    def __init__(
+        self,
+        story_id: UUID,
+        message: str,
+        *,
+        status_code: int = 409,
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(
+            "source_transcription_operation_failed",
+            message,
+            status_code=status_code,
+            story_id=story_id,
+            retryable=retryable,
+        )

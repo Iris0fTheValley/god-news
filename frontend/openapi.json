@@ -4261,6 +4261,57 @@
         "title": "ReviewRecord",
         "type": "object"
       },
+      "ReviewSourceTranscriptionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/TranscriptReviewDecision"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          },
+          "revised_cues": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TimedCaptionCue"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revised Cues"
+          }
+        },
+        "required": [
+          "expected_version",
+          "reviewer_id",
+          "decision"
+        ],
+        "title": "ReviewSourceTranscriptionRequest",
+        "type": "object"
+      },
       "ReviewStage": {
         "enum": [
           "first",
@@ -5652,6 +5703,146 @@
         "title": "SourceMediaArtifact",
         "type": "object"
       },
+      "SourceMediaTranscription": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "format": "uuid",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "artifact_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Artifact Sha256",
+            "type": "string"
+          },
+          "attempt_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cues": {
+            "items": {
+              "$ref": "#/components/schemas/TimedCaptionCue"
+            },
+            "maxItems": 10000,
+            "title": "Cues",
+            "type": "array"
+          },
+          "detected_language": {
+            "anyOf": [
+              {
+                "maxLength": 35,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Language"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/SourceTranscriptionFailure"
+            },
+            "maxItems": 100,
+            "title": "Failures",
+            "type": "array"
+          },
+          "language_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Probability"
+          },
+          "model_identity": {
+            "minLength": 1,
+            "title": "Model Identity",
+            "type": "string"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptReview"
+            },
+            "maxItems": 100,
+            "title": "Reviews",
+            "type": "array"
+          },
+          "source_language_hint": {
+            "anyOf": [
+              {
+                "maxLength": 35,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Language Hint"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SourceTranscriptionStatus",
+            "default": "QUEUED"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "target_caption_language": {
+            "maxLength": 35,
+            "minLength": 2,
+            "title": "Target Caption Language",
+            "type": "string"
+          },
+          "transcription_id": {
+            "format": "uuid",
+            "title": "Transcription Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "story_id",
+          "artifact_id",
+          "artifact_sha256",
+          "model_identity",
+          "target_caption_language",
+          "requested_by"
+        ],
+        "title": "SourceMediaTranscription",
+        "type": "object"
+      },
       "SourceRun": {
         "additionalProperties": false,
         "properties": {
@@ -6151,6 +6342,50 @@
         "title": "SourceSnapshot",
         "type": "object"
       },
+      "SourceTranscriptionFailure": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "title": "SourceTranscriptionFailure",
+        "type": "object"
+      },
+      "SourceTranscriptionStatus": {
+        "enum": [
+          "QUEUED",
+          "PROCESSING",
+          "PENDING_REVIEW",
+          "APPROVED",
+          "REJECTED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "SourceTranscriptionStatus",
+        "type": "string"
+      },
       "SourceVideoProbe": {
         "additionalProperties": false,
         "properties": {
@@ -6216,6 +6451,47 @@
         ],
         "title": "SpeechEmotion",
         "type": "string"
+      },
+      "StartSourceTranscriptionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_story_version": {
+            "minimum": 1.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "source_language_hint": {
+            "anyOf": [
+              {
+                "maxLength": 35,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Language Hint"
+          },
+          "target_caption_language": {
+            "default": "zh-CN",
+            "maxLength": 35,
+            "minLength": 2,
+            "title": "Target Caption Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_story_version",
+          "requested_by"
+        ],
+        "title": "StartSourceTranscriptionRequest",
+        "type": "object"
       },
       "StateTransition": {
         "additionalProperties": false,
@@ -6729,6 +7005,72 @@
         "title": "TextSource",
         "type": "object"
       },
+      "TimedCaptionCue": {
+        "additionalProperties": false,
+        "properties": {
+          "average_log_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Log Probability"
+          },
+          "captions": {
+            "items": {
+              "$ref": "#/components/schemas/CaptionVariant"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Captions",
+            "type": "array"
+          },
+          "cue_id": {
+            "format": "uuid",
+            "title": "Cue Id",
+            "type": "string"
+          },
+          "end_ms": {
+            "exclusiveMinimum": 0.0,
+            "title": "End Ms",
+            "type": "integer"
+          },
+          "no_speech_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Speech Probability"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "start_ms": {
+            "minimum": 0.0,
+            "title": "Start Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sequence",
+          "start_ms",
+          "end_ms",
+          "captions"
+        ],
+        "title": "TimedCaptionCue",
+        "type": "object"
+      },
       "TimelineReview": {
         "additionalProperties": false,
         "properties": {
@@ -6872,6 +7214,55 @@
         ],
         "title": "TimelineSegment",
         "type": "object"
+      },
+      "TranscriptReview": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/TranscriptReviewDecision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "title": "Reviewed At",
+            "type": "string"
+          },
+          "reviewed_version": {
+            "minimum": 1.0,
+            "title": "Reviewed Version",
+            "type": "integer"
+          },
+          "reviewer_id": {
+            "minLength": 1,
+            "title": "Reviewer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer_id",
+          "decision",
+          "reviewed_version"
+        ],
+        "title": "TranscriptReview",
+        "type": "object"
+      },
+      "TranscriptReviewDecision": {
+        "enum": [
+          "approve",
+          "reject"
+        ],
+        "title": "TranscriptReviewDecision",
+        "type": "string"
       },
       "TranslationResult": {
         "additionalProperties": false,
@@ -10613,6 +11004,573 @@
         "summary": "Source Media Content",
         "tags": [
           "source-media"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions": {
+      "get": {
+        "operationId": "listSourceMediaTranscriptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceMediaTranscription"
+                  },
+                  "title": "Response Listsourcemediatranscriptions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "List Source Media Transcriptions",
+        "tags": [
+          "source-transcriptions"
+        ]
+      },
+      "post": {
+        "operationId": "startSourceMediaTranscription",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSourceTranscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMediaTranscription"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Start Source Media Transcription",
+        "tags": [
+          "source-transcriptions"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}": {
+      "get": {
+        "operationId": "getSourceMediaTranscription",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transcription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transcription Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMediaTranscription"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Get Source Media Transcription",
+        "tags": [
+          "source-transcriptions"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/cancel": {
+      "post": {
+        "operationId": "cancelSourceMediaTranscription",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transcription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transcription Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMediaTranscription"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Cancel Source Media Transcription",
+        "tags": [
+          "source-transcriptions"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/review": {
+      "post": {
+        "operationId": "reviewSourceMediaTranscription",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transcription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transcription Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSourceTranscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMediaTranscription"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Review Source Media Transcription",
+        "tags": [
+          "source-transcriptions"
         ]
       }
     },

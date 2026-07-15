@@ -9,6 +9,7 @@ from god_news.application.memory import MemoryCoordinator
 from god_news.application.source_media import SourceMediaService
 from god_news.application.source_runs import SourceRunService
 from god_news.application.source_schedule import SourceCollectionScheduler
+from god_news.application.source_transcriptions import SourceMediaTranscriptionService
 from god_news.application.video_batches import VideoBatchService
 from god_news.application.visual_assets import VisualAssetService
 from god_news.application.workflow import StoryWorkflow
@@ -21,6 +22,7 @@ from god_news.domain.ports import (
     StoryRepository,
     TextGenerator,
 )
+from god_news.domain.source_transcription import TimedCaptionTranslator
 from god_news.domain.video_ports import BatchNarrationComposer
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.fetchers.chain import FetcherChain
@@ -31,8 +33,10 @@ from god_news.infrastructure.fetchers.url_policy import UrlPolicy
 from god_news.infrastructure.llm.openai_compatible import (
     OpenAICompatibleBatchNarrationComposer,
     OpenAICompatibleTextGenerator,
+    OpenAICompatibleTimedCaptionTranslator,
     UnavailableBatchNarrationComposer,
     UnavailableTextGenerator,
+    UnavailableTimedCaptionTranslator,
 )
 from god_news.infrastructure.memory import ChromaDBMemoryProvider, NoopMemoryProvider
 from god_news.infrastructure.repositories import (
@@ -44,12 +48,16 @@ from god_news.infrastructure.source_health import (
     HttpSourceReachabilityProbe,
     build_source_policies,
 )
+from god_news.infrastructure.source_media_asr import FasterWhisperSourceMediaTranscriber
 from god_news.infrastructure.source_media_http import HttpSourceMediaDownloader
 from god_news.infrastructure.source_media_probe import FFprobeSourceVideoInspector
 from god_news.infrastructure.source_media_repository import SqlAlchemySourceMediaRepository
 from god_news.infrastructure.source_media_store import LocalSourceMediaStore
 from god_news.infrastructure.source_runs import SqlAlchemySourceRunRepository
 from god_news.infrastructure.source_schedule import SqlAlchemySourceScheduleRepository
+from god_news.infrastructure.source_transcription_repository import (
+    SqlAlchemySourceTranscriptionRepository,
+)
 from god_news.infrastructure.tts.gpt_sovits import (
     GPTSoVITSSpeechSynthesizer,
     UnavailableSpeechSynthesizer,
@@ -92,6 +100,7 @@ class AppContainer:
     role_profiles: RoleProfileService | None = None
     visual_assets: VisualAssetService | None = None
     source_media: SourceMediaService | None = None
+    source_transcriptions: SourceMediaTranscriptionService | None = None
     operations: OperationDispatcher | None = None
     operation_scheduler: IntervalScheduler | None = None
     database: Database | None = None
@@ -100,6 +109,8 @@ class AppContainer:
     async def start(self) -> None:
         if self.source_runs is not None:
             await self.source_runs.recover_interrupted()
+        if self.source_transcriptions is not None:
+            await self.source_transcriptions.recover_interrupted()
         if self.source_scheduler is not None:
             await self.source_scheduler.start()
         if self.video_batches is not None:
@@ -153,6 +164,17 @@ class AppContainer:
         else:
             checks.append("fetcher:egress_policy_acknowledged")
 
+        if not self.settings.source_media_asr_enabled:
+            checks.append("asr:disabled")
+        elif not FasterWhisperSourceMediaTranscriber.available():
+            checks.append("asr:missing_optional_dependency")
+            ready = False
+        else:
+            checks.append(
+                f"asr:config_ok:{self.settings.source_media_asr_device.value}:"
+                f"{self.settings.source_media_asr_compute_type.value}"
+            )
+
         if not self.settings.tts_enabled:
             checks.append("tts:disabled")
             ready = False
@@ -175,6 +197,8 @@ class AppContainer:
             await self.source_scheduler.aclose()
         if self.source_runs is not None:
             await self.source_runs.aclose()
+        if self.source_transcriptions is not None:
+            await self.source_transcriptions.aclose()
         await asyncio.gather(
             self.fetcher.aclose(),
             self.generator.aclose(),
@@ -208,6 +232,7 @@ async def build_container(settings: Settings) -> AppContainer:
         database.sessions,
         storage_root=settings.source_media_root,
     )
+    source_transcription_repository = SqlAlchemySourceTranscriptionRepository(database.sessions)
     live_script_role_usage_guard = SqlAlchemyLiveScriptRoleUsageGuard(database.sessions)
     role_profiles = RoleProfileService(role_profile_repository, live_script_role_usage_guard)
     asset_lifecycle_lock = asyncio.Lock()
@@ -308,10 +333,12 @@ async def build_container(settings: Settings) -> AppContainer:
     api_key = settings.active_llm_api_key
     if api_key is None:
         unavailable_llm_reason = "The selected LLM provider has no configured API key."
+        caption_translator: TimedCaptionTranslator
         generator: TextGenerator = UnavailableTextGenerator(unavailable_llm_reason)
         narration_composer: BatchNarrationComposer = UnavailableBatchNarrationComposer(
             unavailable_llm_reason
         )
+        caption_translator = UnavailableTimedCaptionTranslator(unavailable_llm_reason)
     else:
         openai_generator = OpenAICompatibleTextGenerator(
             provider=settings.llm_provider,
@@ -329,6 +356,7 @@ async def build_container(settings: Settings) -> AppContainer:
         )
         generator = openai_generator
         narration_composer = OpenAICompatibleBatchNarrationComposer(openai_generator)
+        caption_translator = OpenAICompatibleTimedCaptionTranslator(openai_generator)
 
     if settings.memory_provider is MemoryProviderName.NOOP:
         memory_provider: MemoryProvider = NoopMemoryProvider()
@@ -425,6 +453,30 @@ async def build_container(settings: Settings) -> AppContainer:
         ),
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
+    source_transcriber = (
+        FasterWhisperSourceMediaTranscriber(
+            model=settings.source_media_asr_model,
+            device=settings.source_media_asr_device.value,
+            compute_type=settings.source_media_asr_compute_type.value,
+            download_root=settings.source_media_asr_model_cache_dir,
+            local_files_only=settings.source_media_asr_local_files_only,
+            timeout_seconds=settings.source_media_asr_timeout_seconds,
+            max_output_bytes=settings.source_media_asr_max_output_bytes,
+            cpu_threads=settings.source_media_asr_cpu_threads,
+            beam_size=settings.source_media_asr_beam_size,
+            vad_filter=settings.source_media_asr_vad_filter,
+        )
+        if settings.source_media_asr_enabled and FasterWhisperSourceMediaTranscriber.available()
+        else None
+    )
+    source_transcriptions = SourceMediaTranscriptionService(
+        stories=repository,
+        media=source_media,
+        repository=source_transcription_repository,
+        transcriber=source_transcriber,
+        translator=caption_translator,
+        max_pending=settings.source_media_asr_max_pending,
+    )
     source_runs = SourceRunService(
         repository=SqlAlchemySourceRunRepository(database.sessions),
         collectors=RateLimitedSourceCollectorGateway(
@@ -491,6 +543,7 @@ async def build_container(settings: Settings) -> AppContainer:
         role_profiles=role_profiles,
         visual_assets=visual_assets,
         source_media=source_media,
+        source_transcriptions=source_transcriptions,
         operations=operations,
         operation_scheduler=operation_scheduler,
         database=database,

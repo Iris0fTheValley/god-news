@@ -11,6 +11,7 @@ import type {
   ProblemDetail,
   RenderVideoBatch,
   RetentionCleanupCommand,
+  ReviewSourceTranscriptionRequest,
   RoleProfileCreate,
   RoleProfileReplace,
   ScheduleSnapshot,
@@ -18,6 +19,7 @@ import type {
   SecondReviewSubmission,
   SourceRunRequest,
   SourceRunStatus,
+  StartSourceTranscriptionRequest,
   StoryStatus,
   StoryVisualAssets,
   StoryUpdate,
@@ -201,6 +203,72 @@ export async function acquireSourceMedia(storyId: string, body: AcquireSourceMed
 /** Scoped browser URL; immutable host storage paths never cross the API boundary. */
 export function sourceMediaContentUrl(storyId: string, artifactId: string): string {
   return `/api/v1/stories/${encodeURIComponent(storyId)}/source-media/${encodeURIComponent(artifactId)}/content`;
+}
+
+export async function listSourceMediaTranscriptions(storyId: string, artifactId: string) {
+  const result = await api.GET(
+    '/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions',
+    {params: {path: {story_id: storyId, artifact_id: artifactId}}},
+  );
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function startSourceMediaTranscription(
+  storyId: string,
+  artifactId: string,
+  body: StartSourceTranscriptionRequest,
+) {
+  const result = await api.POST(
+    '/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions',
+    {params: {path: {story_id: storyId, artifact_id: artifactId}}, body},
+  );
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function reviewSourceMediaTranscription(
+  storyId: string,
+  artifactId: string,
+  transcriptionId: string,
+  body: ReviewSourceTranscriptionRequest,
+) {
+  const result = await api.POST(
+    '/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/review',
+    {
+      params: {
+        path: {
+          story_id: storyId,
+          artifact_id: artifactId,
+          transcription_id: transcriptionId,
+        },
+      },
+      body,
+    },
+  );
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function cancelSourceMediaTranscription(
+  storyId: string,
+  artifactId: string,
+  transcriptionId: string,
+) {
+  const result = await api.POST(
+    '/api/v1/stories/{story_id}/source-media/{artifact_id}/transcriptions/{transcription_id}/cancel',
+    {
+      params: {
+        path: {
+          story_id: storyId,
+          artifact_id: artifactId,
+          transcription_id: transcriptionId,
+        },
+      },
+    },
+  );
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
 }
 
 /* 鈹€鈹€ Script visual assets 鈹€鈹€ */

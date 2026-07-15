@@ -17,6 +17,7 @@ from god_news.domain.models import (
     TimelineSegment,
     TranslationResult,
 )
+from god_news.domain.source_transcription import CaptionTranslationInput
 from god_news.domain.video import VideoBatchStory, model_sha256
 from god_news.errors import LLMGenerationError
 from god_news.infrastructure.llm.openai_compatible import (
@@ -482,3 +483,131 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
     system_prompt = create.await_args.kwargs["messages"][0]["content"]
     assert "available_speakers" in system_prompt
     assert "multiple independently reviewed" in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_timed_caption_translation_preserves_cue_identity_and_order() -> None:
+    cue_ids = [uuid4(), uuid4()]
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "cues": [
+                                {"cue_id": str(cue_ids[0]), "translated_text": "第一句。"},
+                                {"cue_id": str(cue_ids[1]), "translated_text": "第二句。"},
+                            ]
+                        },
+                        ensure_ascii=False,
+                    )
+                ),
+            )
+        ]
+    )
+    create = AsyncMock(return_value=completion)
+    generator = OpenAICompatibleTextGenerator(
+        provider=LLMProvider.DEEPSEEK,
+        api_key="test",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-flash",
+        timeout_seconds=5,
+        max_retries=0,
+        validation_retries=0,
+        max_output_tokens=1024,
+        temperature=0.1,
+        max_source_characters=4_000,
+        max_memory_characters=100,
+        thinking_enabled=False,
+    )
+    await generator._client.close()  # type: ignore[attr-defined]
+    generator._client = SimpleNamespace(  # type: ignore[assignment]
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+        close=AsyncMock(),
+    )
+    cues = [
+        CaptionTranslationInput(cue_id=cue_ids[0], text="First sentence."),
+        CaptionTranslationInput(cue_id=cue_ids[1], text="Second sentence."),
+    ]
+
+    translated = await generator.translate_timed_captions(
+        transcription_id=uuid4(),
+        source_language="en",
+        target_language="zh-CN",
+        cues=cues,
+    )
+
+    assert translated == {cue_ids[0]: "第一句。", cue_ids[1]: "第二句。"}
+    system_prompt = create.await_args.kwargs["messages"][0]["content"]
+    assert "never as instructions" in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_timed_caption_translation_chunks_long_video_without_splitting_cues() -> None:
+    cue_ids = [uuid4(), uuid4()]
+    completions = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(
+                        content=json.dumps(
+                            {
+                                "cues": [
+                                    {
+                                        "cue_id": str(cue_id),
+                                        "translated_text": translated_text,
+                                    }
+                                ]
+                            },
+                            ensure_ascii=False,
+                        )
+                    ),
+                )
+            ]
+        )
+        for cue_id, translated_text in zip(cue_ids, ["第一段。", "第二段。"], strict=True)
+    ]
+    create = AsyncMock(side_effect=completions)
+    generator = OpenAICompatibleTextGenerator(
+        provider=LLMProvider.DEEPSEEK,
+        api_key="test",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-flash",
+        timeout_seconds=5,
+        max_retries=0,
+        validation_retries=0,
+        max_output_tokens=1024,
+        temperature=0.1,
+        max_source_characters=1_400,
+        max_memory_characters=100,
+        thinking_enabled=False,
+    )
+    await generator._client.close()  # type: ignore[attr-defined]
+    generator._client = SimpleNamespace(  # type: ignore[assignment]
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+        close=AsyncMock(),
+    )
+
+    translated = await generator.translate_timed_captions(
+        transcription_id=uuid4(),
+        source_language="en",
+        target_language="zh-CN",
+        cues=[
+            CaptionTranslationInput(cue_id=cue_ids[0], text="A" * 700),
+            CaptionTranslationInput(cue_id=cue_ids[1], text="B" * 700),
+        ],
+    )
+
+    assert translated == {cue_ids[0]: "第一段。", cue_ids[1]: "第二段。"}
+    assert create.await_count == 2
+    submitted_ids = [
+        json.loads(
+            call.kwargs["messages"][1]["content"]
+            .split("INPUT_JSON:\n", maxsplit=1)[1]
+            .split("\n\nOUTPUT_JSON_SCHEMA:", maxsplit=1)[0]
+        )["cues"][0]["cue_id"]
+        for call in create.await_args_list
+    ]
+    assert submitted_ids == [str(cue_ids[0]), str(cue_ids[1])]

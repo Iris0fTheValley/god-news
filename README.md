@@ -10,7 +10,7 @@ cd god-news
 
 # 后端
 py -3.11 -m venv .venv && .\.venv\Scripts\Activate.ps1
-uv sync --extra dev --extra fetchers --locked
+uv sync --extra dev --extra fetchers --extra asr --locked
 Copy-Item .env.example .env   # 编辑填入 API Key
 
 # 前端

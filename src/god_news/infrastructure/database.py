@@ -65,6 +65,9 @@ class Database:
         from god_news.infrastructure import source_media_repository as _source_media  # noqa: F401
         from god_news.infrastructure import source_runs as _source_runs  # noqa: F401
         from god_news.infrastructure import source_schedule as _source_schedule  # noqa: F401
+        from god_news.infrastructure import (
+            source_transcription_repository as _source_transcription,  # noqa: F401
+        )
         from god_news.infrastructure import video_repository as _video_repository  # noqa: F401
         from god_news.infrastructure import visual_repository as _visual_repository  # noqa: F401
 

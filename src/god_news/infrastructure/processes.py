@@ -161,6 +161,7 @@ async def run_json_worker(
     timeout_seconds: float,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    max_stdout_bytes: int | None = None,
 ) -> ResponseT:
     if not command:
         raise ValueError("worker command cannot be empty")
@@ -187,6 +188,8 @@ async def run_json_worker(
         raise
     finally:
         await asyncio.to_thread(close_kill_on_close_job, job_handle)
+    if max_stdout_bytes is not None and len(stdout) > max_stdout_bytes:
+        raise RuntimeError("worker response exceeded the configured output limit")
     if process.returncode != 0:
         detail = stderr.decode("utf-8", errors="replace")[-4_000:]
         raise RuntimeError(f"worker exited with code {process.returncode}: {detail}")
