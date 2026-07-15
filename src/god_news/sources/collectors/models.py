@@ -26,6 +26,14 @@ CollectionOutcome = Literal[
 ]
 AttemptOutcome = Literal["succeeded", "failed", "stopped"]
 CollectionOperation = Literal["authenticate", "discover", "listing", "item"]
+DiagnosticOutcome = Literal[
+    "disabled",
+    "unconfigured",
+    "unauthorized",
+    "verified",
+    "failed",
+    "not_supported",
+]
 
 
 class CollectorReadiness(DomainModel):
@@ -70,6 +78,29 @@ class CollectionErrorEvidence(DomainModel):
     code: str = Field(min_length=1, max_length=100)
     message: str = Field(min_length=1, max_length=300)
     retryable: bool = False
+
+
+class CollectorDiagnostic(DomainModel):
+    """Sanitized result of an explicit operator-requested live diagnostic."""
+
+    source: SourceName
+    outcome: DiagnosticOutcome
+    checked_at: datetime = Field(default_factory=utc_now)
+    credentials_verified: bool | None = None
+    endpoint_reachable: bool | None = None
+    attempts: list[CollectionAttempt] = Field(default_factory=list, max_length=100)
+    errors: list[CollectionErrorEvidence] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_evidence(self) -> CollectorDiagnostic:
+        if self.outcome == "verified":
+            if self.credentials_verified is not True or self.endpoint_reachable is not True:
+                raise ValueError("verified diagnostics require positive live evidence")
+            if self.errors:
+                raise ValueError("verified diagnostics cannot contain errors")
+        elif self.outcome == "failed" and not self.errors:
+            raise ValueError("failed diagnostics require error evidence")
+        return self
 
 
 class SourceCollectionRun(DomainModel):

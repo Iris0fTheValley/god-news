@@ -7,8 +7,12 @@ import httpx
 from god_news.config import Settings
 from god_news.infrastructure.fetchers.chain import FetcherChain
 from god_news.sources.collectors.guardian import GuardianContentAPICollector
-from god_news.sources.collectors.models import CollectorReadiness, SourceCollectionRun
-from god_news.sources.collectors.protocols import SourceCollector
+from god_news.sources.collectors.models import (
+    CollectorDiagnostic,
+    CollectorReadiness,
+    SourceCollectionRun,
+)
+from god_news.sources.collectors.protocols import DiagnosableSourceCollector, SourceCollector
 from god_news.sources.collectors.public_pages import (
     DazhongPublicPageCollector,
     PikabuPublicPageCollector,
@@ -39,6 +43,12 @@ class SourceCollectorRegistry:
         limit: int | None = None,
     ) -> SourceCollectionRun:
         return await self._collectors[source].collect(limit=limit)
+
+    async def diagnose(self, source: SourceName) -> CollectorDiagnostic:
+        collector = self._collectors[source]
+        if not isinstance(collector, DiagnosableSourceCollector):
+            return CollectorDiagnostic(source=source, outcome="not_supported")
+        return await collector.diagnose()
 
 
 def create_source_collectors(

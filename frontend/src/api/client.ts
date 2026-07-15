@@ -297,6 +297,14 @@ export async function getSourceCollectors() {
   return result.data;
 }
 
+export async function diagnoseSource(source: SourceRunRequest['source']) {
+  const result = await api.POST('/api/v1/sources/{source}/diagnostics', {
+    params: {path: {source}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
 export async function startSourceRun(body: SourceRunRequest) {
   const result = await api.POST('/api/v1/source-runs', {body});
   if (result.error !== undefined) throwProblem(result.error, result.response);

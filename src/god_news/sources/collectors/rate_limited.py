@@ -4,7 +4,11 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from time import monotonic
 
-from god_news.sources.collectors.models import CollectorReadiness, SourceCollectionRun
+from god_news.sources.collectors.models import (
+    CollectorDiagnostic,
+    CollectorReadiness,
+    SourceCollectionRun,
+)
 from god_news.sources.models import SourceName
 from god_news.sources.run_ports import SourceCollectorGateway
 
@@ -45,6 +49,9 @@ class RateLimitedSourceCollectorGateway:
 
     def readiness(self) -> tuple[CollectorReadiness, ...]:
         return self._delegate.readiness()
+
+    async def diagnose(self, source: SourceName) -> CollectorDiagnostic:
+        return await self._delegate.diagnose(source)
 
     async def collect(
         self,

@@ -12,6 +12,7 @@ from god_news.application.source_schedule import SourceCollectionScheduler
 from god_news.container import AppContainer
 from god_news.errors import ConfigurationError
 from god_news.logging import trace_id_var
+from god_news.sources.collectors.models import CollectorDiagnostic
 from god_news.sources.models import SourceName
 from god_news.sources.run_models import (
     SourceRun,
@@ -50,6 +51,18 @@ def _scheduler(container: AppContainer) -> SourceCollectionScheduler:
 )
 async def collector_readiness(container: ContainerDependency) -> SourceRunReadiness:
     return SourceRunReadiness(collectors=list(_service(container).readiness()))
+
+
+@router.post(
+    "/sources/{source}/diagnostics",
+    response_model=CollectorDiagnostic,
+    operation_id="runSourceDiagnostic",
+)
+async def run_source_diagnostic(
+    source: SourceName,
+    container: ContainerDependency,
+) -> CollectorDiagnostic:
+    return await _service(container).diagnose(source)
 
 
 @router.get(

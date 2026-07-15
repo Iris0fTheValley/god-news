@@ -38,6 +38,7 @@ export type SourceRunStatus = components['schemas']['SourceRunStatus'];
 export type SourceScheduleSnapshot = components['schemas']['SourceScheduleSnapshot'];
 export type SourceItemIngestionResult = components['schemas']['SourceItemIngestionResult'];
 export type CollectionErrorEvidence = components['schemas']['CollectionErrorEvidence'];
+export type CollectorDiagnostic = components['schemas']['CollectorDiagnostic'];
 export type BgmTrack = components['schemas']['BgmTrack'];
 export type VideoBatch = components['schemas']['PublicVideoBatch'];
 export type VideoBatchStatus = components['schemas']['VideoBatchStatus'];

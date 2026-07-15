@@ -297,6 +297,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/{source}/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Source Diagnostic */
+        post: operations["runSourceDiagnostic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stories": {
         parameters: {
             query?: never;
@@ -943,6 +960,35 @@ export interface components {
              * @default false
              */
             retryable: boolean;
+        };
+        /**
+         * CollectorDiagnostic
+         * @description Sanitized result of an explicit operator-requested live diagnostic.
+         */
+        CollectorDiagnostic: {
+            /** Attempts */
+            attempts?: components["schemas"]["CollectionAttempt"][];
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at?: string;
+            /** Credentials Verified */
+            credentials_verified?: boolean | null;
+            /** Endpoint Reachable */
+            endpoint_reachable?: boolean | null;
+            /** Errors */
+            errors?: components["schemas"]["CollectionErrorEvidence"][];
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "disabled" | "unconfigured" | "unauthorized" | "verified" | "failed" | "not_supported";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "dazhong" | "reddit" | "guardian" | "pikabu";
         };
         /** CollectorReadiness */
         CollectorReadiness: {
@@ -4721,6 +4767,73 @@ export interface operations {
                 };
             };
             /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    runSourceDiagnostic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectorDiagnostic"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -18,6 +18,7 @@ from god_news.infrastructure.source_runs import (
 )
 from god_news.sources.collectors.models import (
     CollectionAttempt,
+    CollectorDiagnostic,
     CollectorReadiness,
     SourceCollectionRun,
 )
@@ -67,6 +68,14 @@ class StaticCollectorGateway:
         assert source == self.run.source
         assert limit is not None
         return self.run
+
+    async def diagnose(self, source: SourceName) -> CollectorDiagnostic:
+        return CollectorDiagnostic(
+            source=source,
+            outcome="verified",
+            credentials_verified=True,
+            endpoint_reachable=True,
+        )
 
 
 class BlockingCollectorGateway(StaticCollectorGateway):
@@ -322,6 +331,11 @@ async def test_source_run_api_starts_and_reports_background_progress(stack: Stac
             readiness = await client.get("/api/v1/sources/collectors")
             assert readiness.status_code == 200
             assert len(readiness.json()["collectors"]) == 4
+
+            diagnostic = await client.post("/api/v1/sources/reddit/diagnostics")
+            assert diagnostic.status_code == 200
+            assert diagnostic.json()["outcome"] == "verified"
+            assert diagnostic.json()["credentials_verified"] is True
 
 
 @pytest.mark.asyncio

@@ -11,7 +11,11 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError
 
-from god_news.sources.collectors.models import CollectorReadiness, SourceCollectionRun
+from god_news.sources.collectors.models import (
+    CollectorDiagnostic,
+    CollectorReadiness,
+    SourceCollectionRun,
+)
 from god_news.sources.collectors.support import (
     CollectorFailure,
     RunRecorder,
@@ -141,6 +145,40 @@ class RedditOAuthCollector:
                 "operator_authorization_includes_downstream_ai_and_video_use",
                 "per_item_rights_review_required",
             ],
+        )
+
+    async def diagnose(self) -> CollectorDiagnostic:
+        """Validate OAuth credentials without listing or downloading user content."""
+
+        readiness = self.readiness()
+        if readiness.state in {"disabled", "unconfigured"}:
+            failure = readiness_failure(readiness)
+            assert failure is not None
+            return CollectorDiagnostic(
+                source=self.source,
+                outcome=readiness.state,
+                credentials_verified=False if readiness.configured else None,
+                endpoint_reachable=None,
+                errors=[failure.evidence()],
+            )
+        recorder = RunRecorder(self.source)
+        try:
+            await self._token(recorder)
+        except CollectorFailure as exc:
+            return CollectorDiagnostic(
+                source=self.source,
+                outcome="failed",
+                credentials_verified=False,
+                endpoint_reachable=(exc.code != "reddit_oauth_unreachable"),
+                attempts=recorder.attempts,
+                errors=[exc.evidence()],
+            )
+        return CollectorDiagnostic(
+            source=self.source,
+            outcome="verified",
+            credentials_verified=True,
+            endpoint_reachable=True,
+            attempts=recorder.attempts,
         )
 
     async def collect(self, *, limit: int | None = None) -> SourceCollectionRun:

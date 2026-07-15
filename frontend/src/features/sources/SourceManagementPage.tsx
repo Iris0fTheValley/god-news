@@ -1,8 +1,8 @@
-import {useQuery} from '@tanstack/react-query';
+import {useMutation, useQuery} from '@tanstack/react-query';
 import {Activity, CircleAlert, RefreshCw, ShieldCheck} from 'lucide-react';
 import {useState} from 'react';
 
-import {getSourceHealth} from '../../api/client';
+import {diagnoseSource, getSourceHealth} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {SourceHealth} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
@@ -45,6 +45,7 @@ export function SourceManagementPage() {
     queryKey: queryKeys.sourceHealth(probeNetwork),
     queryFn: () => getSourceHealth(probeNetwork),
   });
+  const diagnostic = useMutation({mutationFn: (source: SourceHealth['source']) => diagnoseSource(source)});
 
   return (
     <div className="page sources-page">
@@ -127,6 +128,23 @@ export function SourceManagementPage() {
                         ))}
                       </ul>
                     </details>
+                  ) : null}
+                  {item.source === 'reddit' ? (
+                    <div className="form-actions" style={{marginTop: 12}}>
+                      <button
+                        className="button"
+                        type="button"
+                        disabled={diagnostic.isPending || !item.enabled || !item.configured}
+                        onClick={() => diagnostic.mutate('reddit')}
+                      >
+                        {diagnostic.isPending ? '正在验证…' : '验证 Reddit OAuth'}
+                      </button>
+                      {diagnostic.data?.source === 'reddit' ? (
+                        <span className={`badge ${diagnostic.data.outcome === 'verified' ? 'success' : 'danger'}`}>
+                          {diagnostic.data.outcome === 'verified' ? '凭据有效' : `验证失败：${diagnostic.data.outcome}`}
+                        </span>
+                      ) : null}
+                    </div>
                   ) : null}
                 </article>
               );

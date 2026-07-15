@@ -115,6 +115,7 @@ async def test_reddit_collector_uses_oauth_and_sanitizes_run_telemetry() -> None
             default_limit=25,
         )
         run = await collector.collect(limit=1)
+        diagnostic = await collector.diagnose()
 
     assert run.outcome == "succeeded"
     assert [attempt.layer for attempt in run.attempts[:2]] == [
@@ -122,9 +123,71 @@ async def test_reddit_collector_uses_oauth_and_sanitizes_run_telemetry() -> None
         "reddit-data-api",
     ]
     assert run.items[0].source == "reddit"
+    assert diagnostic.outcome == "verified"
+    assert diagnostic.credentials_verified is True
+    assert diagnostic.endpoint_reachable is True
     serialized = run.model_dump_json()
     assert secret not in serialized
     assert token not in serialized
+    assert token not in diagnostic.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_reddit_diagnostic_rejects_invalid_credentials_without_leaking_them() -> None:
+    secret = "invalid-reddit-secret"
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/access_token"
+        return httpx.Response(401, json={"message": "Unauthorized"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        collector = RedditOAuthCollector(
+            client=client,
+            endpoint="https://oauth.reddit.com/",
+            token_endpoint="https://www.reddit.com/api/v1/access_token",
+            client_id=SecretStr("invalid-client-id"),
+            client_secret=SecretStr(secret),
+            user_agent="windows:god-news:v0.1 (by /u/tester)",
+            enabled=True,
+            api_use_authorized=True,
+            subreddit="HumansBeingBros",
+            default_limit=25,
+        )
+        diagnostic = await collector.diagnose()
+
+    assert diagnostic.outcome == "failed"
+    assert diagnostic.credentials_verified is False
+    assert diagnostic.endpoint_reachable is True
+    assert diagnostic.errors[0].code == "reddit_oauth_rejected"
+    assert secret not in diagnostic.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_reddit_diagnostic_is_independent_from_downstream_use_authorization() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/access_token"
+        return httpx.Response(
+            200,
+            json={"access_token": "diagnostic-token", "token_type": "bearer", "expires_in": 60},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        collector = RedditOAuthCollector(
+            client=client,
+            endpoint="https://oauth.reddit.com/",
+            token_endpoint="https://www.reddit.com/api/v1/access_token",
+            client_id=SecretStr("client-id"),
+            client_secret=SecretStr("client-secret"),
+            user_agent="windows:god-news:v0.1 (by /u/tester)",
+            enabled=True,
+            api_use_authorized=False,
+            subreddit="HumansBeingBros",
+            default_limit=25,
+        )
+        diagnostic = await collector.diagnose()
+
+    assert collector.readiness().state == "unauthorized"
+    assert diagnostic.outcome == "verified"
 
 
 @pytest.mark.asyncio

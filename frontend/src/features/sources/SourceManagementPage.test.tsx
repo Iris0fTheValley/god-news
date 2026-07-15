@@ -5,9 +5,12 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {renderWithApp} from '../../test/render';
 import {SourceManagementPage} from './SourceManagementPage';
 
-const apiMocks = vi.hoisted(() => ({getSourceHealth: vi.fn()}));
+const apiMocks = vi.hoisted(() => ({diagnoseSource: vi.fn(), getSourceHealth: vi.fn()}));
 
-vi.mock('../../api/client', () => ({getSourceHealth: apiMocks.getSourceHealth}));
+vi.mock('../../api/client', () => ({
+  diagnoseSource: apiMocks.diagnoseSource,
+  getSourceHealth: apiMocks.getSourceHealth,
+}));
 
 const report = {
   checked_at: '2026-07-12T08:00:00Z',
@@ -57,7 +60,18 @@ const report = {
 } as const;
 
 describe('SourceManagementPage', () => {
-  beforeEach(() => apiMocks.getSourceHealth.mockResolvedValue(report));
+  beforeEach(() => {
+    apiMocks.getSourceHealth.mockResolvedValue(report);
+    apiMocks.diagnoseSource.mockResolvedValue({
+      source: 'reddit',
+      outcome: 'verified',
+      checked_at: '2026-07-15T06:00:00Z',
+      credentials_verified: true,
+      endpoint_reachable: true,
+      attempts: [],
+      errors: [],
+    });
+  });
 
   it('keeps authorization separate from network reachability and can request a probe', async () => {
     const user = userEvent.setup();
@@ -70,5 +84,9 @@ describe('SourceManagementPage', () => {
 
     await user.click(screen.getByRole('button', {name: '核验网络'}));
     expect(apiMocks.getSourceHealth).toHaveBeenLastCalledWith(true);
+
+    await user.click(screen.getByRole('button', {name: '验证 Reddit OAuth'}));
+    expect(apiMocks.diagnoseSource).toHaveBeenCalledWith('reddit');
+    expect(await screen.findByText('凭据有效')).toBeVisible();
   });
 });

@@ -5,13 +5,19 @@ from typing import Protocol
 from uuid import UUID
 
 from god_news.domain.models import SourceItemIngestRequest, Story
-from god_news.sources.collectors.models import CollectorReadiness, SourceCollectionRun
+from god_news.sources.collectors.models import (
+    CollectorDiagnostic,
+    CollectorReadiness,
+    SourceCollectionRun,
+)
 from god_news.sources.models import SourceName
 from god_news.sources.run_models import SourceRun, SourceRunStatus
 
 
 class SourceCollectorGateway(Protocol):
     def readiness(self) -> tuple[CollectorReadiness, ...]: ...
+
+    async def diagnose(self, source: SourceName) -> CollectorDiagnostic: ...
 
     async def collect(
         self,

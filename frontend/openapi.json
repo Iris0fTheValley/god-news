@@ -491,6 +491,83 @@
         "title": "CollectionErrorEvidence",
         "type": "object"
       },
+      "CollectorDiagnostic": {
+        "additionalProperties": false,
+        "description": "Sanitized result of an explicit operator-requested live diagnostic.",
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/CollectionAttempt"
+            },
+            "maxItems": 100,
+            "title": "Attempts",
+            "type": "array"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "credentials_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credentials Verified"
+          },
+          "endpoint_reachable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Reachable"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/CollectionErrorEvidence"
+            },
+            "maxItems": 20,
+            "title": "Errors",
+            "type": "array"
+          },
+          "outcome": {
+            "enum": [
+              "disabled",
+              "unconfigured",
+              "unauthorized",
+              "verified",
+              "failed",
+              "not_supported"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "outcome"
+        ],
+        "title": "CollectorDiagnostic",
+        "type": "object"
+      },
       "CollectorReadiness": {
         "additionalProperties": false,
         "properties": {
@@ -8555,6 +8632,94 @@
         "tags": [
           "sources",
           "stories"
+        ]
+      }
+    },
+    "/api/v1/sources/{source}/diagnostics": {
+      "post": {
+        "operationId": "runSourceDiagnostic",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "enum": [
+                "dazhong",
+                "reddit",
+                "guardian",
+                "pikabu"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectorDiagnostic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Run Source Diagnostic",
+        "tags": [
+          "source-runs"
         ]
       }
     },

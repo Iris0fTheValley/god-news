@@ -11,7 +11,11 @@ from uuid import UUID
 from god_news.domain.models import SourceItemIngestRequest
 from god_news.errors import DuplicateStoryError, GodNewsError
 from god_news.logging import reset_trace_id, set_trace_id
-from god_news.sources.collectors.models import CollectionErrorEvidence, CollectorReadiness
+from god_news.sources.collectors.models import (
+    CollectionErrorEvidence,
+    CollectorDiagnostic,
+    CollectorReadiness,
+)
 from god_news.sources.models import SourceName
 from god_news.sources.protocols import SourceItemNormalizer
 from god_news.sources.run_errors import SourceRunCapacityError
@@ -64,6 +68,9 @@ class SourceRunService:
 
     def readiness(self) -> Sequence[CollectorReadiness]:
         return self._collectors.readiness()
+
+    async def diagnose(self, source: SourceName) -> CollectorDiagnostic:
+        return await self._collectors.diagnose(source)
 
     async def recover_interrupted(self) -> int:
         return await self._repository.recover_interrupted()
