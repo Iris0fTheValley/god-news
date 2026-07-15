@@ -172,3 +172,21 @@ class VisualAssetStorageError(GodNewsError):
             story_id=story_id,
             retryable=True,
         )
+
+
+class SourceMediaAcquisitionError(GodNewsError):
+    def __init__(
+        self,
+        story_id: UUID,
+        message: str,
+        *,
+        status_code: int = 422,
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(
+            "source_media_acquisition_failed",
+            message,
+            status_code=status_code,
+            story_id=story_id,
+            retryable=retryable,
+        )

@@ -22,6 +22,7 @@ import {ScreeningBadge} from '../../components/ScreeningBadge';
 import {useToast} from '../../components/toastContext';
 import {AudioPanel} from '../audio/AudioPanel';
 import {HistoryPanel} from '../history/HistoryPanel';
+import {SourceMediaPanel} from '../media/SourceMediaPanel';
 import {FirstReviewPanel} from '../reviews/FirstReviewPanel';
 import {ResumePanel} from '../reviews/ResumePanel';
 import {ScriptReviewPanel} from '../reviews/ScriptReviewPanel';
@@ -239,6 +240,8 @@ export function StoryWorkbenchPage() {
               </article>
             </div>
           </section>
+
+          <SourceMediaPanel story={story} />
 
           {scriptDraft === null ? null : (
             <section className="panel">

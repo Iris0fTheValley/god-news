@@ -2,6 +2,7 @@ import createClient from 'openapi-fetch';
 
 import type {paths} from './generated';
 import type {
+  AcquireSourceMediaRequest,
   BgmTrack,
   CreateVideoBatch,
   FirstReviewSubmission,
@@ -176,6 +177,30 @@ export async function getSourceHealth(probeNetwork = false) {
 
 export function audioClipUrl(storyId: string, segmentId: string): string {
   return `/api/v1/stories/${encodeURIComponent(storyId)}/audio/${encodeURIComponent(segmentId)}`;
+}
+
+/* ── Immutable source-media evidence ── */
+
+export async function listSourceMediaArtifacts(storyId: string) {
+  const result = await api.GET('/api/v1/stories/{story_id}/source-media', {
+    params: {path: {story_id: storyId}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function acquireSourceMedia(storyId: string, body: AcquireSourceMediaRequest) {
+  const result = await api.POST('/api/v1/stories/{story_id}/source-media/acquire', {
+    params: {path: {story_id: storyId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+/** Scoped browser URL; immutable host storage paths never cross the API boundary. */
+export function sourceMediaContentUrl(storyId: string, artifactId: string): string {
+  return `/api/v1/stories/${encodeURIComponent(storyId)}/source-media/${encodeURIComponent(artifactId)}/content`;
 }
 
 /* 鈹€鈹€ Script visual assets 鈹€鈹€ */

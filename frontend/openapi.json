@@ -1,6 +1,33 @@
 {
   "components": {
     "schemas": {
+      "AcquireSourceMediaRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_story_version": {
+            "minimum": 1.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "media_index": {
+            "minimum": 0.0,
+            "title": "Media Index",
+            "type": "integer"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_story_version",
+          "media_index",
+          "requested_by"
+        ],
+        "title": "AcquireSourceMediaRequest",
+        "type": "object"
+      },
       "ActiveScheduledSourceRun": {
         "additionalProperties": false,
         "properties": {
@@ -5521,6 +5548,110 @@
         "title": "SourceKind",
         "type": "string"
       },
+      "SourceMediaArtifact": {
+        "additionalProperties": false,
+        "description": "Immutable evidence for one locally acquired source video.\n\nUnknown or permission-required rights never become publishable merely\nbecause bytes were downloaded for editorial review.",
+        "properties": {
+          "acquired_by": {
+            "minLength": 1,
+            "title": "Acquired By",
+            "type": "string"
+          },
+          "artifact_id": {
+            "format": "uuid",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/Attribution"
+          },
+          "canonical_story_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Canonical Story Url",
+            "type": "string"
+          },
+          "content_type": {
+            "minLength": 1,
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "media_index": {
+            "minimum": 0.0,
+            "title": "Media Index",
+            "type": "integer"
+          },
+          "probe": {
+            "$ref": "#/components/schemas/SourceVideoProbe"
+          },
+          "publish_eligible": {
+            "title": "Publish Eligible",
+            "type": "boolean"
+          },
+          "retrieved_at": {
+            "format": "date-time",
+            "title": "Retrieved At",
+            "type": "string"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RightsMetadata"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Source Url",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "source",
+          "media_index",
+          "acquired_by",
+          "source_url",
+          "canonical_story_url",
+          "attribution",
+          "rights",
+          "publish_eligible",
+          "content_type",
+          "filename",
+          "sha256",
+          "size_bytes",
+          "probe"
+        ],
+        "title": "SourceMediaArtifact",
+        "type": "object"
+      },
       "SourceRun": {
         "additionalProperties": false,
         "properties": {
@@ -6018,6 +6149,58 @@
           "content_sha256"
         ],
         "title": "SourceSnapshot",
+        "type": "object"
+      },
+      "SourceVideoProbe": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_codec": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Codec"
+          },
+          "duration_ms": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "fps": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 240.0,
+            "title": "Fps",
+            "type": "number"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "video_codec": {
+            "minLength": 1,
+            "title": "Video Codec",
+            "type": "string"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "duration_ms",
+          "width",
+          "height",
+          "video_codec",
+          "fps"
+        ],
+        "title": "SourceVideoProbe",
         "type": "object"
       },
       "SpeechEmotion": {
@@ -10134,6 +10317,302 @@
         "summary": "Second Review",
         "tags": [
           "reviews"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media": {
+      "get": {
+        "operationId": "listSourceMediaArtifacts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceMediaArtifact"
+                  },
+                  "title": "Response Listsourcemediaartifacts",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "List Source Media",
+        "tags": [
+          "source-media"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media/acquire": {
+      "post": {
+        "operationId": "acquireSourceMedia",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcquireSourceMediaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMediaArtifact"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Acquire Source Media",
+        "tags": [
+          "source-media"
+        ]
+      }
+    },
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/content": {
+      "get": {
+        "operationId": "getSourceMediaContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested story was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "State or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation or source policy error."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unexpected internal failure."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Fetcher, LLM, or TTS provider failure."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Required service is not configured."
+          }
+        },
+        "summary": "Source Media Content",
+        "tags": [
+          "source-media"
         ]
       }
     },

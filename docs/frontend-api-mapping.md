@@ -33,6 +33,16 @@ pnpm --dir frontend check
 脚本段 API 使用结构化 `spoken_text`、`spoken_language` 与 `captions[]`；`captions` 区分 `verbatim` 和 `translation`，且逐字段校验逐字字幕必须与实际 TTS 输入完全一致。旧持久化数据中的 `text` / `language` 仍可读取，但新响应和新写入只输出结构化字段。脚本段同时保留 `speaker_id`、`emotion`、`speed`、`pitch`、`visual_hint`；其中 `emotion` 为 `happiness`、`sadness`、`anger`、`disgust`、`like`、`surprise`、`fear` 之一，`scene_transition` 为 `black`、`crossfade`、`slide`、`wipe`、`mood_shift` 之一。无效 LLM 输出分别回退为初审偏好情绪和 `black`；`visual_hint`、`pitch` 即使当前 UI 隐藏也保持 API 兼容。
 `target_duration_seconds` 只约束 AI 口播，默认 20 秒并允许 5–600 秒；它不约束后续原始来源视频模块的素材时长或整条故事编译时长。
 
+## 源视频证据
+
+| 前端能力 | API | 语义 |
+| --- | --- | --- |
+| 已采集证据 | `GET /api/v1/stories/{story_id}/source-media` | 返回不可变的来源、署名、权利、SHA-256、大小与 ffprobe 媒体快照；绝不返回主机存储路径。 |
+| 手动采集 | `POST /api/v1/stories/{story_id}/source-media/acquire` | 需要 `expected_story_version`、来源媒体索引和操作方标识；同一故事与媒体索引幂等。只允许已标准化为视频的来源素材，下载受出站 URL 策略、大小上限、MP4 签名和 ffprobe 解码校验约束。 |
+| 审核播放 | `GET /api/v1/stories/{story_id}/source-media/{artifact_id}/content` | 只按故事作用域和制品 ID 读取；发送前重新核对大小和 SHA-256，缺失、越界或被篡改均拒绝。 |
+
+采集成功不代表获得转载权。`publish_eligible` 只能由采集时冻结的权利字段推导；Reddit 等权利未知或要求人工确认的素材始终显示为“仅供审核”，不能因下载成功自动进入可发布节目。源文件保存在输出根目录内的独立 `source-media` 子树，并加入留存保护，避免仍被数据库引用时遭到清理。
+
 ## 角色
 
 | 前端能力 | API | 语义 |

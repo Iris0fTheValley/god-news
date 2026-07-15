@@ -490,6 +490,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stories/{story_id}/source-media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Source Media */
+        get: operations["listSourceMediaArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/source-media/acquire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire Source Media */
+        post: operations["acquireSourceMedia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stories/{story_id}/source-media/{artifact_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Source Media Content */
+        get: operations["getSourceMediaContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stories/{story_id}/synthesize": {
         parameters: {
             query?: never;
@@ -768,6 +819,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcquireSourceMediaRequest */
+        AcquireSourceMediaRequest: {
+            /** Expected Story Version */
+            expected_story_version: number;
+            /** Media Index */
+            media_index: number;
+            /** Requested By */
+            requested_by: string;
+        };
         /** ActiveScheduledSourceRun */
         ActiveScheduledSourceRun: {
             /**
@@ -2858,6 +2918,62 @@ export interface components {
          * @enum {string}
          */
         SourceKind: "url" | "text" | "fixed_source";
+        /**
+         * SourceMediaArtifact
+         * @description Immutable evidence for one locally acquired source video.
+         *
+         *     Unknown or permission-required rights never become publishable merely
+         *     because bytes were downloaded for editorial review.
+         */
+        SourceMediaArtifact: {
+            /** Acquired By */
+            acquired_by: string;
+            /**
+             * Artifact Id
+             * Format: uuid
+             */
+            artifact_id?: string;
+            attribution: components["schemas"]["Attribution"];
+            /**
+             * Canonical Story Url
+             * Format: uri
+             */
+            canonical_story_url: string;
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+            /** Media Index */
+            media_index: number;
+            probe: components["schemas"]["SourceVideoProbe"];
+            /** Publish Eligible */
+            publish_eligible: boolean;
+            /**
+             * Retrieved At
+             * Format: date-time
+             */
+            retrieved_at?: string;
+            rights: components["schemas"]["RightsMetadata"];
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            /**
+             * Source Url
+             * Format: uri
+             */
+            source_url: string;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+        };
         /** SourceRun */
         SourceRun: {
             /** Attempts */
@@ -3038,6 +3154,21 @@ export interface components {
             source_uri: string;
             /** Title */
             title: string;
+        };
+        /** SourceVideoProbe */
+        SourceVideoProbe: {
+            /** Audio Codec */
+            audio_codec?: string | null;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Fps */
+            fps: number;
+            /** Height */
+            height: number;
+            /** Video Codec */
+            video_codec: string;
+            /** Width */
+            width: number;
         };
         /**
          * SpeechEmotion
@@ -5845,6 +5976,237 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Story"];
                 };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listSourceMediaArtifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaArtifact"][];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    acquireSourceMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcquireSourceMediaRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceMediaArtifact"];
+                };
+            };
+            /** @description Requested story was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description State or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation or source policy error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected internal failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Fetcher, LLM, or TTS provider failure. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Required service is not configured. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getSourceMediaContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Requested story was not found. */
             404: {

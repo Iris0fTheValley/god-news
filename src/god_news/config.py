@@ -67,6 +67,13 @@ class Settings(BaseSettings):
         le=100 * 1024 * 1024,
     )
     visual_asset_max_pixels: int = Field(default=32_000_000, ge=1, le=100_000_000)
+    source_media_dir: Path | None = None
+    source_media_max_download_bytes: int = Field(
+        default=512 * 1024 * 1024,
+        ge=1024,
+        le=2 * 1024 * 1024 * 1024,
+    )
+    source_media_probe_timeout_seconds: float = Field(default=30, gt=0, le=300)
     uploaded_video_dir: Path = Path("./uploads/videos")
     video_bgm_directory: Path = Path("./assets/bgm")
     video_candidate_scan_limit: int = Field(default=1_000, ge=15, le=100_000)
@@ -90,6 +97,7 @@ class Settings(BaseSettings):
         ".jpg",
         ".jpeg",
         ".webp",
+        ".mp4",
     )
     operations_history_limit: int = Field(default=100, ge=1, le=10_000)
     operations_scheduler_enabled: bool = False
@@ -381,6 +389,7 @@ class Settings(BaseSettings):
         "tts_gpt_weights",
         "tts_sovits_weights",
         "visual_asset_dir",
+        "source_media_dir",
         "video_render_output_dir",
         mode="before",
     )
@@ -429,6 +438,7 @@ class Settings(BaseSettings):
             raise ValueError("fetch_max_keepalive_connections cannot exceed fetch_max_connections")
         media_root = self.output_dir.expanduser().resolve(strict=False)
         visual_asset_root = self.visual_asset_root
+        source_media_root = self.source_media_root
         upload_root = self.uploaded_video_dir.expanduser().resolve(strict=False)
         workspace_root = Path.cwd().resolve()
         for field_name, root in {
@@ -449,6 +459,10 @@ class Settings(BaseSettings):
             raise ValueError("output_dir and uploaded_video_dir must not overlap")
         if visual_asset_root == media_root or not visual_asset_root.is_relative_to(media_root):
             raise ValueError("visual_asset_dir must be a child directory of output_dir")
+        if source_media_root == media_root or not source_media_root.is_relative_to(media_root):
+            raise ValueError("source_media_dir must be a child directory of output_dir")
+        if source_media_root == visual_asset_root:
+            raise ValueError("source_media_dir and visual_asset_dir must be different")
         video_render_root = self.video_render_root
         if video_render_root == media_root or not video_render_root.is_relative_to(media_root):
             raise ValueError("video_render_output_dir must be a child directory of output_dir")
@@ -475,6 +489,12 @@ class Settings(BaseSettings):
 
         configured = self.visual_asset_dir
         root = configured if configured is not None else self.output_dir / "visual-assets"
+        return root.expanduser().resolve(strict=False)
+
+    @property
+    def source_media_root(self) -> Path:
+        configured = self.source_media_dir
+        root = configured if configured is not None else self.output_dir / "source-media"
         return root.expanduser().resolve(strict=False)
 
     @property

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import httpx
 
 from god_news.application.memory import MemoryCoordinator
+from god_news.application.source_media import SourceMediaService
 from god_news.application.source_runs import SourceRunService
 from god_news.application.source_schedule import SourceCollectionScheduler
 from god_news.application.video_batches import VideoBatchService
@@ -43,6 +44,10 @@ from god_news.infrastructure.source_health import (
     HttpSourceReachabilityProbe,
     build_source_policies,
 )
+from god_news.infrastructure.source_media_http import HttpSourceMediaDownloader
+from god_news.infrastructure.source_media_probe import FFprobeSourceVideoInspector
+from god_news.infrastructure.source_media_repository import SqlAlchemySourceMediaRepository
+from god_news.infrastructure.source_media_store import LocalSourceMediaStore
 from god_news.infrastructure.source_runs import SqlAlchemySourceRunRepository
 from god_news.infrastructure.source_schedule import SqlAlchemySourceScheduleRepository
 from god_news.infrastructure.tts.gpt_sovits import (
@@ -86,6 +91,7 @@ class AppContainer:
     video_batches: VideoBatchService | None = None
     role_profiles: RoleProfileService | None = None
     visual_assets: VisualAssetService | None = None
+    source_media: SourceMediaService | None = None
     operations: OperationDispatcher | None = None
     operation_scheduler: IntervalScheduler | None = None
     database: Database | None = None
@@ -185,6 +191,7 @@ class AppContainer:
 async def build_container(settings: Settings) -> AppContainer:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     settings.visual_asset_root.mkdir(parents=True, exist_ok=True)
+    settings.source_media_root.mkdir(parents=True, exist_ok=True)
     database = Database(
         settings.database_url,
         sqlite_busy_timeout_ms=settings.database_busy_timeout_ms,
@@ -196,6 +203,10 @@ async def build_container(settings: Settings) -> AppContainer:
     visual_asset_repository = SqlAlchemyVisualAssetRepository(
         database.sessions,
         storage_root=settings.visual_asset_root,
+    )
+    source_media_repository = SqlAlchemySourceMediaRepository(
+        database.sessions,
+        storage_root=settings.source_media_root,
     )
     live_script_role_usage_guard = SqlAlchemyLiveScriptRoleUsageGuard(database.sessions)
     role_profiles = RoleProfileService(role_profile_repository, live_script_role_usage_guard)
@@ -210,6 +221,7 @@ async def build_container(settings: Settings) -> AppContainer:
         asset_protector=CompositeRetentionAssetProtector(
             video_batch_repository,
             visual_asset_repository,
+            source_media_repository,
         ),
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
@@ -394,6 +406,25 @@ async def build_container(settings: Settings) -> AppContainer:
         ),
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
+    ffprobe = FFprobeSourceVideoInspector.discover(settings.video_remotion_package_dir.parent)
+    source_media = SourceMediaService(
+        stories=repository,
+        repository=source_media_repository,
+        store=LocalSourceMediaStore(
+            settings.source_media_root,
+            max_download_bytes=settings.source_media_max_download_bytes,
+        ),
+        downloader=HttpSourceMediaDownloader(http_client, policy),
+        inspector=(
+            FFprobeSourceVideoInspector(
+                ffprobe,
+                timeout_seconds=settings.source_media_probe_timeout_seconds,
+            )
+            if ffprobe is not None
+            else None
+        ),
+        asset_lifecycle_lock=asset_lifecycle_lock,
+    )
     source_runs = SourceRunService(
         repository=SqlAlchemySourceRunRepository(database.sessions),
         collectors=RateLimitedSourceCollectorGateway(
@@ -459,6 +490,7 @@ async def build_container(settings: Settings) -> AppContainer:
         video_batches=video_batches,
         role_profiles=role_profiles,
         visual_assets=visual_assets,
+        source_media=source_media,
         operations=operations,
         operation_scheduler=operation_scheduler,
         database=database,
