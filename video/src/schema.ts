@@ -74,6 +74,75 @@ export const CaptionVariantSchema = z
   })
   .strict();
 
+export const TimedCaptionCueSchema = z
+  .object({
+    cue_id: z.string().uuid(),
+    sequence: z.number().int().nonnegative(),
+    start_ms: z.number().int().nonnegative(),
+    end_ms: z.number().int().positive(),
+    captions: z.array(CaptionVariantSchema).min(1).max(20),
+    average_log_probability: z.number().nullable().optional(),
+    no_speech_probability: z.number().min(0).max(1).nullable().optional(),
+  })
+  .strict()
+  .refine((cue) => cue.end_ms > cue.start_ms, {
+    message: 'caption cue end_ms must be greater than start_ms',
+    path: ['end_ms'],
+  });
+
+export const SourceVideoRenderAssetSchema = z
+  .object({
+    asset_id: z.string().uuid(),
+    story_id: z.string().uuid(),
+    transcription_id: z.string().uuid(),
+    transcription_version: z.number().int().min(2),
+    transcription_review: z
+      .object({
+        reviewer_id: nonBlank,
+        decision: z.literal('approve'),
+        reviewed_version: z.number().int().positive(),
+        note: z.string().nullable().optional(),
+        reviewed_at: nonBlank,
+      })
+      .strict(),
+    local_path: localPath,
+    sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    size_bytes: z.number().int().positive(),
+    duration_ms: z.number().int().positive(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    in_ms: z.number().int().nonnegative().default(0),
+    out_ms: z.number().int().positive(),
+    audio_mode: z.enum(['original', 'muted']).default('original'),
+    source_label: nonBlank,
+    captions: z.array(TimedCaptionCueSchema).min(1).max(10_000),
+  })
+  .strict()
+  .superRefine((asset, context) => {
+    if (asset.out_ms <= asset.in_ms || asset.out_ms > asset.duration_ms) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'source video selection must stay inside verified duration',
+        path: ['out_ms'],
+      });
+    }
+    if (asset.transcription_version !== asset.transcription_review.reviewed_version + 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'source video requires the final approved transcription version',
+        path: ['transcription_version'],
+      });
+    }
+    const finalCue = asset.captions.at(-1);
+    if (finalCue && finalCue.end_ms > asset.duration_ms + 2000) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'source video captions extend beyond verified duration',
+        path: ['captions'],
+      });
+    }
+  });
+
 export const TimelineSegmentSchema = z
   .object({
     segment_id: z.string().uuid(),
@@ -184,6 +253,7 @@ export const ProductionManifestSchema = z
 export const EpisodeSceneModuleSchema = z.enum([
   'host_evidence',
   'evidence_fullscreen',
+  'source_video',
 ]);
 
 export const EpisodeSceneSchema = z
@@ -191,8 +261,9 @@ export const EpisodeSceneSchema = z
     scene_id: z.string().uuid(),
     sequence: z.number().int().nonnegative().max(99),
     module_id: EpisodeSceneModuleSchema,
-    narration_segment_id: z.string().uuid(),
-    speaker_id: nonBlank,
+    narration_segment_id: z.string().uuid().nullable().optional(),
+    source_video_asset_id: z.string().uuid().nullable().optional(),
+    speaker_id: nonBlank.nullable().optional(),
     host_visibility: z.enum(['visible', 'hidden']),
     host_slot: z.enum(['primary', 'corner']).nullable().optional(),
     host_enter: z.boolean().default(false),
@@ -229,6 +300,32 @@ export const EpisodeSceneSchema = z
         path: ['host_visibility'],
       });
     }
+    if (scene.module_id === 'source_video') {
+      if (scene.host_visibility !== 'hidden') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'source_video requires a hidden host',
+          path: ['host_visibility'],
+        });
+      }
+      if (scene.narration_segment_id || !scene.source_video_asset_id || scene.speaker_id) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'source_video requires only a source video asset',
+          path: ['source_video_asset_id'],
+        });
+      }
+    } else if (
+      !scene.narration_segment_id ||
+      scene.source_video_asset_id ||
+      !scene.speaker_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'narration scenes require one segment and one speaker',
+        path: ['narration_segment_id'],
+      });
+    }
   });
 
 export const EpisodePlanSchema = z
@@ -256,7 +353,10 @@ export const EpisodePlanSchema = z
           path: ['scenes', index, 'scene_id'],
         });
       }
-      if (segmentIds.has(scene.narration_segment_id)) {
+      if (
+        scene.narration_segment_id &&
+        segmentIds.has(scene.narration_segment_id)
+      ) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'narration segments may appear in only one episode scene',
@@ -264,7 +364,9 @@ export const EpisodePlanSchema = z
         });
       }
       sceneIds.add(scene.scene_id);
-      segmentIds.add(scene.narration_segment_id);
+      if (scene.narration_segment_id) {
+        segmentIds.add(scene.narration_segment_id);
+      }
     });
   });
 
@@ -345,6 +447,7 @@ export const GodNewsVideoPropsSchema = z
     bgm: BgmSchema.nullable().optional(),
     visual_reservations: VisualReservationsSchema.default({renderer: 'placeholder'}),
     episode_plan: EpisodePlanSchema.nullable().optional(),
+    source_videos: z.array(SourceVideoRenderAssetSchema).max(100).default([]),
     output_profiles: z.array(OutputProfileSchema).min(1).max(8).default(defaultOutputProfiles),
     runtime_assets: RuntimeAssetsSchema.default({
       audio_by_segment_id: {},
@@ -410,14 +513,17 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
         });
       }
       const timeline = props.manifest.timeline;
-      if (props.episode_plan.scenes.length !== timeline.length) {
+      const narrationScenes = props.episode_plan.scenes.filter(
+        (scene) => scene.narration_segment_id,
+      );
+      if (narrationScenes.length !== timeline.length) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'episode plan must cover every narration segment',
           path: ['episode_plan', 'scenes'],
         });
       } else {
-        props.episode_plan.scenes.forEach((scene, index) => {
+        narrationScenes.forEach((scene, index) => {
           const segment = timeline[index];
           if (
             !segment ||
@@ -433,6 +539,35 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
           }
         });
       }
+      const assetIds = props.source_videos.map((asset) => asset.asset_id);
+      if (new Set(assetIds).size !== assetIds.length) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'source video asset IDs must be unique',
+          path: ['source_videos'],
+        });
+      }
+      const referencedAssetIds = new Set(
+        props.episode_plan.scenes.flatMap((scene) =>
+          scene.source_video_asset_id ? [scene.source_video_asset_id] : [],
+        ),
+      );
+      if (
+        referencedAssetIds.size !== assetIds.length ||
+        assetIds.some((assetId) => !referencedAssetIds.has(assetId))
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'episode source video scenes must match approved assets',
+          path: ['source_videos'],
+        });
+      }
+    } else if (props.source_videos.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'source video assets require a typed episode plan',
+        path: ['source_videos'],
+      });
     }
   });
 
@@ -448,4 +583,5 @@ export type ProductionManifest = z.infer<typeof ProductionManifestSchema>;
 export type EpisodePlan = z.infer<typeof EpisodePlanSchema>;
 export type EpisodeScene = z.infer<typeof EpisodeSceneSchema>;
 export type EpisodeSceneModule = z.infer<typeof EpisodeSceneModuleSchema>;
+export type SourceVideoRenderAsset = z.infer<typeof SourceVideoRenderAssetSchema>;
 export type GodNewsVideoProps = z.infer<typeof GodNewsVideoPropsSchema>;

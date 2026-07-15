@@ -97,4 +97,25 @@ describe('GodNewsVideoPropsSchema', () => {
       /scene identity must match reviewed narration/u,
     );
   });
+
+  it('rejects a source-video scene without an approved registered asset', () => {
+    const invalid = structuredClone(validProps);
+    invalid.episode_plan!.scenes.push({
+      scene_id: 'fcbb4b68-8807-46c6-8967-2f18e7ceeeeb',
+      sequence: 2,
+      module_id: 'source_video',
+      narration_segment_id: null,
+      source_video_asset_id: 'fdb03c41-2c67-4494-b560-7c9d68db39e0',
+      speaker_id: null,
+      host_visibility: 'hidden',
+      host_slot: null,
+      host_enter: false,
+      host_exit: false,
+      transition_type: 'black',
+    });
+
+    expect(() => parseGodNewsVideoProps(invalid)).toThrow(
+      /source video scenes must match approved assets/u,
+    );
+  });
 });

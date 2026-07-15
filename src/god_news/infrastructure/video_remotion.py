@@ -222,7 +222,13 @@ class LocalRemotionBatchVideoRenderer:
             if props.bgm is not None
             else None
         )
-        return props.model_copy(update={"manifest": manifest, "bgm": bgm})
+        source_videos = [
+            asset.model_copy(update={"local_path": staged_path(asset.local_path)})
+            for asset in props.source_videos
+        ]
+        return props.model_copy(
+            update={"manifest": manifest, "bgm": bgm, "source_videos": source_videos}
+        )
 
     @staticmethod
     def _copy_verified_input(

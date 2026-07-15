@@ -1329,11 +1329,8 @@ export interface components {
             host_slot?: components["schemas"]["EpisodeHostSlot"] | null;
             host_visibility: components["schemas"]["EpisodeHostVisibility"];
             module_id: components["schemas"]["EpisodeSceneModule"];
-            /**
-             * Narration Segment Id
-             * Format: uuid
-             */
-            narration_segment_id: string;
+            /** Narration Segment Id */
+            narration_segment_id?: string | null;
             /**
              * Scene Id
              * Format: uuid
@@ -1341,8 +1338,10 @@ export interface components {
             scene_id?: string;
             /** Sequence */
             sequence: number;
+            /** Source Video Asset Id */
+            source_video_asset_id?: string | null;
             /** Speaker Id */
-            speaker_id: string;
+            speaker_id?: string | null;
             /** @default black */
             transition_type: components["schemas"]["SceneTransition"];
         };
@@ -1351,7 +1350,7 @@ export interface components {
          * @description Versioned semantic scene modules understood by deterministic renderers.
          * @enum {string}
          */
-        EpisodeSceneModule: "host_evidence" | "evidence_fullscreen";
+        EpisodeSceneModule: "host_evidence" | "evidence_fullscreen" | "source_video";
         /** FirstReviewSubmission */
         FirstReviewSubmission: {
             /** Corrected Candidate Recommendation */
@@ -1855,6 +1854,8 @@ export interface components {
             manifest: components["schemas"]["PublicProductionManifest"];
             /** Output Profiles */
             output_profiles: components["schemas"]["VideoOutputProfile"][];
+            /** Source Videos */
+            source_videos: components["schemas"]["PublicSourceVideoRenderAsset"][];
             /** Subtitle */
             subtitle?: string | null;
             theme: components["schemas"]["VideoTheme"];
@@ -1863,6 +1864,46 @@ export interface components {
             /** Transition Duration Ms */
             transition_duration_ms: number;
             visual_reservations: components["schemas"]["PublicHostVisualReservations"];
+        };
+        /** PublicSourceVideoRenderAsset */
+        PublicSourceVideoRenderAsset: {
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id: string;
+            audio_mode: components["schemas"]["SourceVideoAudioMode"];
+            /** Captions */
+            captions: components["schemas"]["TimedCaptionCue"][];
+            /** Duration Ms */
+            duration_ms: number;
+            /** Height */
+            height: number;
+            /** In Ms */
+            in_ms: number;
+            /** Out Ms */
+            out_ms: number;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Source Label */
+            source_label: string;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /**
+             * Transcription Id
+             * Format: uuid
+             */
+            transcription_id: string;
+            transcription_review: components["schemas"]["TranscriptReview"];
+            /** Transcription Version */
+            transcription_version: number;
+            /** Width */
+            width: number;
         };
         /** PublicTimelineSegment */
         PublicTimelineSegment: {
@@ -3383,6 +3424,11 @@ export interface components {
          * @enum {string}
          */
         SourceTranscriptionStatus: "QUEUED" | "PROCESSING" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "FAILED" | "CANCELLED";
+        /**
+         * SourceVideoAudioMode
+         * @enum {string}
+         */
+        SourceVideoAudioMode: "original" | "muted";
         /** SourceVideoProbe */
         SourceVideoProbe: {
             /** Audio Codec */
@@ -3625,6 +3671,8 @@ export interface components {
             decision: components["schemas"]["TimelineReviewDecision"];
             /** Note */
             note?: string | null;
+            /** Render Input Sha256 */
+            render_input_sha256?: string | null;
             /**
              * Reviewed At
              * Format: date-time

@@ -1,4 +1,9 @@
-import type {EpisodeScene, GodNewsVideoProps, TimelineSegment} from './schema';
+import type {
+  EpisodeScene,
+  GodNewsVideoProps,
+  SourceVideoRenderAsset,
+  TimelineSegment,
+} from './schema';
 
 export type IntroTrack = Readonly<{
   kind: 'intro';
@@ -14,15 +19,24 @@ export type SegmentTrack = Readonly<{
   scene: EpisodeScene;
 }>;
 
+export type SourceVideoTrack = Readonly<{
+  kind: 'source_video';
+  from: number;
+  durationInFrames: number;
+  scene: EpisodeScene;
+  asset: SourceVideoRenderAsset;
+}>;
+
 export type TransitionTrack = Readonly<{
   kind: 'transition';
   from: number;
   durationInFrames: number;
-  afterSegmentId: string;
+  afterSceneId: string;
   transition_type: TimelineSegment['scene_transition'];
 }>;
 
-export type RenderTrack = IntroTrack | SegmentTrack | TransitionTrack;
+export type SceneTrack = SegmentTrack | SourceVideoTrack;
+export type RenderTrack = IntroTrack | SceneTrack | TransitionTrack;
 
 export type RenderPlan = Readonly<{
   fps: number;
@@ -74,28 +88,50 @@ export const buildRenderPlan = (
     }),
   );
 
-  props.manifest.timeline.forEach((segment, index) => {
-    const segmentFrames = positiveMillisecondsToFrames(
-      segment.end_ms - segment.start_ms,
-      fps,
-    );
-    tracks.push({
-      kind: 'segment',
-      from: cursor,
-      durationInFrames: segmentFrames,
-      segment,
-      scene: scenes[index]!,
-    });
-    cursor += segmentFrames;
+  const segmentsById = new Map(
+    props.manifest.timeline.map((segment) => [segment.segment_id, segment]),
+  );
+  const sourceVideosById = new Map(
+    props.source_videos.map((asset) => [asset.asset_id, asset]),
+  );
 
-    const isLast = index === props.manifest.timeline.length - 1;
+  scenes.forEach((scene, index) => {
+    if (scene.module_id === 'source_video') {
+      const asset = scene.source_video_asset_id
+        ? sourceVideosById.get(scene.source_video_asset_id)
+        : undefined;
+      if (!asset) {
+        throw new Error(`Source video scene ${scene.scene_id} has no approved asset.`);
+      }
+      const durationInFrames = positiveMillisecondsToFrames(
+        asset.out_ms - asset.in_ms,
+        fps,
+      );
+      tracks.push({kind: 'source_video', from: cursor, durationInFrames, scene, asset});
+      cursor += durationInFrames;
+    } else {
+      const segment = scene.narration_segment_id
+        ? segmentsById.get(scene.narration_segment_id)
+        : undefined;
+      if (!segment) {
+        throw new Error(`Narration scene ${scene.scene_id} has no reviewed segment.`);
+      }
+      const durationInFrames = positiveMillisecondsToFrames(
+        segment.end_ms - segment.start_ms,
+        fps,
+      );
+      tracks.push({kind: 'segment', from: cursor, durationInFrames, segment, scene});
+      cursor += durationInFrames;
+    }
+
+    const isLast = index === scenes.length - 1;
     if (!isLast && transitionFrames > 0) {
       tracks.push({
         kind: 'transition',
         from: cursor,
         durationInFrames: transitionFrames,
-        afterSegmentId: segment.segment_id,
-        transition_type: segment.scene_transition,
+        afterSceneId: scene.scene_id,
+        transition_type: scene.transition_type,
       });
       cursor += transitionFrames;
     }

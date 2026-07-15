@@ -11,6 +11,7 @@ from god_news.application.video_batches import require_video_transition
 from god_news.domain.models import ScriptDocument, ScriptSegment, utc_now
 from god_news.domain.video import (
     RemotionVideoProps,
+    SourceVideoRenderAsset,
     VideoBatch,
     VideoBatchStatus,
     VideoBatchStory,
@@ -206,6 +207,15 @@ class DeterministicBatchNarrationComposer:
             language=next(iter(languages)) if len(languages) == 1 else "multilingual",
             segments=segments,
         )
+
+
+class EmptySourceVideoAssetLibrary:
+    async def approved_for_stories(
+        self,
+        story_ids: Sequence[UUID],
+    ) -> Sequence[SourceVideoRenderAsset]:
+        del story_ids
+        return []
 
 
 class DeterministicBatchVideoRenderer:

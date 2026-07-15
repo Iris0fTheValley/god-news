@@ -128,9 +128,16 @@ const stageProps = async (
   const bgmSrc = props.bgm
     ? await stageAsset(props.bgm.local_path, inputDirectory, publicDirectory)
     : undefined;
+  const sourceVideos = await Promise.all(
+    props.source_videos.map(async (asset) => ({
+      ...asset,
+      local_path: await stageAsset(asset.local_path, inputDirectory, publicDirectory),
+    })),
+  );
 
   return parseGodNewsVideoProps({
     ...props,
+    source_videos: sourceVideos,
     runtime_assets: {
       audio_by_segment_id: Object.fromEntries(audioEntries),
       ...(bgmSrc ? {bgm_src: bgmSrc} : {}),
@@ -208,7 +215,12 @@ const main = async (): Promise<void> => {
 };
 
 main().catch((error: unknown) => {
+  const structured =
+    typeof error === 'object' && error !== null ? JSON.stringify(error, null, 2) : '';
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`Render failed: ${message}\n`);
+  if (structured && structured !== '{}') {
+    process.stderr.write(`${structured}\n`);
+  }
   process.exitCode = 1;
 });

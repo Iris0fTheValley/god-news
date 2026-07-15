@@ -12,6 +12,7 @@ from god_news.domain.video import (
     BgmTrack,
     HostVisualReservations,
     RemotionVideoProps,
+    SourceVideoRenderAsset,
     VideoBatch,
     VideoBatchStatus,
     VideoBatchStory,
@@ -78,6 +79,15 @@ class BgmCatalog(Protocol):
         volume: float,
         loop: bool,
     ) -> BgmSelection: ...
+
+
+class SourceVideoAssetLibrary(Protocol):
+    """Resolve only immutable, publishable, transcript-approved source video."""
+
+    async def approved_for_stories(
+        self,
+        story_ids: Sequence[UUID],
+    ) -> Sequence[SourceVideoRenderAsset]: ...
 
 
 class BatchVideoRenderer(Protocol):

@@ -1,6 +1,6 @@
 import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 
-import type {SegmentTrack} from '../render-plan';
+import type {SceneTrack} from '../render-plan';
 import type {GodNewsVideoProps} from '../schema';
 
 const fontFamily =
@@ -13,9 +13,12 @@ export const EvidenceFullscreenScene = ({
   segmentCount,
 }: {
   props: GodNewsVideoProps;
-  track: SegmentTrack;
+  track: SceneTrack;
   segmentCount: number;
 }) => {
+  if (track.kind !== 'segment') {
+    throw new Error('evidence_fullscreen requires a narration segment track');
+  }
   const frame = useCurrentFrame();
   const {width, height} = useVideoConfig();
   const horizontal = width > height;

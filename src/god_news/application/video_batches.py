@@ -35,6 +35,7 @@ from god_news.domain.video import (
     NarrationReview,
     NarrationReviewDecision,
     RemotionVideoProps,
+    SourceVideoRenderAsset,
     SubmitNarrationReview,
     SubmitTimelineReview,
     SynthesizeBatchNarration,
@@ -56,6 +57,7 @@ from god_news.domain.video_ports import (
     BatchVideoRenderer,
     BgmCatalog,
     HostRenderer,
+    SourceVideoAssetLibrary,
     StoryManifestPool,
     VideoBatchRepository,
 )
@@ -94,6 +96,7 @@ class VideoBatchService:
         synthesizer: SpeechSynthesizer,
         video_renderer: BatchVideoRenderer,
         bgm_catalog: BgmCatalog,
+        source_video_library: SourceVideoAssetLibrary,
         audio_root: Path,
         candidate_scan_limit: int = 1_000,
         asset_lifecycle_lock: asyncio.Lock | None = None,
@@ -107,6 +110,7 @@ class VideoBatchService:
         self._synthesizer = synthesizer
         self._video_renderer = video_renderer
         self._bgm_catalog = bgm_catalog
+        self._source_video_library = source_video_library
         self._audio_root = audio_root.expanduser().resolve()
         self._candidate_scan_limit = candidate_scan_limit
         self._asset_lifecycle_lock = asset_lifecycle_lock or asyncio.Lock()
@@ -287,6 +291,11 @@ class VideoBatchService:
                 script=running.narration.script,
                 audio=audio,
             )
+            source_videos = list(
+                await self._source_video_library.approved_for_stories(
+                    [story.story_id for story in running.stories]
+                )
+            )
             props = self._build_remotion_props(
                 batch_id=running.batch_id,
                 title=running.title,
@@ -294,6 +303,7 @@ class VideoBatchService:
                 manifest=manifest,
                 bgm=(running.bgm.render_spec() if running.bgm is not None else None),
                 host=running.visual_reservations,
+                source_videos=source_videos,
             )
             input_assets = await asyncio.to_thread(self._snapshot_input_assets, props)
             self._validate_audio_snapshot_evidence(audio, input_assets)
@@ -348,6 +358,10 @@ class VideoBatchService:
                     f"Timeline review is not allowed while batch is {batch.status.value}."
                 )
             expected_order = [story.story_id for story in batch.stories]
+            if batch.render_input_sha256 is None:
+                raise VideoBatchConflictError(
+                    "Timeline review requires an immutable render input snapshot."
+                )
             if submission.story_order is not None and submission.story_order != expected_order:
                 raise VideoBatchConflictError(
                     "Merged narration fixes source order; create a replacement batch to "
@@ -358,6 +372,7 @@ class VideoBatchService:
                 decision=submission.decision,
                 reviewed_batch_version=batch.version,
                 story_order=expected_order,
+                render_input_sha256=batch.render_input_sha256,
                 note=submission.note,
             )
             target = (
@@ -689,10 +704,15 @@ class VideoBatchService:
         manifest: ProductionManifest,
         bgm: BgmRenderSpec | None,
         host: HostVisualReservations,
+        source_videos: Sequence[SourceVideoRenderAsset],
     ) -> RemotionVideoProps:
         if manifest.story_id != batch_id:
             raise VideoBatchConflictError("Merged manifest must be owned by the video batch.")
-        episode_plan = VideoBatchService._build_episode_plan(batch_id, manifest)
+        episode_plan = VideoBatchService._build_episode_plan(
+            batch_id,
+            manifest,
+            source_videos,
+        )
         return RemotionVideoProps(
             manifest=manifest,
             title=title,
@@ -700,15 +720,21 @@ class VideoBatchService:
             bgm=bgm,
             visual_reservations=host,
             episode_plan=episode_plan,
+            source_videos=list(source_videos),
         )
 
     @staticmethod
-    def _build_episode_plan(batch_id: UUID, manifest: ProductionManifest) -> EpisodePlan:
+    def _build_episode_plan(
+        batch_id: UUID,
+        manifest: ProductionManifest,
+        source_videos: Sequence[SourceVideoRenderAsset] = (),
+    ) -> EpisodePlan:
         """Compile reviewed narration into replaceable semantic scene modules.
 
-        The initial policy keeps every narration segment in the registered
-        host/evidence module. A future director adapter may replace this policy
-        with a reviewed EpisodePlan without changing timing or Remotion internals.
+        The conservative default keeps narration in the registered host/evidence
+        module, then plays any rights-cleared, transcript-approved original clips.
+        A future director adapter may reorder these typed nodes before timeline
+        review without changing timing or Remotion internals.
         """
 
         scenes: list[EpisodeScene] = []
@@ -730,6 +756,15 @@ class VideoBatchService:
                     host_enter=previous is None or previous.speaker_id != segment.speaker_id,
                     host_exit=following is None or following.speaker_id != segment.speaker_id,
                     transition_type=segment.scene_transition,
+                )
+            )
+        for source_video in source_videos:
+            scenes.append(
+                EpisodeScene(
+                    sequence=len(scenes),
+                    module_id=EpisodeSceneModule.SOURCE_VIDEO,
+                    source_video_asset_id=source_video.asset_id,
+                    host_visibility=EpisodeHostVisibility.HIDDEN,
                 )
             )
         return EpisodePlan(batch_id=batch_id, scenes=scenes)
@@ -756,6 +791,10 @@ class VideoBatchService:
         candidates: list[tuple[VideoInputAssetKind, str]] = [
             (VideoInputAssetKind.AUDIO, segment.audio_path) for segment in props.manifest.timeline
         ]
+        candidates.extend(
+            (VideoInputAssetKind.SOURCE_VIDEO, asset.local_path)
+            for asset in props.source_videos
+        )
         if props.bgm is not None:
             candidates.append((VideoInputAssetKind.BGM, props.bgm.local_path))
         seen: set[tuple[VideoInputAssetKind, str]] = set()

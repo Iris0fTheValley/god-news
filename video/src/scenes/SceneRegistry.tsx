@@ -1,19 +1,21 @@
 import type {ComponentType} from 'react';
 
-import type {SegmentTrack} from '../render-plan';
+import type {SceneTrack} from '../render-plan';
 import type {EpisodeSceneModule, GodNewsVideoProps} from '../schema';
 import {EvidenceFullscreenScene} from './EvidenceFullscreenScene';
 import {HostEvidenceScene} from './HostEvidenceScene';
+import {SourceVideoScene} from './SourceVideoScene';
 
 export type EpisodeSceneRendererProps = Readonly<{
   props: GodNewsVideoProps;
-  track: SegmentTrack;
+  track: SceneTrack;
   segmentCount: number;
 }>;
 
 const sceneRegistry = {
   host_evidence: HostEvidenceScene,
   evidence_fullscreen: EvidenceFullscreenScene,
+  source_video: SourceVideoScene,
 } satisfies Record<EpisodeSceneModule, ComponentType<EpisodeSceneRendererProps>>;
 
 export const registeredEpisodeSceneModules = Object.freeze(

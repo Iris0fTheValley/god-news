@@ -20,6 +20,11 @@ from god_news.domain.models import (
     ScriptDocument,
     utc_now,
 )
+from god_news.domain.source_transcription import (
+    TimedCaptionCue,
+    TranscriptReview,
+    TranscriptReviewDecision,
+)
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
@@ -129,6 +134,7 @@ class BgmRenderSpec(DomainModel):
 class VideoInputAssetKind(StrEnum):
     AUDIO = "audio"
     BGM = "bgm"
+    SOURCE_VIDEO = "source_video"
 
 
 class VideoInputAsset(DomainModel):
@@ -244,6 +250,7 @@ class EpisodeSceneModule(StrEnum):
 
     HOST_EVIDENCE = "host_evidence"
     EVIDENCE_FULLSCREEN = "evidence_fullscreen"
+    SOURCE_VIDEO = "source_video"
 
 
 class EpisodeHostSlot(StrEnum):
@@ -256,12 +263,58 @@ class EpisodeHostVisibility(StrEnum):
     HIDDEN = "hidden"
 
 
+class SourceVideoAudioMode(StrEnum):
+    ORIGINAL = "original"
+    MUTED = "muted"
+
+
+class SourceVideoRenderAsset(DomainModel):
+    """Immutable, review-approved source video exposed to the episode compiler."""
+
+    asset_id: UUID
+    story_id: UUID
+    transcription_id: UUID
+    transcription_version: int = Field(ge=2)
+    transcription_review: TranscriptReview
+    local_path: NonBlankStr
+    sha256: Sha256
+    size_bytes: int = Field(gt=0)
+    duration_ms: int = Field(gt=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    in_ms: int = Field(default=0, ge=0)
+    out_ms: int = Field(gt=0)
+    audio_mode: SourceVideoAudioMode = SourceVideoAudioMode.ORIGINAL
+    source_label: NonBlankStr
+    captions: list[TimedCaptionCue] = Field(min_length=1, max_length=10_000)
+
+    @field_validator("local_path")
+    @classmethod
+    def require_local_path(cls, value: str) -> str:
+        return _require_local_path(value)
+
+    @model_validator(mode="after")
+    def validate_reviewed_range(self) -> SourceVideoRenderAsset:
+        if self.out_ms <= self.in_ms or self.out_ms > self.duration_ms:
+            raise ValueError("source video selection must stay inside the verified media duration")
+        review = self.transcription_review
+        if (
+            review.decision is not TranscriptReviewDecision.APPROVE
+            or self.transcription_version != review.reviewed_version + 1
+        ):
+            raise ValueError("source videos require the final approved transcription version")
+        if self.captions[-1].end_ms > self.duration_ms + 2_000:
+            raise ValueError("source video captions extend beyond the verified media duration")
+        return self
+
+
 class EpisodeScene(DomainModel):
     scene_id: UUID = Field(default_factory=uuid4)
     sequence: int = Field(ge=0, le=99)
     module_id: EpisodeSceneModule
-    narration_segment_id: UUID
-    speaker_id: NonBlankStr
+    narration_segment_id: UUID | None = None
+    source_video_asset_id: UUID | None = None
+    speaker_id: NonBlankStr | None = None
     host_visibility: EpisodeHostVisibility
     host_slot: EpisodeHostSlot | None = None
     host_enter: bool = False
@@ -284,6 +337,19 @@ class EpisodeScene(DomainModel):
             and self.host_visibility is not EpisodeHostVisibility.HIDDEN
         ):
             raise ValueError("evidence_fullscreen scenes require the host to leave the frame")
+        if self.module_id is EpisodeSceneModule.SOURCE_VIDEO:
+            if self.host_visibility is not EpisodeHostVisibility.HIDDEN:
+                raise ValueError("source_video scenes require the host to leave the frame")
+            if self.narration_segment_id is not None or self.source_video_asset_id is None:
+                raise ValueError("source_video scenes require only a source video asset")
+            if self.speaker_id is not None:
+                raise ValueError("source_video scenes cannot claim a narration speaker")
+        elif (
+            self.narration_segment_id is None
+            or self.source_video_asset_id is not None
+            or self.speaker_id is None
+        ):
+            raise ValueError("narration scenes require one segment and one speaker")
         return self
 
 
@@ -301,7 +367,11 @@ class EpisodePlan(DomainModel):
         scene_ids = [scene.scene_id for scene in self.scenes]
         if len(scene_ids) != len(set(scene_ids)):
             raise ValueError("episode scene IDs must be unique")
-        segment_ids = [scene.narration_segment_id for scene in self.scenes]
+        segment_ids = [
+            scene.narration_segment_id
+            for scene in self.scenes
+            if scene.narration_segment_id is not None
+        ]
         if len(segment_ids) != len(set(segment_ids)):
             raise ValueError("each narration segment must belong to exactly one episode scene")
         return self
@@ -324,6 +394,7 @@ class RemotionVideoProps(DomainModel):
     bgm: BgmRenderSpec | None = None
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
     episode_plan: EpisodePlan | None = None
+    source_videos: list[SourceVideoRenderAsset] = Field(default_factory=list, max_length=100)
     output_profiles: list[VideoOutputProfile] = Field(
         default_factory=default_video_output_profiles,
         min_length=2,
@@ -344,12 +415,21 @@ class RemotionVideoProps(DomainModel):
         if self.episode_plan is not None:
             if self.episode_plan.batch_id != self.manifest.story_id:
                 raise ValueError("episode plan must be owned by the rendered batch")
-            if [scene.narration_segment_id for scene in self.episode_plan.scenes] != [
+            if [
+                scene.narration_segment_id
+                for scene in self.episode_plan.scenes
+                if scene.narration_segment_id is not None
+            ] != [
                 segment.segment_id for segment in self.manifest.timeline
             ]:
                 raise ValueError("episode scenes must cover the manifest timeline in order")
+            narration_scenes = [
+                scene
+                for scene in self.episode_plan.scenes
+                if scene.narration_segment_id is not None
+            ]
             for scene, segment in zip(
-                self.episode_plan.scenes,
+                narration_scenes,
                 self.manifest.timeline,
                 strict=True,
             ):
@@ -360,6 +440,18 @@ class RemotionVideoProps(DomainModel):
                     raise ValueError(
                         "episode scene speaker and transition must match reviewed narration"
                     )
+            asset_ids = [asset.asset_id for asset in self.source_videos]
+            if len(asset_ids) != len(set(asset_ids)):
+                raise ValueError("source video asset IDs must be unique")
+            referenced_asset_ids = {
+                scene.source_video_asset_id
+                for scene in self.episode_plan.scenes
+                if scene.source_video_asset_id is not None
+            }
+            if referenced_asset_ids != set(asset_ids):
+                raise ValueError("episode source video scenes must match the approved asset set")
+        elif self.source_videos:
+            raise ValueError("source video assets require a typed episode plan")
         return self
 
 
@@ -503,6 +595,7 @@ class TimelineReview(DomainModel):
     decision: TimelineReviewDecision
     reviewed_batch_version: int = Field(ge=1)
     story_order: list[UUID] = Field(min_length=1, max_length=15)
+    render_input_sha256: Sha256 | None = None
     note: str | None = None
     reviewed_at: datetime = Field(default_factory=utc_now)
 
@@ -758,12 +851,27 @@ class VideoBatch(DomainModel):
                 raise ValueError("batches without BGM cannot retain BGM input evidence")
         elif len(bgm_assets) != 1 or bgm_assets[0].local_path != expected_bgm.local_path:
             raise ValueError("BGM input evidence must match the selected BGM path")
+        recorded_source_video_paths = {
+            asset.local_path
+            for asset in self.input_assets
+            if asset.kind is VideoInputAssetKind.SOURCE_VIDEO
+        }
+        expected_source_video_paths = {
+            asset.local_path for asset in self.remotion_props.source_videos
+        }
+        if recorded_source_video_paths != expected_source_video_paths:
+            raise ValueError("source video input evidence must match approved render assets")
         if self.render_input_sha256 != render_input_sha256(self.remotion_props, self.input_assets):
             raise ValueError("render_input_sha256 does not match props and input assets")
 
     def _validate_review_evidence(self, story_ids: list[UUID], generated: bool) -> None:
         if self.timeline_review is not None and self.timeline_review.story_order != story_ids:
             raise ValueError("timeline review order must match the immutable batch order")
+        if (
+            self.timeline_review is not None
+            and self.timeline_review.render_input_sha256 != self.render_input_sha256
+        ):
+            raise ValueError("timeline review must bind the exact render input snapshot")
         latest_narration = self.narration_reviews[-1] if self.narration_reviews else None
 
         pre_tts_states = {

@@ -79,6 +79,7 @@ export const validProps: GodNewsVideoProps = {
       },
     ],
   },
+  source_videos: [],
   output_profiles: [
     {
       profile_id: 'douyin_vertical',

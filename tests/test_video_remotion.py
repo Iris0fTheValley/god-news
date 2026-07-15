@@ -12,13 +12,19 @@ import pytest
 from anyio import Path as AsyncPath
 
 from god_news.domain.enums import SpeechEmotion
-from god_news.domain.models import ProductionManifest, TimelineSegment
+from god_news.domain.models import CaptionVariant, ProductionManifest, TimelineSegment
+from god_news.domain.source_transcription import (
+    TimedCaptionCue,
+    TranscriptReview,
+    TranscriptReviewDecision,
+)
 from god_news.domain.video import (
     EpisodeHostVisibility,
     EpisodePlan,
     EpisodeScene,
     EpisodeSceneModule,
     RemotionVideoProps,
+    SourceVideoRenderAsset,
     VideoInputAsset,
     VideoInputAssetKind,
     VideoOutputProfileId,
@@ -99,6 +105,75 @@ def test_remotion_props_reject_episode_plan_identity_drift(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="speaker and transition"):
         props.model_copy(update={"episode_plan": plan}).model_validate(
+            props.model_copy(update={"episode_plan": plan}).model_dump()
+        )
+
+
+def test_source_video_scene_requires_matching_approved_asset(tmp_path: Path) -> None:
+    audio = tmp_path / "audio.wav"
+    source = tmp_path / "source.mp4"
+    props = _props(audio)
+    segment = props.manifest.timeline[0]
+    review = TranscriptReview(
+        reviewer_id="caption-editor",
+        decision=TranscriptReviewDecision.APPROVE,
+        reviewed_version=1,
+    )
+    asset = SourceVideoRenderAsset(
+        asset_id=uuid4(),
+        story_id=uuid4(),
+        transcription_id=uuid4(),
+        transcription_version=2,
+        transcription_review=review,
+        local_path=str(source),
+        sha256="a" * 64,
+        size_bytes=1024,
+        duration_ms=5_000,
+        width=1_920,
+        height=1_080,
+        out_ms=5_000,
+        source_label="Verified source",
+        captions=[
+            TimedCaptionCue(
+                sequence=0,
+                start_ms=0,
+                end_ms=5_000,
+                captions=[
+                    CaptionVariant(language="en", kind="verbatim", text="Verified caption")
+                ],
+            )
+        ],
+    )
+    plan = EpisodePlan(
+        batch_id=props.manifest.story_id,
+        scenes=[
+            EpisodeScene(
+                sequence=0,
+                module_id=EpisodeSceneModule.HOST_EVIDENCE,
+                narration_segment_id=segment.segment_id,
+                speaker_id=segment.speaker_id,
+                host_visibility=EpisodeHostVisibility.VISIBLE,
+                host_slot="primary",
+                transition_type=segment.scene_transition,
+            ),
+            EpisodeScene(
+                sequence=1,
+                module_id=EpisodeSceneModule.SOURCE_VIDEO,
+                source_video_asset_id=asset.asset_id,
+                host_visibility=EpisodeHostVisibility.HIDDEN,
+            ),
+        ],
+    )
+
+    accepted = RemotionVideoProps.model_validate(
+        props.model_copy(
+            update={"episode_plan": plan, "source_videos": [asset]}
+        ).model_dump()
+    )
+    assert accepted.source_videos == [asset]
+
+    with pytest.raises(ValueError, match="match the approved asset set"):
+        RemotionVideoProps.model_validate(
             props.model_copy(update={"episode_plan": plan}).model_dump()
         )
 

@@ -1049,9 +1049,16 @@
             "$ref": "#/components/schemas/EpisodeSceneModule"
           },
           "narration_segment_id": {
-            "format": "uuid",
-            "title": "Narration Segment Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narration Segment Id"
           },
           "scene_id": {
             "format": "uuid",
@@ -1064,10 +1071,29 @@
             "title": "Sequence",
             "type": "integer"
           },
+          "source_video_asset_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Video Asset Id"
+          },
           "speaker_id": {
-            "minLength": 1,
-            "title": "Speaker Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker Id"
           },
           "transition_type": {
             "$ref": "#/components/schemas/SceneTransition",
@@ -1077,8 +1103,6 @@
         "required": [
           "sequence",
           "module_id",
-          "narration_segment_id",
-          "speaker_id",
           "host_visibility"
         ],
         "title": "EpisodeScene",
@@ -1088,7 +1112,8 @@
         "description": "Versioned semantic scene modules understood by deterministic renderers.",
         "enum": [
           "host_evidence",
-          "evidence_fullscreen"
+          "evidence_fullscreen",
+          "source_video"
         ],
         "title": "EpisodeSceneModule",
         "type": "string"
@@ -2506,6 +2531,13 @@
             "title": "Output Profiles",
             "type": "array"
           },
+          "source_videos": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSourceVideoRenderAsset"
+            },
+            "title": "Source Videos",
+            "type": "array"
+          },
           "subtitle": {
             "anyOf": [
               {
@@ -2539,9 +2571,98 @@
           "transition_duration_ms",
           "theme",
           "visual_reservations",
+          "source_videos",
           "output_profiles"
         ],
         "title": "PublicRemotionVideoProps",
+        "type": "object"
+      },
+      "PublicSourceVideoRenderAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "format": "uuid",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "audio_mode": {
+            "$ref": "#/components/schemas/SourceVideoAudioMode"
+          },
+          "captions": {
+            "items": {
+              "$ref": "#/components/schemas/TimedCaptionCue"
+            },
+            "title": "Captions",
+            "type": "array"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "in_ms": {
+            "title": "In Ms",
+            "type": "integer"
+          },
+          "out_ms": {
+            "title": "Out Ms",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "transcription_id": {
+            "format": "uuid",
+            "title": "Transcription Id",
+            "type": "string"
+          },
+          "transcription_review": {
+            "$ref": "#/components/schemas/TranscriptReview"
+          },
+          "transcription_version": {
+            "title": "Transcription Version",
+            "type": "integer"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asset_id",
+          "story_id",
+          "transcription_id",
+          "transcription_version",
+          "transcription_review",
+          "sha256",
+          "size_bytes",
+          "duration_ms",
+          "width",
+          "height",
+          "in_ms",
+          "out_ms",
+          "audio_mode",
+          "source_label",
+          "captions"
+        ],
+        "title": "PublicSourceVideoRenderAsset",
         "type": "object"
       },
       "PublicTimelineSegment": {
@@ -6518,6 +6639,14 @@
         "title": "SourceTranscriptionStatus",
         "type": "string"
       },
+      "SourceVideoAudioMode": {
+        "enum": [
+          "original",
+          "muted"
+        ],
+        "title": "SourceVideoAudioMode",
+        "type": "string"
+      },
       "SourceVideoProbe": {
         "additionalProperties": false,
         "properties": {
@@ -7219,6 +7348,18 @@
               }
             ],
             "title": "Note"
+          },
+          "render_input_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Input Sha256"
           },
           "reviewed_at": {
             "format": "date-time",

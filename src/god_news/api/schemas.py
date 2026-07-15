@@ -8,11 +8,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from god_news.domain.enums import AudioFormat, SceneTransition, SpeechEmotion
 from god_news.domain.models import CaptionVariant, ScriptDocument, SynthesisMetadata
+from god_news.domain.source_transcription import TimedCaptionCue, TranscriptReview
 from god_news.domain.video import (
     BatchNarrationFailure,
     BatchNarrationSourceEvidence,
     EpisodePlan,
     NarrationReview,
+    SourceVideoAudioMode,
     TimelineReview,
     VideoBatchStatus,
     VideoOutputProfile,
@@ -160,6 +162,25 @@ class PublicBatchNarrationArtifact(ApiModel):
     synthesized_at: datetime | None = None
 
 
+class PublicSourceVideoRenderAsset(ApiModel):
+    asset_id: UUID
+    story_id: UUID
+    transcription_id: UUID
+    transcription_version: int
+    transcription_review: TranscriptReview
+    local_path: str = Field(exclude=True)
+    sha256: str
+    size_bytes: int
+    duration_ms: int
+    width: int
+    height: int
+    in_ms: int
+    out_ms: int
+    audio_mode: SourceVideoAudioMode
+    source_label: str
+    captions: list[TimedCaptionCue]
+
+
 class PublicRemotionVideoProps(ApiModel):
     manifest: PublicProductionManifest
     title: str
@@ -170,6 +191,7 @@ class PublicRemotionVideoProps(ApiModel):
     bgm: PublicBgmRenderSpec | None = None
     visual_reservations: PublicHostVisualReservations
     episode_plan: EpisodePlan | None = None
+    source_videos: list[PublicSourceVideoRenderAsset]
     output_profiles: list[VideoOutputProfile]
 
 

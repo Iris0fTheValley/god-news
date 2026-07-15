@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -16,6 +18,7 @@ from god_news.api.app import create_app
 from god_news.application.video_batches import VideoBatchService
 from god_news.domain.enums import ContentCategory, ReviewDecision
 from god_news.domain.models import (
+    CaptionVariant,
     FirstReviewSubmission,
     IngestRequest,
     ScriptReviewSubmission,
@@ -23,11 +26,17 @@ from god_news.domain.models import (
     SynthesizeStoryRequest,
     TextSource,
 )
+from god_news.domain.source_transcription import (
+    TimedCaptionCue,
+    TranscriptReview,
+    TranscriptReviewDecision,
+)
 from god_news.domain.video import (
     BgmSelection,
     CreateVideoBatch,
     LegacyVideoRenderArtifact,
     NarrationReviewDecision,
+    SourceVideoRenderAsset,
     SubmitNarrationReview,
     SubmitTimelineReview,
     SynthesizeBatchNarration,
@@ -44,6 +53,7 @@ from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchReposit
 from god_news.infrastructure.video_testing import (
     DeterministicBatchNarrationComposer,
     DeterministicBatchVideoRenderer,
+    EmptySourceVideoAssetLibrary,
     InMemoryVideoBatchRepository,
 )
 from god_news.video_errors import (
@@ -54,6 +64,55 @@ from god_news.video_errors import (
 )
 
 from .conftest import Stack
+
+
+class _StaticSourceVideoLibrary:
+    def __init__(self, asset: SourceVideoRenderAsset) -> None:
+        self.asset = asset
+        self.calls = 0
+
+    async def approved_for_stories(
+        self,
+        story_ids: Sequence[UUID],
+    ) -> Sequence[SourceVideoRenderAsset]:
+        self.calls += 1
+        return [self.asset] if self.asset.story_id in story_ids else []
+
+
+def _source_video_asset(tmp_path: Path, story_id: UUID) -> SourceVideoRenderAsset:
+    path = tmp_path / "approved-source.mp4"
+    payload = b"approved-original-video"
+    path.write_bytes(payload)
+    return SourceVideoRenderAsset(
+        asset_id=uuid4(),
+        story_id=story_id,
+        transcription_id=uuid4(),
+        transcription_version=2,
+        transcription_review=TranscriptReview(
+            reviewer_id="caption-editor",
+            decision=TranscriptReviewDecision.APPROVE,
+            reviewed_version=1,
+        ),
+        local_path=str(path),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        size_bytes=len(payload),
+        duration_ms=8_000,
+        width=1_920,
+        height=1_080,
+        out_ms=8_000,
+        source_label="Approved public-domain fixture",
+        captions=[
+            TimedCaptionCue(
+                sequence=0,
+                start_ms=0,
+                end_ms=8_000,
+                captions=[
+                    CaptionVariant(language="en", kind="verbatim", text="A kind moment."),
+                    CaptionVariant(language="zh-CN", kind="translation", text="一个善意瞬间。"),
+                ],
+            )
+        ],
+    )
 
 
 async def _done_story(stack: Stack, text: str):  # type: ignore[no-untyped-def]
@@ -113,6 +172,7 @@ def _service(
         synthesizer=stack.synthesizer,
         video_renderer=renderer,
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
         audio_root=stack.settings.output_dir,
     )
     return service, repository, composer, renderer
@@ -268,6 +328,46 @@ async def test_merged_audio_is_the_only_remotion_input_and_timeline_cannot_reord
     assert renderer.calls == 1
     assert rendered.artifact is not None
     assert all(story.used_at == rendered.artifact.rendered_at for story in rendered.stories)
+
+
+@pytest.mark.asyncio
+async def test_approved_source_video_is_snapshotted_and_compiled_after_narration(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    story = await _done_story(stack, "A public-domain clip records a community rescue.")
+    asset = _source_video_asset(tmp_path, story.story_id)
+    library = _StaticSourceVideoLibrary(asset)
+    repository = InMemoryVideoBatchRepository()
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=repository,
+        host_renderer=PlaceholderHostRenderer(),
+        narration_composer=DeterministicBatchNarrationComposer(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=library,
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Original clip", story_ids=[story.story_id])
+    )
+
+    synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
+
+    assert library.calls == 1
+    assert synthesized.remotion_props is not None
+    assert synthesized.remotion_props.source_videos == [asset]
+    assert synthesized.remotion_props.episode_plan is not None
+    source_scene = synthesized.remotion_props.episode_plan.scenes[-1]
+    assert source_scene.module_id.value == "source_video"
+    assert source_scene.source_video_asset_id == asset.asset_id
+    source_inputs = [
+        item for item in synthesized.input_assets if item.kind.value == "source_video"
+    ]
+    assert len(source_inputs) == 1
+    assert source_inputs[0].sha256 == asset.sha256
 
 
 @pytest.mark.asyncio
@@ -440,6 +540,7 @@ async def test_render_cancellation_persists_retryable_failed_state(
         synthesizer=stack.synthesizer,
         video_renderer=renderer,
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
         audio_root=stack.settings.output_dir,
     )
     batch = await service.create(
@@ -496,6 +597,7 @@ async def test_render_commit_finishes_before_cancellation_propagates(
         synthesizer=stack.synthesizer,
         video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
         bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
         audio_root=stack.settings.output_dir,
     )
     batch = await service.create(
@@ -611,6 +713,7 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
             synthesizer=stack.synthesizer,
             video_renderer=renderer,
             bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+            source_video_library=EmptySourceVideoAssetLibrary(),
             audio_root=stack.settings.output_dir,
         )
         batch = await service.create(

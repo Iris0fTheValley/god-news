@@ -69,6 +69,7 @@ from god_news.infrastructure.video_host import (
 )
 from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
+from god_news.infrastructure.video_source_assets import ApprovedSourceVideoAssetLibrary
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
 from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
 from god_news.operations.retention import (
@@ -523,6 +524,11 @@ async def build_container(settings: Settings) -> AppContainer:
         synthesizer=synthesizer,
         video_renderer=video_renderer,
         bgm_catalog=LocalBgmCatalog(settings.video_bgm_directory),
+        source_video_library=ApprovedSourceVideoAssetLibrary(
+            media_repository=source_media_repository,
+            transcription_repository=source_transcription_repository,
+            media_reader=source_media,
+        ),
         audio_root=settings.output_dir,
         candidate_scan_limit=settings.video_candidate_scan_limit,
         asset_lifecycle_lock=asset_lifecycle_lock,

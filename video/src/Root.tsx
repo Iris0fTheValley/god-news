@@ -26,7 +26,16 @@ export const RemotionRoot = () => (
     defaultProps={sampleProps}
     schema={GodNewsVideoPropsSchema}
     calculateMetadata={({props}: {props: GodNewsVideoProps}) => {
-      const validated = parseGodNewsVideoProps(props);
+      let validated: GodNewsVideoProps;
+      try {
+        validated = parseGodNewsVideoProps(props);
+      } catch (error) {
+        const details =
+          typeof error === 'object' && error !== null
+            ? JSON.stringify(error)
+            : String(error);
+        throw new Error(`Invalid render input props: ${details}`);
+      }
       const profile = validated.output_profiles.find(
         (candidate) =>
           candidate.profile_id === validated.runtime_assets.output_profile_id,

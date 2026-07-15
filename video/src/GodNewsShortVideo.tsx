@@ -1,19 +1,11 @@
-import {AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Sequence, useVideoConfig} from 'remotion';
 
+import {sourceForBrowser} from './browser-assets';
 import {buildRenderPlan} from './render-plan';
 import type {GodNewsVideoProps} from './schema';
 import {renderEpisodeScene} from './scenes/SceneRegistry';
 import {TitleCard} from './scenes/TitleCard';
 import {TransitionScene} from './scenes/TransitionScene';
-
-const sourceForBrowser = (source: string | undefined): string | null => {
-  if (!source) return null;
-  if (/^(https?:|data:|blob:)/u.test(source)) return source;
-  if (/^[a-zA-Z]:[\\/]/u.test(source) || source.startsWith('\\\\')) {
-    return null;
-  }
-  return staticFile(source.replace(/^[/\\]+/u, '').replaceAll('\\', '/'));
-};
 
 export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
   const {fps} = useVideoConfig();
@@ -45,7 +37,7 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
         if (track.kind === 'transition') {
           return (
             <Sequence
-              key={`transition-${track.afterSegmentId}`}
+              key={`transition-${track.afterSceneId}`}
               from={track.from}
               durationInFrames={track.durationInFrames}
               name={`${track.transition_type} transition`}
@@ -55,6 +47,19 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
                 theme={props.theme}
                 durationInFrames={track.durationInFrames}
               />
+            </Sequence>
+          );
+        }
+
+        if (track.kind === 'source_video') {
+          return (
+            <Sequence
+              key={track.scene.scene_id}
+              from={track.from}
+              durationInFrames={track.durationInFrames}
+              name="Reviewed source video"
+            >
+              {renderEpisodeScene({props, track, segmentCount})}
             </Sequence>
           );
         }
