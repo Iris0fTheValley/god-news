@@ -14,7 +14,10 @@ from god_news.domain.video import (
     VideoBatch,
     VideoBatchStatus,
     VideoBatchStory,
+    VideoInputAsset,
     VideoRenderArtifact,
+    VideoRenderFailure,
+    VideoRenderOutput,
 )
 from god_news.video_errors import (
     VideoBatchConflictError,
@@ -96,6 +99,26 @@ class InMemoryVideoBatchRepository:
                         raise VideoBatchConflictError("Video story claim was lost during render.")
             self._batches[saved.batch_id] = copy.deepcopy(saved)
             return copy.deepcopy(saved)
+
+    async def recover_interrupted_rendering(self) -> Sequence[UUID]:
+        async with self._lock:
+            recovered: list[UUID] = []
+            for batch_id, batch in list(self._batches.items()):
+                if batch.status is not VideoBatchStatus.RENDERING:
+                    continue
+                failed = batch.model_copy(
+                    update={
+                        "status": VideoBatchStatus.FAILED,
+                        "last_failure": VideoRenderFailure(
+                            message="Rendering was interrupted by a previous service shutdown."
+                        ),
+                        "version": batch.version + 1,
+                        "updated_at": utc_now(),
+                    }
+                )
+                self._batches[batch_id] = VideoBatch.model_validate(failed.model_dump())
+                recovered.append(batch_id)
+            return recovered
 
     async def delete(self, batch_id: UUID) -> None:
         async with self._lock:
@@ -195,19 +218,47 @@ class DeterministicBatchVideoRenderer:
     def name(self) -> str:
         return "deterministic-offline-video"
 
-    async def render(self, batch_id: UUID, props: RemotionVideoProps) -> VideoRenderArtifact:
+    async def render(
+        self,
+        batch_id: UUID,
+        props: RemotionVideoProps,
+        input_assets: Sequence[VideoInputAsset],
+    ) -> VideoRenderArtifact:
+        del input_assets
         self.calls += 1
         if self.fail_next:
             self.fail_next = False
             raise RuntimeError("injected deterministic render failure")
         payload = b"god-news-deterministic-video\n" + props.model_dump_json().encode("utf-8")
-        path = self._output_dir / f"{batch_id}.mp4"
-        await asyncio.to_thread(path.parent.mkdir, parents=True, exist_ok=True)
-        await asyncio.to_thread(path.write_bytes, payload)
+        await asyncio.to_thread(self._output_dir.mkdir, parents=True, exist_ok=True)
+        outputs: list[VideoRenderOutput] = []
+        for profile in props.output_profiles:
+            profile_payload = payload + b"\n" + profile.profile_id.value.encode("ascii")
+            path = self._output_dir / f"{batch_id}-{profile.profile_id.value}.mp4"
+            await asyncio.to_thread(path.write_bytes, profile_payload)
+            outputs.append(
+                VideoRenderOutput(
+                    profile_id=profile.profile_id,
+                    local_path=str(path),
+                    size_bytes=len(profile_payload),
+                    sha256=hashlib.sha256(profile_payload).hexdigest(),
+                    width=profile.width,
+                    height=profile.height,
+                    fps=profile.fps,
+                    duration_in_frames=max(
+                        1,
+                        round(props.manifest.total_duration_ms / 1_000 * profile.fps),
+                    ),
+                    video_codec="fixture",
+                    audio_codec="fixture",
+                )
+            )
         return VideoRenderArtifact(
-            local_path=str(path),
-            size_bytes=len(payload),
-            sha256=hashlib.sha256(payload).hexdigest(),
             renderer=self.name,
+            outputs=outputs,
             rendered_at=utc_now(),
         )
+
+    async def cleanup_interrupted(self, batch_ids: Sequence[UUID]) -> int:
+        del batch_ids
+        return 0

@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     uploaded_video_dir: Path = Path("./uploads/videos")
     video_bgm_directory: Path = Path("./assets/bgm")
     video_candidate_scan_limit: int = Field(default=1_000, ge=15, le=100_000)
+    video_renderer_enabled: bool = False
+    video_remotion_package_dir: Path = Path("./video")
+    video_render_output_dir: Path | None = None
+    video_node_command: str = "node"
+    video_render_timeout_seconds: float = Field(default=3_600, gt=0, le=14_400)
+    video_render_max_parallel_batches: int = Field(default=1, ge=1, le=4)
+    video_render_concurrency: int = Field(default=2, ge=1, le=8)
     retention_media_days: int = Field(default=7, ge=1, le=3_650)
     retention_uploaded_mp4_days: int = Field(default=3, ge=1, le=3_650)
     retention_media_extensions: tuple[str, ...] = (
@@ -365,7 +372,13 @@ class Settings(BaseSettings):
                 raise ValueError(f"{field_name} must match its configured host allowlist")
         return self
 
-    @field_validator("tts_gpt_weights", "tts_sovits_weights", "visual_asset_dir", mode="before")
+    @field_validator(
+        "tts_gpt_weights",
+        "tts_sovits_weights",
+        "visual_asset_dir",
+        "video_render_output_dir",
+        mode="before",
+    )
     @classmethod
     def blank_path_is_unset(cls, value: object) -> object:
         return None if value == "" else value
@@ -375,6 +388,13 @@ class Settings(BaseSettings):
     def require_profile_name(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("tts_model_profile cannot be blank")
+        return value.strip()
+
+    @field_validator("video_node_command")
+    @classmethod
+    def require_video_node_command(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("video_node_command cannot be blank")
         return value.strip()
 
     @field_validator("tts_trusted_asset_roots")
@@ -424,6 +444,9 @@ class Settings(BaseSettings):
             raise ValueError("output_dir and uploaded_video_dir must not overlap")
         if visual_asset_root == media_root or not visual_asset_root.is_relative_to(media_root):
             raise ValueError("visual_asset_dir must be a child directory of output_dir")
+        video_render_root = self.video_render_root
+        if video_render_root == media_root or not video_render_root.is_relative_to(media_root):
+            raise ValueError("video_render_output_dir must be a child directory of output_dir")
         if (
             self.environment is Environment.PRODUCTION
             and self.enable_drission_fetcher
@@ -447,6 +470,12 @@ class Settings(BaseSettings):
 
         configured = self.visual_asset_dir
         root = configured if configured is not None else self.output_dir / "visual-assets"
+        return root.expanduser().resolve(strict=False)
+
+    @property
+    def video_render_root(self) -> Path:
+        configured = self.video_render_output_dir
+        root = configured if configured is not None else self.output_dir / "video-renders"
         return root.expanduser().resolve(strict=False)
 
     @property

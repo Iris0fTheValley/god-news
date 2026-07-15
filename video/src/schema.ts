@@ -3,10 +3,61 @@ import {z} from 'zod';
 const nonBlank = z.string().trim().min(1);
 const localPath = nonBlank.max(4096);
 
-// Keep this vocabulary shared with the backend manifest.  The renderer still
-// deliberately uses a black placeholder for every value today; retaining the
-// semantic tag means a future transition adapter can change visuals without
-// rewriting approved narration manifests.
+export const OutputProfileIdSchema = z.enum([
+  'douyin_vertical',
+  'bilibili_horizontal',
+]);
+
+export const OutputProfileSchema = z
+  .object({
+    profile_id: OutputProfileIdSchema,
+    width: z.number().int().positive().max(7680),
+    height: z.number().int().positive().max(7680),
+    fps: z.number().int().min(1).max(120).default(30),
+    layout: z.enum(['vertical', 'horizontal']),
+  })
+  .strict()
+  .superRefine((profile, context) => {
+    if (profile.width % 2 !== 0 || profile.height % 2 !== 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'H.264 output dimensions must be even',
+      });
+    }
+    if (profile.layout === 'vertical' && profile.width >= profile.height) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'vertical output profiles require width < height',
+      });
+    }
+    if (profile.layout === 'horizontal' && profile.width <= profile.height) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'horizontal output profiles require width > height',
+      });
+    }
+  });
+
+export const defaultOutputProfiles = (): z.output<typeof OutputProfileSchema>[] => [
+  {
+    profile_id: 'douyin_vertical',
+    width: 1080,
+    height: 1920,
+    fps: 30,
+    layout: 'vertical',
+  },
+  {
+    profile_id: 'bilibili_horizontal',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    layout: 'horizontal',
+  },
+];
+
+// Keep this vocabulary shared with the backend manifest. Renderers map these
+// semantic tags to registered visual transitions; black remains the safe
+// fallback and no LLM controls low-level frame or pixel parameters.
 export const SceneTransitionSchema = z.enum([
   'black',
   'crossfade',
@@ -123,8 +174,8 @@ const DifferentialArtReservationSchema = z
 const VisualReservationsSchema = z
   .object({
     renderer: z.literal('placeholder').default('placeholder'),
-    live2d: Live2DReservationSchema.optional(),
-    differential_art: DifferentialArtReservationSchema.optional(),
+    live2d: Live2DReservationSchema.nullable().optional(),
+    differential_art: DifferentialArtReservationSchema.nullable().optional(),
   })
   .strict();
 
@@ -140,6 +191,7 @@ const RuntimeAssetsSchema = z
   .object({
     audio_by_segment_id: z.record(z.string().uuid(), nonBlank).default({}),
     bgm_src: nonBlank.optional(),
+    output_profile_id: OutputProfileIdSchema.default('douyin_vertical'),
   })
   .strict();
 
@@ -158,9 +210,13 @@ export const GodNewsVideoPropsSchema = z
       accent: '#85a77d',
       signal: '#e4a853',
     }),
-    bgm: BgmSchema.optional(),
+    bgm: BgmSchema.nullable().optional(),
     visual_reservations: VisualReservationsSchema.default({renderer: 'placeholder'}),
-    runtime_assets: RuntimeAssetsSchema.default({audio_by_segment_id: {}}),
+    output_profiles: z.array(OutputProfileSchema).min(1).max(8).default(defaultOutputProfiles),
+    runtime_assets: RuntimeAssetsSchema.default({
+      audio_by_segment_id: {},
+      output_profile_id: 'douyin_vertical',
+    }),
   })
   .strict();
 
@@ -185,6 +241,33 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
         path: ['runtime_assets', 'bgm_src'],
       });
     }
+    const profileIds = props.output_profiles.map((profile) => profile.profile_id);
+    if (new Set(profileIds).size !== profileIds.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'output profile IDs must be unique',
+        path: ['output_profiles'],
+      });
+    }
+    for (const requiredProfile of [
+      'douyin_vertical',
+      'bilibili_horizontal',
+    ] as const) {
+      if (!profileIds.includes(requiredProfile)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `required output profile is missing: ${requiredProfile}`,
+          path: ['output_profiles'],
+        });
+      }
+    }
+    if (!profileIds.includes(props.runtime_assets.output_profile_id)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'runtime output profile is not declared by the semantic render snapshot',
+        path: ['runtime_assets', 'output_profile_id'],
+      });
+    }
   });
 
 export const parseGodNewsVideoProps = (input: unknown): GodNewsVideoProps =>
@@ -192,5 +275,8 @@ export const parseGodNewsVideoProps = (input: unknown): GodNewsVideoProps =>
 
 export type TimelineSegment = z.infer<typeof TimelineSegmentSchema>;
 export type SceneTransition = z.infer<typeof SceneTransitionSchema>;
+export type OutputProfileId = z.infer<typeof OutputProfileIdSchema>;
+export type OutputProfile = z.infer<typeof OutputProfileSchema>;
+export type VideoTheme = z.infer<typeof ThemeSchema>;
 export type ProductionManifest = z.infer<typeof ProductionManifestSchema>;
 export type GodNewsVideoProps = z.infer<typeof GodNewsVideoPropsSchema>;

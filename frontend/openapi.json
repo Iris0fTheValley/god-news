@@ -208,73 +208,6 @@
         "title": "AudioMediaAsset",
         "type": "object"
       },
-      "BatchNarrationArtifact": {
-        "additionalProperties": false,
-        "description": "The reviewable, batch-level narration and its optional synthesized media.",
-        "properties": {
-          "audio": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AudioBundle"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "composed_at": {
-            "format": "date-time",
-            "title": "Composed At",
-            "type": "string"
-          },
-          "manifest": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductionManifest"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "script": {
-            "$ref": "#/components/schemas/ScriptDocument"
-          },
-          "source_evidence": {
-            "items": {
-              "$ref": "#/components/schemas/BatchNarrationSourceEvidence"
-            },
-            "maxItems": 15,
-            "minItems": 1,
-            "title": "Source Evidence",
-            "type": "array"
-          },
-          "source_evidence_sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Source Evidence Sha256",
-            "type": "string"
-          },
-          "synthesized_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synthesized At"
-          }
-        },
-        "required": [
-          "source_evidence",
-          "source_evidence_sha256",
-          "script"
-        ],
-        "title": "BatchNarrationArtifact",
-        "type": "object"
-      },
       "BatchNarrationFailure": {
         "additionalProperties": false,
         "properties": {
@@ -338,66 +271,6 @@
           "source_manifest_sha256"
         ],
         "title": "BatchNarrationSourceEvidence",
-        "type": "object"
-      },
-      "BgmRenderSpec": {
-        "additionalProperties": false,
-        "properties": {
-          "local_path": {
-            "minLength": 1,
-            "title": "Local Path",
-            "type": "string"
-          },
-          "loop": {
-            "default": true,
-            "title": "Loop",
-            "type": "boolean"
-          },
-          "volume": {
-            "default": 0.12,
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Volume",
-            "type": "number"
-          }
-        },
-        "required": [
-          "local_path"
-        ],
-        "title": "BgmRenderSpec",
-        "type": "object"
-      },
-      "BgmSelection": {
-        "additionalProperties": false,
-        "properties": {
-          "local_path": {
-            "minLength": 1,
-            "title": "Local Path",
-            "type": "string"
-          },
-          "loop": {
-            "default": true,
-            "title": "Loop",
-            "type": "boolean"
-          },
-          "track_id": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Track Id",
-            "type": "string"
-          },
-          "volume": {
-            "default": 0.12,
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Volume",
-            "type": "number"
-          }
-        },
-        "required": [
-          "track_id",
-          "local_path"
-        ],
-        "title": "BgmSelection",
         "type": "object"
       },
       "BgmTrack": {
@@ -850,55 +723,6 @@
         "title": "DifferentialArtAsset",
         "type": "object"
       },
-      "DifferentialArtLayer": {
-        "additionalProperties": false,
-        "properties": {
-          "image_path": {
-            "minLength": 1,
-            "title": "Image Path",
-            "type": "string"
-          },
-          "layer_id": {
-            "minLength": 1,
-            "title": "Layer Id",
-            "type": "string"
-          },
-          "z_index": {
-            "title": "Z Index",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "layer_id",
-          "image_path",
-          "z_index"
-        ],
-        "title": "DifferentialArtLayer",
-        "type": "object"
-      },
-      "DifferentialArtReservation": {
-        "additionalProperties": false,
-        "properties": {
-          "base_image_path": {
-            "minLength": 1,
-            "title": "Base Image Path",
-            "type": "string"
-          },
-          "layers": {
-            "items": {
-              "$ref": "#/components/schemas/DifferentialArtLayer"
-            },
-            "maxItems": 64,
-            "title": "Layers",
-            "type": "array"
-          }
-        },
-        "required": [
-          "base_image_path"
-        ],
-        "title": "DifferentialArtReservation",
-        "type": "object"
-      },
       "EditorialScreening": {
         "additionalProperties": false,
         "description": "AI screening evidence plus the current human-reviewable decision.\n\nModel fields are immutable evidence. Review edits update only ``category``\nand ``candidate_recommendation``, so acceptance metrics remain auditable.",
@@ -1189,40 +1013,6 @@
         "title": "HealthReport",
         "type": "object"
       },
-      "HostVisualReservations": {
-        "additionalProperties": false,
-        "description": "Typed visual reservations kept independent from narration composition.",
-        "properties": {
-          "differential_art": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DifferentialArtReservation"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "live2d": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Live2DReservation"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "renderer": {
-            "const": "placeholder",
-            "default": "placeholder",
-            "title": "Renderer",
-            "type": "string"
-          }
-        },
-        "title": "HostVisualReservations",
-        "type": "object"
-      },
       "ImageContentType": {
         "description": "Raster formats accepted by the local visual-asset boundary.",
         "enum": [
@@ -1380,39 +1170,6 @@
           "source"
         ],
         "title": "IngestRequest",
-        "type": "object"
-      },
-      "Live2DReservation": {
-        "additionalProperties": false,
-        "properties": {
-          "character_id": {
-            "minLength": 1,
-            "title": "Character Id",
-            "type": "string"
-          },
-          "idle_motion_group": {
-            "anyOf": [
-              {
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Idle Motion Group"
-          },
-          "model_json_path": {
-            "minLength": 1,
-            "title": "Model Json Path",
-            "type": "string"
-          }
-        },
-        "required": [
-          "character_id",
-          "model_json_path"
-        ],
-        "title": "Live2DReservation",
         "type": "object"
       },
       "Liveness": {
@@ -2057,6 +1814,823 @@
           "timeline"
         ],
         "title": "ProductionManifest",
+        "type": "object"
+      },
+      "PublicAudioBundle": {
+        "additionalProperties": false,
+        "properties": {
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAudioClip"
+            },
+            "title": "Clips",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "model_identity": {
+            "title": "Model Identity",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "synthesis": {
+            "$ref": "#/components/schemas/SynthesisMetadata"
+          }
+        },
+        "required": [
+          "revision",
+          "provider",
+          "model_identity",
+          "synthesis",
+          "generated_at",
+          "clips"
+        ],
+        "title": "PublicAudioBundle",
+        "type": "object"
+      },
+      "PublicAudioClip": {
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "title": "Channels",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AudioFormat"
+          },
+          "sample_rate_hz": {
+            "title": "Sample Rate Hz",
+            "type": "integer"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "format",
+          "duration_ms",
+          "sample_rate_hz",
+          "channels",
+          "sha256"
+        ],
+        "title": "PublicAudioClip",
+        "type": "object"
+      },
+      "PublicBatchNarrationArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicAudioBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "composed_at": {
+            "format": "date-time",
+            "title": "Composed At",
+            "type": "string"
+          },
+          "manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicProductionManifest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "script": {
+            "$ref": "#/components/schemas/ScriptDocument"
+          },
+          "source_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/BatchNarrationSourceEvidence"
+            },
+            "title": "Source Evidence",
+            "type": "array"
+          },
+          "source_evidence_sha256": {
+            "title": "Source Evidence Sha256",
+            "type": "string"
+          },
+          "synthesized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synthesized At"
+          }
+        },
+        "required": [
+          "source_evidence",
+          "source_evidence_sha256",
+          "script",
+          "composed_at"
+        ],
+        "title": "PublicBatchNarrationArtifact",
+        "type": "object"
+      },
+      "PublicBgmRenderSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "loop": {
+            "title": "Loop",
+            "type": "boolean"
+          },
+          "volume": {
+            "title": "Volume",
+            "type": "number"
+          }
+        },
+        "required": [
+          "volume",
+          "loop"
+        ],
+        "title": "PublicBgmRenderSpec",
+        "type": "object"
+      },
+      "PublicBgmSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "loop": {
+            "title": "Loop",
+            "type": "boolean"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          },
+          "volume": {
+            "title": "Volume",
+            "type": "number"
+          }
+        },
+        "required": [
+          "track_id",
+          "volume",
+          "loop"
+        ],
+        "title": "PublicBgmSelection",
+        "type": "object"
+      },
+      "PublicDifferentialArtLayer": {
+        "additionalProperties": false,
+        "properties": {
+          "layer_id": {
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "z_index": {
+            "title": "Z Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "layer_id",
+          "z_index"
+        ],
+        "title": "PublicDifferentialArtLayer",
+        "type": "object"
+      },
+      "PublicDifferentialArtReservation": {
+        "additionalProperties": false,
+        "properties": {
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/PublicDifferentialArtLayer"
+            },
+            "title": "Layers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "layers"
+        ],
+        "title": "PublicDifferentialArtReservation",
+        "type": "object"
+      },
+      "PublicHostVisualReservations": {
+        "additionalProperties": false,
+        "properties": {
+          "differential_art": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicDifferentialArtReservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "live2d": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicLive2DReservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renderer": {
+            "const": "placeholder",
+            "title": "Renderer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "renderer"
+        ],
+        "title": "PublicHostVisualReservations",
+        "type": "object"
+      },
+      "PublicLegacyVideoRenderArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "rendered_at": {
+            "format": "date-time",
+            "title": "Rendered At",
+            "type": "string"
+          },
+          "renderer": {
+            "title": "Renderer",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "size_bytes",
+          "sha256",
+          "renderer",
+          "rendered_at"
+        ],
+        "title": "PublicLegacyVideoRenderArtifact",
+        "type": "object"
+      },
+      "PublicLive2DReservation": {
+        "additionalProperties": false,
+        "properties": {
+          "character_id": {
+            "title": "Character Id",
+            "type": "string"
+          },
+          "idle_motion_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Motion Group"
+          }
+        },
+        "required": [
+          "character_id"
+        ],
+        "title": "PublicLive2DReservation",
+        "type": "object"
+      },
+      "PublicProductionManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "script_revision": {
+            "title": "Script Revision",
+            "type": "integer"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/PublicTimelineSegment"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "total_duration_ms": {
+            "title": "Total Duration Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "story_id",
+          "script_revision",
+          "language",
+          "total_duration_ms",
+          "timeline"
+        ],
+        "title": "PublicProductionManifest",
+        "type": "object"
+      },
+      "PublicRemotionVideoProps": {
+        "additionalProperties": false,
+        "properties": {
+          "bgm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicBgmRenderSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intro_duration_ms": {
+            "title": "Intro Duration Ms",
+            "type": "integer"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/PublicProductionManifest"
+          },
+          "output_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/VideoOutputProfile"
+            },
+            "title": "Output Profiles",
+            "type": "array"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/VideoTheme"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transition_duration_ms": {
+            "title": "Transition Duration Ms",
+            "type": "integer"
+          },
+          "visual_reservations": {
+            "$ref": "#/components/schemas/PublicHostVisualReservations"
+          }
+        },
+        "required": [
+          "manifest",
+          "title",
+          "intro_duration_ms",
+          "transition_duration_ms",
+          "theme",
+          "visual_reservations",
+          "output_profiles"
+        ],
+        "title": "PublicRemotionVideoProps",
+        "type": "object"
+      },
+      "PublicTimelineSegment": {
+        "additionalProperties": false,
+        "properties": {
+          "emotion": {
+            "$ref": "#/components/schemas/SpeechEmotion"
+          },
+          "end_ms": {
+            "title": "End Ms",
+            "type": "integer"
+          },
+          "scene_transition": {
+            "$ref": "#/components/schemas/SceneTransition"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "speaker_id": {
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "start_ms": {
+            "title": "Start Ms",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "visual_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Hint"
+          }
+        },
+        "required": [
+          "segment_id",
+          "sequence",
+          "start_ms",
+          "end_ms",
+          "text",
+          "speaker_id",
+          "emotion",
+          "scene_transition"
+        ],
+        "title": "PublicTimelineSegment",
+        "type": "object"
+      },
+      "PublicVideoBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicVideoRenderArtifact"
+              },
+              {
+                "$ref": "#/components/schemas/PublicLegacyVideoRenderArtifact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact"
+          },
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "bgm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicBgmSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "input_assets": {
+            "items": {
+              "$ref": "#/components/schemas/PublicVideoInputAsset"
+            },
+            "title": "Input Assets",
+            "type": "array"
+          },
+          "last_failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VideoRenderFailure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "narration": {
+            "$ref": "#/components/schemas/PublicBatchNarrationArtifact"
+          },
+          "narration_failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatchNarrationFailure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "narration_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationReview"
+            },
+            "title": "Narration Reviews",
+            "type": "array"
+          },
+          "remotion_props": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicRemotionVideoProps"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "render_input_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Input Sha256"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VideoBatchStatus"
+          },
+          "stories": {
+            "items": {
+              "$ref": "#/components/schemas/PublicVideoBatchStory"
+            },
+            "title": "Stories",
+            "type": "array"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "timeline_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelineReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "visual_reservations": {
+            "$ref": "#/components/schemas/PublicHostVisualReservations"
+          }
+        },
+        "required": [
+          "batch_id",
+          "status",
+          "title",
+          "stories",
+          "narration",
+          "visual_reservations",
+          "input_assets",
+          "narration_reviews",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PublicVideoBatch",
+        "type": "object"
+      },
+      "PublicVideoBatchStory": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "reserved_at": {
+            "format": "date-time",
+            "title": "Reserved At",
+            "type": "string"
+          },
+          "script": {
+            "$ref": "#/components/schemas/ScriptDocument"
+          },
+          "script_sha256": {
+            "title": "Script Sha256",
+            "type": "string"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "source_manifest": {
+            "$ref": "#/components/schemas/PublicProductionManifest"
+          },
+          "source_manifest_sha256": {
+            "title": "Source Manifest Sha256",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "story_version": {
+            "title": "Story Version",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used At"
+          }
+        },
+        "required": [
+          "sequence",
+          "story_id",
+          "story_version",
+          "category",
+          "title",
+          "script",
+          "script_sha256",
+          "source_manifest",
+          "source_manifest_sha256",
+          "reserved_at"
+        ],
+        "title": "PublicVideoBatchStory",
+        "type": "object"
+      },
+      "PublicVideoInputAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "sha256",
+          "size_bytes"
+        ],
+        "title": "PublicVideoInputAsset",
+        "type": "object"
+      },
+      "PublicVideoRenderArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/PublicVideoRenderOutput"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "rendered_at": {
+            "format": "date-time",
+            "title": "Rendered At",
+            "type": "string"
+          },
+          "renderer": {
+            "title": "Renderer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "renderer",
+          "outputs",
+          "rendered_at"
+        ],
+        "title": "PublicVideoRenderArtifact",
+        "type": "object"
+      },
+      "PublicVideoRenderOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_codec": {
+            "title": "Audio Codec",
+            "type": "string"
+          },
+          "duration_in_frames": {
+            "title": "Duration In Frames",
+            "type": "integer"
+          },
+          "fps": {
+            "title": "Fps",
+            "type": "integer"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "profile_id": {
+            "$ref": "#/components/schemas/VideoOutputProfileId"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "video_codec": {
+            "title": "Video Codec",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "profile_id",
+          "size_bytes",
+          "sha256",
+          "width",
+          "height",
+          "fps",
+          "duration_in_frames",
+          "video_codec",
+          "audio_codec"
+        ],
+        "title": "PublicVideoRenderOutput",
         "type": "object"
       },
       "RawDazhongImage": {
@@ -3198,69 +3772,6 @@
           "is_self"
         ],
         "title": "RedditSourceFields",
-        "type": "object"
-      },
-      "RemotionVideoProps": {
-        "additionalProperties": false,
-        "description": "Backend-owned subset of ``video/src/schema.ts``.\n\nThis object is deliberately absent until batch narration has been manually\nsynthesized. It therefore cannot accidentally encode an unreviewed or\nsource-story-flat render plan.",
-        "properties": {
-          "bgm": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BgmRenderSpec"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "intro_duration_ms": {
-            "default": 700,
-            "maximum": 5000.0,
-            "minimum": 0.0,
-            "title": "Intro Duration Ms",
-            "type": "integer"
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/ProductionManifest"
-          },
-          "subtitle": {
-            "anyOf": [
-              {
-                "maxLength": 320,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtitle"
-          },
-          "theme": {
-            "$ref": "#/components/schemas/VideoTheme"
-          },
-          "title": {
-            "maxLength": 240,
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          },
-          "transition_duration_ms": {
-            "default": 180,
-            "maximum": 2000.0,
-            "minimum": 0.0,
-            "title": "Transition Duration Ms",
-            "type": "integer"
-          },
-          "visual_reservations": {
-            "$ref": "#/components/schemas/HostVisualReservations"
-          }
-        },
-        "required": [
-          "manifest",
-          "title"
-        ],
-        "title": "RemotionVideoProps",
         "type": "object"
       },
       "RenderVideoBatch": {
@@ -5914,162 +6425,6 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "VideoBatch": {
-        "additionalProperties": false,
-        "properties": {
-          "artifact": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/VideoRenderArtifact"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "batch_id": {
-            "format": "uuid",
-            "title": "Batch Id",
-            "type": "string"
-          },
-          "bgm": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BgmSelection"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "input_assets": {
-            "items": {
-              "$ref": "#/components/schemas/VideoInputAsset"
-            },
-            "maxItems": 101,
-            "title": "Input Assets",
-            "type": "array"
-          },
-          "last_failure": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/VideoRenderFailure"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "narration": {
-            "$ref": "#/components/schemas/BatchNarrationArtifact"
-          },
-          "narration_failure": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BatchNarrationFailure"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "narration_reviews": {
-            "items": {
-              "$ref": "#/components/schemas/NarrationReview"
-            },
-            "maxItems": 100,
-            "title": "Narration Reviews",
-            "type": "array"
-          },
-          "remotion_props": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RemotionVideoProps"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "render_input_sha256": {
-            "anyOf": [
-              {
-                "pattern": "^[a-f0-9]{64}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Render Input Sha256"
-          },
-          "status": {
-            "$ref": "#/components/schemas/VideoBatchStatus",
-            "default": "PENDING_NARRATION_REVIEW"
-          },
-          "stories": {
-            "items": {
-              "$ref": "#/components/schemas/VideoBatchStory"
-            },
-            "maxItems": 15,
-            "minItems": 1,
-            "title": "Stories",
-            "type": "array"
-          },
-          "subtitle": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subtitle"
-          },
-          "timeline_review": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TimelineReview"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "title": {
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "version": {
-            "default": 1,
-            "minimum": 1.0,
-            "title": "Version",
-            "type": "integer"
-          },
-          "visual_reservations": {
-            "$ref": "#/components/schemas/HostVisualReservations"
-          }
-        },
-        "required": [
-          "title",
-          "stories",
-          "narration"
-        ],
-        "title": "VideoBatch",
-        "type": "object"
-      },
       "VideoBatchStatus": {
         "description": "Batch workflow deliberately separates editorial and expensive work.",
         "enum": [
@@ -6087,120 +6442,12 @@
         "title": "VideoBatchStatus",
         "type": "string"
       },
-      "VideoBatchStory": {
-        "additionalProperties": false,
-        "description": "Immutable source-story evidence for one input to a merged narration.\n\n``source_manifest`` is intentionally not a chapter in the eventual batch\ntimeline. It remains a point-in-time source snapshot only; the separate\nbatch narration artifact is the sole input to Remotion.",
-        "properties": {
-          "category": {
-            "$ref": "#/components/schemas/ContentCategory"
-          },
-          "reserved_at": {
-            "format": "date-time",
-            "title": "Reserved At",
-            "type": "string"
-          },
-          "script": {
-            "$ref": "#/components/schemas/ScriptDocument"
-          },
-          "script_sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Script Sha256",
-            "type": "string"
-          },
-          "sequence": {
-            "maximum": 14.0,
-            "minimum": 0.0,
-            "title": "Sequence",
-            "type": "integer"
-          },
-          "source_manifest": {
-            "$ref": "#/components/schemas/ProductionManifest"
-          },
-          "source_manifest_sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Source Manifest Sha256",
-            "type": "string"
-          },
-          "story_id": {
-            "format": "uuid",
-            "title": "Story Id",
-            "type": "string"
-          },
-          "story_version": {
-            "minimum": 1.0,
-            "title": "Story Version",
-            "type": "integer"
-          },
-          "title": {
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          },
-          "used_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Used At"
-          }
-        },
-        "required": [
-          "sequence",
-          "story_id",
-          "story_version",
-          "category",
-          "title",
-          "script",
-          "script_sha256",
-          "source_manifest",
-          "source_manifest_sha256"
-        ],
-        "title": "VideoBatchStory",
-        "type": "object"
-      },
-      "VideoInputAsset": {
-        "additionalProperties": false,
-        "description": "Immutable evidence for a local file approved for a render.",
-        "properties": {
-          "kind": {
-            "$ref": "#/components/schemas/VideoInputAssetKind"
-          },
-          "local_path": {
-            "minLength": 1,
-            "title": "Local Path",
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Sha256",
-            "type": "string"
-          },
-          "size_bytes": {
-            "exclusiveMinimum": 0.0,
-            "title": "Size Bytes",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "kind",
-          "local_path",
-          "sha256",
-          "size_bytes"
-        ],
-        "title": "VideoInputAsset",
-        "type": "object"
-      },
-      "VideoInputAssetKind": {
+      "VideoLayout": {
         "enum": [
-          "audio",
-          "bgm"
+          "vertical",
+          "horizontal"
         ],
-        "title": "VideoInputAssetKind",
+        "title": "VideoLayout",
         "type": "string"
       },
       "VideoMediaAsset": {
@@ -6272,43 +6519,52 @@
         "title": "VideoMediaAsset",
         "type": "object"
       },
-      "VideoRenderArtifact": {
+      "VideoOutputProfile": {
         "additionalProperties": false,
+        "description": "A versioned render target, kept separate from editorial semantics.",
         "properties": {
-          "local_path": {
-            "minLength": 1,
-            "title": "Local Path",
-            "type": "string"
+          "fps": {
+            "default": 30,
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
           },
-          "rendered_at": {
-            "format": "date-time",
-            "title": "Rendered At",
-            "type": "string"
-          },
-          "renderer": {
-            "minLength": 1,
-            "title": "Renderer",
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Sha256",
-            "type": "string"
-          },
-          "size_bytes": {
+          "height": {
             "exclusiveMinimum": 0.0,
-            "title": "Size Bytes",
+            "maximum": 7680.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/VideoLayout"
+          },
+          "profile_id": {
+            "$ref": "#/components/schemas/VideoOutputProfileId"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 7680.0,
+            "title": "Width",
             "type": "integer"
           }
         },
         "required": [
-          "local_path",
-          "size_bytes",
-          "sha256",
-          "renderer"
+          "profile_id",
+          "width",
+          "height",
+          "layout"
         ],
-        "title": "VideoRenderArtifact",
+        "title": "VideoOutputProfile",
         "type": "object"
+      },
+      "VideoOutputProfileId": {
+        "enum": [
+          "douyin_vertical",
+          "bilibili_horizontal"
+        ],
+        "title": "VideoOutputProfileId",
+        "type": "string"
       },
       "VideoRenderFailure": {
         "additionalProperties": false,
@@ -9947,7 +10203,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/VideoBatch"
+                    "$ref": "#/components/schemas/PublicVideoBatch"
                   },
                   "title": "Response Listvideobatches",
                   "type": "array"
@@ -10029,7 +10285,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },
@@ -10186,7 +10442,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },
@@ -10356,7 +10612,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },
@@ -10449,7 +10705,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },
@@ -10542,7 +10798,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },
@@ -10605,6 +10861,91 @@
         ]
       }
     },
+    "/api/v1/video/batches/{batch_id}/outputs/{profile_id}": {
+      "get": {
+        "description": "Serve one verified render output without accepting or exposing a host path.",
+        "operationId": "getVideoBatchOutput",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/VideoOutputProfileId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "Batch Video Output",
+        "tags": [
+          "video"
+        ]
+      }
+    },
     "/api/v1/video/batches/{batch_id}/render": {
       "post": {
         "operationId": "renderVideoBatch",
@@ -10635,7 +10976,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },
@@ -10728,7 +11069,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VideoBatch"
+                  "$ref": "#/components/schemas/PublicVideoBatch"
                 }
               }
             },

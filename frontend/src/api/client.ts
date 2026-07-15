@@ -350,6 +350,11 @@ export function videoBatchAudioClipUrl(batchId: string, segmentId: string): stri
   return `/api/v1/video/batches/${encodeURIComponent(batchId)}/audio/${encodeURIComponent(segmentId)}`;
 }
 
+/** Stable browser URL for a verified platform render; no host path crosses the API. */
+export function videoBatchOutputUrl(batchId: string, profileId: string): string {
+  return `/api/v1/video/batches/${encodeURIComponent(batchId)}/outputs/${encodeURIComponent(profileId)}`;
+}
+
 export async function submitTimelineReview(batchId: string, body: SubmitTimelineReview) {
   const result = await api.POST('/api/v1/video/batches/{batch_id}/timeline-review', {
     params: {path: {batch_id: batchId}},

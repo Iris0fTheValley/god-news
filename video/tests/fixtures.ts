@@ -45,5 +45,24 @@ export const validProps: GodNewsVideoProps = {
     signal: '#e4a853',
   },
   visual_reservations: {renderer: 'placeholder'},
-  runtime_assets: {audio_by_segment_id: {}},
+  output_profiles: [
+    {
+      profile_id: 'douyin_vertical',
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      layout: 'vertical',
+    },
+    {
+      profile_id: 'bilibili_horizontal',
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      layout: 'horizontal',
+    },
+  ],
+  runtime_assets: {
+    audio_by_segment_id: {},
+    output_profile_id: 'douyin_vertical',
+  },
 };

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -24,6 +26,7 @@ from god_news.domain.models import (
 from god_news.domain.video import (
     BgmSelection,
     CreateVideoBatch,
+    LegacyVideoRenderArtifact,
     NarrationReviewDecision,
     SubmitNarrationReview,
     SubmitTimelineReview,
@@ -395,6 +398,150 @@ async def test_failed_render_keeps_claim_and_can_retry(stack: Stack, tmp_path: P
 
 
 @pytest.mark.asyncio
+async def test_render_cancellation_persists_retryable_failed_state(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    class BlockingRenderer:
+        name = "blocking-test-renderer"
+
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+
+        async def render(self, batch_id, props, input_assets):  # type: ignore[no-untyped-def]
+            del batch_id, props, input_assets
+            self.started.set()
+            await asyncio.Future()
+
+    story = await _done_story(stack, "A town restored a footbridge before school reopened.")
+    repository = InMemoryVideoBatchRepository()
+    renderer = BlockingRenderer()
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=repository,
+        host_renderer=PlaceholderHostRenderer(),
+        narration_composer=DeterministicBatchNarrationComposer(),
+        synthesizer=stack.synthesizer,
+        video_renderer=renderer,
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Interrupted render", story_ids=[story.story_id])
+    )
+    synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
+    approved = await service.submit_timeline_review(
+        synthesized.batch_id,
+        SubmitTimelineReview(
+            expected_batch_version=synthesized.version,
+            decision=TimelineReviewDecision.APPROVE,
+            reviewer_id="timeline-editor",
+        ),
+    )
+
+    task = asyncio.create_task(
+        service.render(approved.batch_id, expected_version=approved.version)
+    )
+    await renderer.started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    failed = await service.get(approved.batch_id)
+    assert failed.status is VideoBatchStatus.FAILED
+    assert failed.last_failure is not None
+    assert failed.last_failure.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_render_commit_finishes_before_cancellation_propagates(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    class BlockingCommitRepository(InMemoryVideoBatchRepository):
+        def __init__(self) -> None:
+            super().__init__()
+            self.commit_started = asyncio.Event()
+            self.release_commit = asyncio.Event()
+
+        async def save(self, batch, *, expected_version):  # type: ignore[no-untyped-def]
+            if batch.status is VideoBatchStatus.RENDERED:
+                self.commit_started.set()
+                await self.release_commit.wait()
+            return await super().save(batch, expected_version=expected_version)
+
+    story = await _done_story(stack, "Volunteers reopened a weather-damaged reading room.")
+    repository = BlockingCommitRepository()
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=repository,
+        host_renderer=PlaceholderHostRenderer(),
+        narration_composer=DeterministicBatchNarrationComposer(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Durable commit", story_ids=[story.story_id])
+    )
+    synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
+    approved = await service.submit_timeline_review(
+        synthesized.batch_id,
+        SubmitTimelineReview(
+            expected_batch_version=synthesized.version,
+            decision=TimelineReviewDecision.APPROVE,
+            reviewer_id="timeline-editor",
+        ),
+    )
+
+    task = asyncio.create_task(
+        service.render(approved.batch_id, expected_version=approved.version)
+    )
+    await repository.commit_started.wait()
+    task.cancel()
+    repository.release_commit.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert (await service.get(approved.batch_id)).status is VideoBatchStatus.RENDERED
+
+
+@pytest.mark.asyncio
+async def test_startup_recovery_turns_orphaned_render_into_retryable_failure(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    story = await _done_story(stack, "Neighbors rebuilt a storm-damaged community noticeboard.")
+    service, repository, _, _ = _service(stack, tmp_path)
+    batch = await service.create(
+        CreateVideoBatch(title="Crash recovery", story_ids=[story.story_id])
+    )
+    synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
+    approved = await service.submit_timeline_review(
+        synthesized.batch_id,
+        SubmitTimelineReview(
+            expected_batch_version=synthesized.version,
+            decision=TimelineReviewDecision.APPROVE,
+            reviewer_id="timeline-editor",
+        ),
+    )
+    orphaned = approved.model_copy(
+        update={
+            "status": VideoBatchStatus.RENDERING,
+            "version": approved.version + 1,
+        }
+    )
+    repository._batches[approved.batch_id] = orphaned
+
+    assert await service.recover_interrupted() == 1
+    recovered = await service.get(approved.batch_id)
+    assert recovered.status is VideoBatchStatus.FAILED
+    assert recovered.last_failure is not None
+    assert recovered.last_failure.retryable is True
+
+
+@pytest.mark.asyncio
 async def test_render_rejects_mutated_merged_input_after_timeline_approval(
     stack: Stack,
     tmp_path: Path,
@@ -462,13 +609,88 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
                 reviewer_id="timeline-editor",
             ),
         )
-        rendered = await service.render(approved.batch_id, expected_version=approved.version)
+        orphaned = VideoBatch.model_validate(
+            approved.model_copy(
+                update={
+                    "status": VideoBatchStatus.RENDERING,
+                    "version": approved.version + 1,
+                }
+            ).model_dump()
+        )
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "UPDATE video_batches SET status = :status, batch_json = :batch_json, "
+                    "version = :version WHERE batch_id = :batch_id"
+                ),
+                {
+                    "status": orphaned.status.value,
+                    "batch_json": orphaned.model_dump_json(),
+                    "version": orphaned.version,
+                    "batch_id": str(orphaned.batch_id),
+                },
+            )
+        assert await repository.recover_interrupted_rendering() == [orphaned.batch_id]
+        recovered = await repository.get(orphaned.batch_id)
+        assert recovered.status is VideoBatchStatus.FAILED
+        assert recovered.last_failure is not None
+        rendered = await service.render(recovered.batch_id, expected_version=recovered.version)
 
         reloaded = await repository.get(rendered.batch_id)
         assert reloaded.status is VideoBatchStatus.RENDERED
         assert reloaded.narration.manifest == rendered.narration.manifest
         assert reloaded.stories[0].used_at == rendered.stories[0].used_at
         assert await repository.unavailable_story_ids([story.story_id]) == {story.story_id}
+
+        assert rendered.artifact is not None
+        current_output = rendered.artifact.outputs[0]
+        legacy_payload = rendered.model_dump(mode="json")
+        legacy_payload["artifact"] = {
+            "local_path": current_output.local_path,
+            "size_bytes": current_output.size_bytes,
+            "sha256": current_output.sha256,
+            "renderer": rendered.artifact.renderer,
+            "rendered_at": rendered.artifact.rendered_at.isoformat(),
+        }
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "UPDATE video_batches SET batch_json = :batch_json "
+                    "WHERE batch_id = :batch_id"
+                ),
+                {
+                    "batch_json": json.dumps(legacy_payload),
+                    "batch_id": str(rendered.batch_id),
+                },
+            )
+
+        legacy = await repository.get(rendered.batch_id)
+        assert isinstance(legacy.artifact, LegacyVideoRenderArtifact)
+        stack.container.video_batches = service
+
+        async def factory(settings):  # type: ignore[no-untyped-def]
+            del settings
+            return stack.container
+
+        app = create_app(stack.settings, container_factory=factory)
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                detail = await client.get(f"/api/v1/video/batches/{rendered.batch_id}")
+                assert detail.status_code == 200
+                assert detail.json()["artifact"]["renderer"] == rendered.artifact.renderer
+                assert "local_path" not in detail.json()["artifact"]
+                listing = await client.get("/api/v1/video/batches")
+                assert listing.status_code == 200
+                assert any(
+                    item["batch_id"] == str(rendered.batch_id)
+                    and "local_path" not in item["artifact"]
+                    for item in listing.json()
+                )
+                legacy_output = await client.get(
+                    f"/api/v1/video/batches/{rendered.batch_id}/outputs/douyin_vertical"
+                )
+                assert legacy_output.status_code == 409
     finally:
         await database.aclose()
 
@@ -514,6 +736,7 @@ async def test_video_api_exposes_narration_review_manual_tts_and_timeline_gate(
     story = await _done_story(stack, "A teacher organized rides home during a storm.")
     service, _, _, _ = _service(stack, tmp_path)
     stack.container.video_batches = service
+    stack.settings.video_render_output_dir = tmp_path / "videos"
 
     async def factory(settings):  # type: ignore[no-untyped-def]
         del settings
@@ -584,6 +807,46 @@ async def test_video_api_exposes_narration_review_manual_tts_and_timeline_gate(
             ready = timeline.json()
             assert ready["status"] == "READY_TO_RENDER"
 
+            rendered_response = await client.post(
+                f"/api/v1/video/batches/{created['batch_id']}/render",
+                json={"expected_batch_version": ready["version"]},
+            )
+            assert rendered_response.status_code == 200
+            rendered = rendered_response.json()
+            assert rendered["status"] == "RENDERED"
+            assert {output["profile_id"] for output in rendered["artifact"]["outputs"]} == {
+                "douyin_vertical",
+                "bilibili_horizontal",
+            }
+            assert all("local_path" not in output for output in rendered["artifact"]["outputs"])
+            resolved_tmp = await asyncio.to_thread(tmp_path.resolve)
+            resolved_output = await asyncio.to_thread(stack.settings.output_dir.resolve)
+            assert str(resolved_tmp) not in json.dumps(rendered)
+            assert str(resolved_output) not in json.dumps(rendered)
+            output_response = await client.get(
+                f"/api/v1/video/batches/{created['batch_id']}/outputs/douyin_vertical"
+            )
+            assert output_response.status_code == 200
+            assert output_response.headers["content-type"].startswith("video/mp4")
+            assert output_response.content.startswith(b"god-news-deterministic-video")
+
+            persisted = await service.get(UUID(created["batch_id"]))
+            assert persisted.artifact is not None
+            assert not isinstance(persisted.artifact, LegacyVideoRenderArtifact)
+            vertical = next(
+                output
+                for output in persisted.artifact.outputs
+                if output.profile_id.value == "douyin_vertical"
+            )
+            output_path = Path(vertical.local_path)
+            tampered = bytearray(await asyncio.to_thread(output_path.read_bytes))
+            tampered[0] ^= 0xFF
+            await asyncio.to_thread(output_path.write_bytes, tampered)
+            changed_output = await client.get(
+                f"/api/v1/video/batches/{created['batch_id']}/outputs/douyin_vertical"
+            )
+            assert changed_output.status_code == 409
+
             openapi = await client.get("/openapi.json")
             assert openapi.status_code == 200
             assert (
@@ -591,6 +854,12 @@ async def test_video_api_exposes_narration_review_manual_tts_and_timeline_gate(
                     "/api/v1/video/batches/{batch_id}/audio/{segment_id}"
                 ]["get"]["operationId"]
                 == "getVideoBatchAudioClip"
+            )
+            assert (
+                openapi.json()["paths"][
+                    "/api/v1/video/batches/{batch_id}/outputs/{profile_id}"
+                ]["get"]["operationId"]
+                == "getVideoBatchOutput"
             )
 
 

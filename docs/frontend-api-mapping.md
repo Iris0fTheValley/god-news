@@ -67,10 +67,11 @@ pnpm --dir frontend check
 | 手动合成合并口播 | `POST /api/v1/video/batches/{batch_id}/narration/synthesize` | 仅 `PENDING_BATCH_TTS` 可用；独立本地 TTS 成功后才进入 `PENDING_TIMELINE_REVIEW`。 |
 | 试听统一旁白 | `GET /api/v1/video/batches/{batch_id}/audio/{segment_id}` | 仅返回该批次已持久化的合并旁白段。服务端会校验段归属、输出目录边界与文件存在性；未合成、无效或越界路径均返回 `409`，不会暴露本地文件。 |
 | 审阅时间轴 | `POST /api/v1/video/batches/{batch_id}/timeline-review` | 统一口播音频和 Manifest 就绪后才可审；批准后进入 `READY_TO_RENDER`。 |
-| 渲染 | `POST /api/v1/video/batches/{batch_id}/render` | 需要 `expected_batch_version`。当前生产渲染器是明确的不可用占位适配器，接口会诚实返回不可用错误，直到替换为 Remotion 进程适配器。 |
+| 渲染 | `POST /api/v1/video/batches/{batch_id}/render` | 需要 `expected_batch_version`。启用 `GOD_NEWS_VIDEO_RENDERER_ENABLED` 后，本地进程适配器会从同一语义快照原子生成抖音竖屏与 Bilibili 横屏两件制品，并用 Remotion 自带 ffprobe 验证。 |
+| 播放成片 | `GET /api/v1/video/batches/{batch_id}/outputs/{profile_id}` | 只接受平台注册 ID，不接受文件路径。服务端在同一已打开文件句柄上核对大小与 SHA-256 后流式返回；旧版单输出制品只读保留，不伪装成双平台成片。 |
 | 取消/删除 | `POST /api/v1/video/batches/{batch_id}/cancel`、`DELETE /api/v1/video/batches/{batch_id}` | 未渲染批次可释放故事；渲染中无安全取消契约，已渲染批次是不可变审计证据。 |
 
-批次在创建时记录音频和 BGM 的内容哈希。审阅后发现输入文件变化时不能直接复用旧审批；应取消/删除该批次并创建新批次重新审阅。
+批次 TTS 完成并生成 Manifest 时会记录音频和 BGM 的内容哈希。渲染适配器按该证据创建一次可信 staging，横竖屏都只读同一份字节。审阅后发现输入文件变化时不能直接复用旧审批；应取消/删除该批次并创建新批次重新审阅。服务重启会把孤立的 `RENDERING` 批次恢复为可重试 `FAILED`。
 
 ## 运维
 
@@ -83,5 +84,5 @@ pnpm --dir frontend check
 ## 已知边界
 
 - 真实四源采集仍取决于合法授权、凭据和站点条款；离线测试不替代现场运行证据。
-- GPT-SoVITS 多角色与七情绪参考音频选择已通过可替换角色解析器接入；真正的 Remotion 批量渲染仍是后续适配器工作。
+- GPT-SoVITS 多角色与七情绪参考音频选择已通过可替换角色解析器接入；真实 Remotion 双格式批量渲染已经接入，EpisodePlan、证据素材和 Live2D 执行仍是后续纵向切片。
 - 任何前端请求应通过 `frontend/src/api/client.ts`，不得自行拼接未写入 OpenAPI 的接口。

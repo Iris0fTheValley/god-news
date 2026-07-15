@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 
 from god_news.application.video_batches import require_video_transition
-from god_news.domain.video import VideoBatch, VideoBatchStatus
+from god_news.domain.models import utc_now
+from god_news.domain.video import VideoBatch, VideoBatchStatus, VideoRenderFailure
 from god_news.infrastructure.database import Base
 from god_news.video_errors import (
     VideoBatchConflictError,
@@ -217,6 +218,40 @@ class SqlAlchemyVideoBatchRepository:
                             "Video story claims changed during rendering."
                         )
         return saved
+
+    async def recover_interrupted_rendering(self) -> Sequence[UUID]:
+        """Atomically turn crash-orphaned render rows into retryable failures."""
+
+        async with self._sessions() as session:
+            async with session.begin():
+                rows = (
+                    await session.scalars(
+                        select(VideoBatchRow).where(
+                            VideoBatchRow.status == VideoBatchStatus.RENDERING.value
+                        )
+                    )
+                ).all()
+                for row in rows:
+                    batch = _to_batch(row)
+                    failed = VideoBatch.model_validate(
+                        batch.model_copy(
+                            update={
+                                "status": VideoBatchStatus.FAILED,
+                                "last_failure": VideoRenderFailure(
+                                    message=(
+                                        "Rendering was interrupted by a previous service shutdown."
+                                    )
+                                ),
+                                "version": row.version + 1,
+                                "updated_at": utc_now(),
+                            }
+                        ).model_dump()
+                    )
+                    row.status = failed.status.value
+                    row.batch_json = failed.model_dump_json()
+                    row.version = failed.version
+                    row.updated_at = failed.updated_at
+        return [UUID(row.batch_id) for row in rows]
 
     async def delete(self, batch_id: UUID) -> None:
         async with self._sessions() as session:

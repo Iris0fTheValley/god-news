@@ -15,6 +15,7 @@ import {
   submitVideoBatchNarrationReview,
   synthesizeVideoBatchNarration,
   videoBatchAudioClipUrl,
+  videoBatchOutputUrl,
 } from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {
@@ -156,6 +157,25 @@ function BatchDetail({
 
   return (
     <>
+      {batch.artifact === undefined || batch.artifact === null ? null : (
+        <section style={{marginBottom: 18}}>
+          <div className="panel-header"><div><p className="eyebrow">RENDER OUTPUTS</p><h3>双平台成片</h3></div><span className="metadata">{batch.artifact.renderer}</span></div>
+          {'outputs' in batch.artifact ? (
+            <div className="info-grid">
+              {batch.artifact.outputs.map((output) => (
+                <div className="info-item" key={output.profile_id}>
+                  <span className="label">{output.profile_id === 'douyin_vertical' ? '抖音 9:16' : 'Bilibili 16:9'}</span>
+                  <span className="value">{output.width}×{output.height} · {output.fps}fps</span>
+                  <span className="metadata">{output.video_codec} + {output.audio_codec} · {(output.size_bytes / 1024 / 1024).toFixed(2)} MiB</span>
+                  {batch.batch_id === undefined ? null : <a className="button secondary" href={videoBatchOutputUrl(batch.batch_id, output.profile_id)} target="_blank" rel="noreferrer">播放成片</a>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="pending-note">旧版单输出成片已作为审计证据只读保留；它没有可下载的双平台输出。</p>
+          )}
+        </section>
+      )}
       <div className="info-grid">
         <div className="info-item"><span className="label">状态</span><span className={`badge ${statusTone(batch.status)}`}>{STATUS_LABELS[batch.status]}</span></div>
         <div className="info-item"><span className="label">版本</span><span className="value">v{String(batch.version)}</span></div>

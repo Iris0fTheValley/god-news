@@ -1,25 +1,32 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import os
+import stat
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, BinaryIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from god_news.api.dependencies import get_container
-from god_news.api.schemas import ProblemDetail
+from god_news.api.schemas import ProblemDetail, PublicVideoBatch
 from god_news.application.video_batches import VideoBatchService
 from god_news.container import AppContainer
 from god_news.domain.video import (
     BgmTrack,
     CreateVideoBatch,
+    LegacyVideoRenderArtifact,
     RenderVideoBatch,
     SubmitNarrationReview,
     SubmitTimelineReview,
     SynthesizeBatchNarration,
     VideoBatch,
     VideoBatchStatus,
+    VideoOutputProfileId,
 )
 from god_news.video_errors import VideoBatchConflictError, VideoRendererUnavailableError
 
@@ -50,6 +57,35 @@ def get_video_batch_service(container: ContainerDependency) -> VideoBatchService
 VideoBatchServiceDependency = Annotated[VideoBatchService, Depends(get_video_batch_service)]
 
 
+def _open_regular_file_evidence(path: Path) -> tuple[BinaryIO, int, str] | None:
+    handle: BinaryIO | None = None
+    try:
+        handle = path.open("rb")
+        metadata = os.fstat(handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            handle.close()
+            return None
+        digest = hashlib.sha256()
+        size = 0
+        while chunk := handle.read(1024 * 1024):
+            size += len(chunk)
+            digest.update(chunk)
+        handle.seek(0)
+        return handle, size, digest.hexdigest()
+    except OSError:
+        if handle is not None:
+            handle.close()
+        return None
+
+
+async def _stream_open_file(handle: BinaryIO) -> AsyncIterator[bytes]:
+    try:
+        while chunk := await asyncio.to_thread(handle.read, 1024 * 1024):
+            yield chunk
+    finally:
+        await asyncio.to_thread(handle.close)
+
+
 @router.get(
     "/bgm",
     response_model=list[BgmTrack],
@@ -61,7 +97,7 @@ async def list_bgm(service: VideoBatchServiceDependency) -> list[BgmTrack]:
 
 @router.post(
     "/batches",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     status_code=201,
     operation_id="createVideoBatch",
 )
@@ -74,7 +110,7 @@ async def create_video_batch(
 
 @router.get(
     "/batches",
-    response_model=list[VideoBatch],
+    response_model=list[PublicVideoBatch],
     operation_id="listVideoBatches",
 )
 async def list_video_batches(
@@ -89,7 +125,7 @@ async def list_video_batches(
 
 @router.get(
     "/batches/{batch_id}",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     operation_id="getVideoBatch",
 )
 async def get_video_batch(
@@ -136,9 +172,60 @@ async def batch_audio_clip(
     return FileResponse(path, media_type="audio/wav", filename=path.name)
 
 
+@router.get(
+    "/batches/{batch_id}/outputs/{profile_id}",
+    response_class=StreamingResponse,
+    operation_id="getVideoBatchOutput",
+)
+async def batch_video_output(
+    batch_id: UUID,
+    profile_id: VideoOutputProfileId,
+    container: ContainerDependency,
+    service: VideoBatchServiceDependency,
+) -> StreamingResponse:
+    """Serve one verified render output without accepting or exposing a host path."""
+
+    batch = await service.get(batch_id)
+    if batch.artifact is None:
+        raise VideoBatchConflictError("Video batch outputs are not ready.")
+    if isinstance(batch.artifact, LegacyVideoRenderArtifact):
+        raise VideoBatchConflictError(
+            "This legacy batch predates platform render profiles and is retained read-only."
+        )
+    output = next(
+        (item for item in batch.artifact.outputs if item.profile_id is profile_id),
+        None,
+    )
+    if output is None:
+        raise VideoBatchConflictError("The requested video output profile does not exist.")
+
+    root = container.settings.video_render_root.resolve()
+    path = await asyncio.to_thread(Path(output.local_path).resolve)
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise VideoBatchConflictError("Video output path is invalid.") from exc
+    evidence = await asyncio.to_thread(_open_regular_file_evidence, path)
+    if evidence is None:
+        raise VideoBatchConflictError("Video output file is missing or changed.")
+    handle, size_bytes, digest = evidence
+    if (size_bytes, digest) != (output.size_bytes, output.sha256):
+        await asyncio.to_thread(handle.close)
+        raise VideoBatchConflictError("Video output file is missing or changed.")
+    filename = f"{profile_id.value}.mp4"
+    return StreamingResponse(
+        _stream_open_file(handle),
+        media_type="video/mp4",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Length": str(size_bytes),
+        },
+    )
+
+
 @router.post(
     "/batches/{batch_id}/narration-review",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     operation_id="submitVideoBatchNarrationReview",
 )
 async def submit_video_batch_narration_review(
@@ -151,7 +238,7 @@ async def submit_video_batch_narration_review(
 
 @router.post(
     "/batches/{batch_id}/narration/synthesize",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     operation_id="synthesizeVideoBatchNarration",
 )
 async def synthesize_video_batch_narration(
@@ -164,7 +251,7 @@ async def synthesize_video_batch_narration(
 
 @router.post(
     "/batches/{batch_id}/timeline-review",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     operation_id="submitVideoTimelineReview",
 )
 async def submit_video_timeline_review(
@@ -177,7 +264,7 @@ async def submit_video_timeline_review(
 
 @router.post(
     "/batches/{batch_id}/render",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     operation_id="renderVideoBatch",
 )
 async def render_video_batch(
@@ -193,7 +280,7 @@ async def render_video_batch(
 
 @router.post(
     "/batches/{batch_id}/cancel",
-    response_model=VideoBatch,
+    response_model=PublicVideoBatch,
     operation_id="cancelVideoRender",
 )
 async def cancel_video_render(

@@ -52,6 +52,7 @@ from god_news.infrastructure.video_host import (
     PlaceholderHostRenderer,
     UnavailableBatchVideoRenderer,
 )
+from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
 from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
@@ -90,6 +91,8 @@ class AppContainer:
     async def start(self) -> None:
         if self.source_runs is not None:
             await self.source_runs.recover_interrupted()
+        if self.video_batches is not None:
+            await self.video_batches.recover_interrupted()
         if self.operation_scheduler is not None:
             await self.operation_scheduler.start()
 
@@ -397,13 +400,25 @@ async def build_container(settings: Settings) -> AppContainer:
         ingestor=workflow,
         max_pending_runs=settings.source_run_max_pending,
     )
+    video_renderer = (
+        LocalRemotionBatchVideoRenderer(
+            package_dir=settings.video_remotion_package_dir,
+            output_dir=settings.video_render_root,
+            node_command=settings.video_node_command,
+            timeout_seconds=settings.video_render_timeout_seconds,
+            max_parallel_batches=settings.video_render_max_parallel_batches,
+            concurrency=settings.video_render_concurrency,
+        )
+        if settings.video_renderer_enabled
+        else UnavailableBatchVideoRenderer()
+    )
     video_batches = VideoBatchService(
         story_pool=workflow,
         repository=video_batch_repository,
         host_renderer=PlaceholderHostRenderer(),
         narration_composer=narration_composer,
         synthesizer=synthesizer,
-        video_renderer=UnavailableBatchVideoRenderer(),
+        video_renderer=video_renderer,
         bgm_catalog=LocalBgmCatalog(settings.video_bgm_directory),
         audio_root=settings.output_dir,
         candidate_scan_limit=settings.video_candidate_scan_limit,

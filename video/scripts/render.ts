@@ -1,4 +1,4 @@
-import {createHash} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import {copyFile, mkdir, mkdtemp, readFile, rm, stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, dirname, extname, isAbsolute, join, resolve, sep} from 'node:path';
@@ -11,16 +11,18 @@ import {COMPOSITION_ID} from '../src/constants';
 import {
   parseGodNewsVideoProps,
   type GodNewsVideoProps,
+  type OutputProfileId,
 } from '../src/schema';
 
 type CliOptions = Readonly<{
   input: string;
   output?: string;
   concurrency?: number;
+  profile: OutputProfileId;
 }>;
 
 const usage = `Usage:
-  pnpm render -- --input <video-props.json> [--output <video.mp4>] [--concurrency <n>]
+  pnpm render -- --input <video-props.json> --profile <douyin_vertical|bilibili_horizontal> [--output <video.mp4>] [--concurrency <n>]
 
 Local audio_path and bgm.local_path values are resolved relative to the JSON file.`;
 
@@ -43,8 +45,12 @@ const parseArgs = (args: readonly string[]): CliOptions => {
 
   const input = values.get('--input');
   if (!input) throw new Error(`--input is required.\n${usage}`);
+  const profile = values.get('--profile');
+  if (profile !== 'douyin_vertical' && profile !== 'bilibili_horizontal') {
+    throw new Error(`--profile must name a supported output profile.\n${usage}`);
+  }
   const unknown = [...values.keys()].filter(
-    (key) => !['--input', '--output', '--concurrency'].includes(key),
+    (key) => !['--input', '--output', '--concurrency', '--profile'].includes(key),
   );
   if (unknown.length > 0) {
     throw new Error(`Unknown option: ${unknown.join(', ')}.\n${usage}`);
@@ -62,6 +68,7 @@ const parseArgs = (args: readonly string[]): CliOptions => {
 
   return {
     input,
+    profile,
     ...(output ? {output} : {}),
     ...(concurrency !== undefined ? {concurrency} : {}),
   };
@@ -89,17 +96,26 @@ const stageAsset = async (
   const info = await stat(absolute);
   if (!info.isFile()) throw new Error(`Asset is not a file: ${absolute}`);
 
-  const digest = await sha256(absolute);
   const suffix = extname(absolute).toLowerCase() || '.bin';
+  const temporaryDirectory = join(publicDirectory, '.staging');
+  const temporary = join(temporaryDirectory, `${randomUUID()}${suffix}`);
+  await mkdir(temporaryDirectory, {recursive: true});
+  await copyFile(absolute, temporary);
+  const digest = await sha256(temporary);
   const relative = `assets/${digest}${suffix}`;
   const destination = join(publicDirectory, ...relative.split('/'));
   await mkdir(dirname(destination), {recursive: true});
-  await copyFile(absolute, destination);
+  try {
+    await copyFile(temporary, destination);
+  } finally {
+    await rm(temporary, {force: true});
+  }
   return relative;
 };
 
 const stageProps = async (
   props: GodNewsVideoProps,
+  profile: OutputProfileId,
   inputDirectory: string,
   publicDirectory: string,
 ): Promise<GodNewsVideoProps> => {
@@ -118,6 +134,7 @@ const stageProps = async (
     runtime_assets: {
       audio_by_segment_id: Object.fromEntries(audioEntries),
       ...(bgmSrc ? {bgm_src: bgmSrc} : {}),
+      output_profile_id: profile,
     },
   });
 };
@@ -138,7 +155,7 @@ const main = async (): Promise<void> => {
   const raw = JSON.parse(await readFile(inputPath, 'utf8')) as unknown;
   const props = parseGodNewsVideoProps(raw);
   const outputPath = resolve(
-    options.output ?? join('out', `${props.manifest.story_id}.mp4`),
+    options.output ?? join('out', `${props.manifest.story_id}-${options.profile}.mp4`),
   );
   const workspace = await mkdtemp(join(tmpdir(), 'god-news-remotion-'));
 
@@ -148,6 +165,7 @@ const main = async (): Promise<void> => {
     await mkdir(publicDirectory, {recursive: true});
     const stagedProps = await stageProps(
       props,
+      options.profile,
       dirname(inputPath),
       publicDirectory,
     );
@@ -174,7 +192,15 @@ const main = async (): Promise<void> => {
       ...(options.concurrency ? {concurrency: options.concurrency} : {}),
     });
     process.stdout.write(
-      `${JSON.stringify({story_id: props.manifest.story_id, output: outputPath})}\n`,
+      `${JSON.stringify({
+        story_id: props.manifest.story_id,
+        profile_id: options.profile,
+        output: outputPath,
+        width: composition.width,
+        height: composition.height,
+        fps: composition.fps,
+        duration_in_frames: composition.durationInFrames,
+      })}\n`,
     );
   } finally {
     await safelyRemoveWorkspace(workspace);

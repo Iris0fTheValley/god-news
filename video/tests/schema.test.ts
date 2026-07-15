@@ -34,4 +34,29 @@ describe('GodNewsVideoPropsSchema', () => {
       /unknown segment_id/u,
     );
   });
+
+  it('requires the active output profile to come from the semantic snapshot', () => {
+    const invalid = structuredClone(validProps);
+    invalid.output_profiles = invalid.output_profiles.filter(
+      (profile) => profile.profile_id !== 'bilibili_horizontal',
+    );
+    invalid.runtime_assets.output_profile_id = 'bilibili_horizontal';
+    expect(() => parseGodNewsVideoProps(invalid)).toThrow(
+      /runtime output profile is not declared/u,
+    );
+  });
+
+  it('accepts one plan for both platform-specific dimensions', () => {
+    const vertical = parseGodNewsVideoProps(validProps);
+    const horizontal = parseGodNewsVideoProps({
+      ...validProps,
+      runtime_assets: {
+        ...validProps.runtime_assets,
+        output_profile_id: 'bilibili_horizontal',
+      },
+    });
+    expect(vertical.manifest).toEqual(horizontal.manifest);
+    expect(vertical.runtime_assets.output_profile_id).toBe('douyin_vertical');
+    expect(horizontal.runtime_assets.output_profile_id).toBe('bilibili_horizontal');
+  });
 });

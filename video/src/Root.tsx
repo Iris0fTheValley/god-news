@@ -27,8 +27,18 @@ export const RemotionRoot = () => (
     schema={GodNewsVideoPropsSchema}
     calculateMetadata={({props}: {props: GodNewsVideoProps}) => {
       const validated = parseGodNewsVideoProps(props);
+      const profile = validated.output_profiles.find(
+        (candidate) =>
+          candidate.profile_id === validated.runtime_assets.output_profile_id,
+      );
+      if (!profile) {
+        throw new Error('The active output profile is not declared.');
+      }
       return {
-        durationInFrames: buildRenderPlan(validated, VIDEO_FPS).durationInFrames,
+        durationInFrames: buildRenderPlan(validated, profile.fps).durationInFrames,
+        width: profile.width,
+        height: profile.height,
+        fps: profile.fps,
         props: validated,
       };
     }}

@@ -625,6 +625,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/video/batches/{batch_id}/outputs/{profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Batch Video Output
+         * @description Serve one verified render output without accepting or exposing a host path.
+         */
+        get: operations["getVideoBatchOutput"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/video/batches/{batch_id}/render": {
         parameters: {
             query?: never;
@@ -760,26 +780,6 @@ export interface components {
              */
             url: string;
         };
-        /**
-         * BatchNarrationArtifact
-         * @description The reviewable, batch-level narration and its optional synthesized media.
-         */
-        BatchNarrationArtifact: {
-            audio?: components["schemas"]["AudioBundle"] | null;
-            /**
-             * Composed At
-             * Format: date-time
-             */
-            composed_at?: string;
-            manifest?: components["schemas"]["ProductionManifest"] | null;
-            script: components["schemas"]["ScriptDocument"];
-            /** Source Evidence */
-            source_evidence: components["schemas"]["BatchNarrationSourceEvidence"][];
-            /** Source Evidence Sha256 */
-            source_evidence_sha256: string;
-            /** Synthesized At */
-            synthesized_at?: string | null;
-        };
         /** BatchNarrationFailure */
         BatchNarrationFailure: {
             /** Message */
@@ -813,38 +813,6 @@ export interface components {
             story_id: string;
             /** Story Version */
             story_version: number;
-        };
-        /** BgmRenderSpec */
-        BgmRenderSpec: {
-            /** Local Path */
-            local_path: string;
-            /**
-             * Loop
-             * @default true
-             */
-            loop: boolean;
-            /**
-             * Volume
-             * @default 0.12
-             */
-            volume: number;
-        };
-        /** BgmSelection */
-        BgmSelection: {
-            /** Local Path */
-            local_path: string;
-            /**
-             * Loop
-             * @default true
-             */
-            loop: boolean;
-            /** Track Id */
-            track_id: string;
-            /**
-             * Volume
-             * @default 0.12
-             */
-            volume: number;
         };
         /** BgmTrack */
         BgmTrack: {
@@ -1026,22 +994,6 @@ export interface components {
             /** State Id */
             state_id: string;
         };
-        /** DifferentialArtLayer */
-        DifferentialArtLayer: {
-            /** Image Path */
-            image_path: string;
-            /** Layer Id */
-            layer_id: string;
-            /** Z Index */
-            z_index: number;
-        };
-        /** DifferentialArtReservation */
-        DifferentialArtReservation: {
-            /** Base Image Path */
-            base_image_path: string;
-            /** Layers */
-            layers?: components["schemas"]["DifferentialArtLayer"][];
-        };
         /**
          * EditorialScreening
          * @description AI screening evidence plus the current human-reviewable decision.
@@ -1136,20 +1088,6 @@ export interface components {
             ready: boolean;
         };
         /**
-         * HostVisualReservations
-         * @description Typed visual reservations kept independent from narration composition.
-         */
-        HostVisualReservations: {
-            differential_art?: components["schemas"]["DifferentialArtReservation"] | null;
-            live2d?: components["schemas"]["Live2DReservation"] | null;
-            /**
-             * Renderer
-             * @default placeholder
-             * @constant
-             */
-            renderer: "placeholder";
-        };
-        /**
          * ImageContentType
          * @description Raster formats accepted by the local visual-asset boundary.
          * @enum {string}
@@ -1218,15 +1156,6 @@ export interface components {
              * @default zh-CN
              */
             target_language: string;
-        };
-        /** Live2DReservation */
-        Live2DReservation: {
-            /** Character Id */
-            character_id: string;
-            /** Idle Motion Group */
-            idle_motion_group?: string | null;
-            /** Model Json Path */
-            model_json_path: string;
         };
         /** Liveness */
         Liveness: {
@@ -1465,6 +1394,288 @@ export interface components {
             timeline: components["schemas"]["TimelineSegment"][];
             /** Total Duration Ms */
             total_duration_ms: number;
+        };
+        /** PublicAudioBundle */
+        PublicAudioBundle: {
+            /** Clips */
+            clips: components["schemas"]["PublicAudioClip"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Model Identity */
+            model_identity: string;
+            /** Provider */
+            provider: string;
+            /** Revision */
+            revision: number;
+            synthesis: components["schemas"]["SynthesisMetadata"];
+        };
+        /** PublicAudioClip */
+        PublicAudioClip: {
+            /** Channels */
+            channels: number;
+            /** Duration Ms */
+            duration_ms: number;
+            format: components["schemas"]["AudioFormat"];
+            /** Sample Rate Hz */
+            sample_rate_hz: number;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Sha256 */
+            sha256: string;
+        };
+        /** PublicBatchNarrationArtifact */
+        PublicBatchNarrationArtifact: {
+            audio?: components["schemas"]["PublicAudioBundle"] | null;
+            /**
+             * Composed At
+             * Format: date-time
+             */
+            composed_at: string;
+            manifest?: components["schemas"]["PublicProductionManifest"] | null;
+            script: components["schemas"]["ScriptDocument"];
+            /** Source Evidence */
+            source_evidence: components["schemas"]["BatchNarrationSourceEvidence"][];
+            /** Source Evidence Sha256 */
+            source_evidence_sha256: string;
+            /** Synthesized At */
+            synthesized_at?: string | null;
+        };
+        /** PublicBgmRenderSpec */
+        PublicBgmRenderSpec: {
+            /** Loop */
+            loop: boolean;
+            /** Volume */
+            volume: number;
+        };
+        /** PublicBgmSelection */
+        PublicBgmSelection: {
+            /** Loop */
+            loop: boolean;
+            /** Track Id */
+            track_id: string;
+            /** Volume */
+            volume: number;
+        };
+        /** PublicDifferentialArtLayer */
+        PublicDifferentialArtLayer: {
+            /** Layer Id */
+            layer_id: string;
+            /** Z Index */
+            z_index: number;
+        };
+        /** PublicDifferentialArtReservation */
+        PublicDifferentialArtReservation: {
+            /** Layers */
+            layers: components["schemas"]["PublicDifferentialArtLayer"][];
+        };
+        /** PublicHostVisualReservations */
+        PublicHostVisualReservations: {
+            differential_art?: components["schemas"]["PublicDifferentialArtReservation"] | null;
+            live2d?: components["schemas"]["PublicLive2DReservation"] | null;
+            /**
+             * Renderer
+             * @constant
+             */
+            renderer: "placeholder";
+        };
+        /** PublicLegacyVideoRenderArtifact */
+        PublicLegacyVideoRenderArtifact: {
+            /**
+             * Rendered At
+             * Format: date-time
+             */
+            rendered_at: string;
+            /** Renderer */
+            renderer: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** PublicLive2DReservation */
+        PublicLive2DReservation: {
+            /** Character Id */
+            character_id: string;
+            /** Idle Motion Group */
+            idle_motion_group?: string | null;
+        };
+        /** PublicProductionManifest */
+        PublicProductionManifest: {
+            /** Language */
+            language: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "1.0";
+            /** Script Revision */
+            script_revision: number;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Timeline */
+            timeline: components["schemas"]["PublicTimelineSegment"][];
+            /** Total Duration Ms */
+            total_duration_ms: number;
+        };
+        /** PublicRemotionVideoProps */
+        PublicRemotionVideoProps: {
+            bgm?: components["schemas"]["PublicBgmRenderSpec"] | null;
+            /** Intro Duration Ms */
+            intro_duration_ms: number;
+            manifest: components["schemas"]["PublicProductionManifest"];
+            /** Output Profiles */
+            output_profiles: components["schemas"]["VideoOutputProfile"][];
+            /** Subtitle */
+            subtitle?: string | null;
+            theme: components["schemas"]["VideoTheme"];
+            /** Title */
+            title: string;
+            /** Transition Duration Ms */
+            transition_duration_ms: number;
+            visual_reservations: components["schemas"]["PublicHostVisualReservations"];
+        };
+        /** PublicTimelineSegment */
+        PublicTimelineSegment: {
+            emotion: components["schemas"]["SpeechEmotion"];
+            /** End Ms */
+            end_ms: number;
+            scene_transition: components["schemas"]["SceneTransition"];
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Sequence */
+            sequence: number;
+            /** Speaker Id */
+            speaker_id: string;
+            /** Start Ms */
+            start_ms: number;
+            /** Text */
+            text: string;
+            /** Visual Hint */
+            visual_hint?: string | null;
+        };
+        /** PublicVideoBatch */
+        PublicVideoBatch: {
+            /** Artifact */
+            artifact?: components["schemas"]["PublicVideoRenderArtifact"] | components["schemas"]["PublicLegacyVideoRenderArtifact"] | null;
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            bgm?: components["schemas"]["PublicBgmSelection"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Input Assets */
+            input_assets: components["schemas"]["PublicVideoInputAsset"][];
+            last_failure?: components["schemas"]["VideoRenderFailure"] | null;
+            narration: components["schemas"]["PublicBatchNarrationArtifact"];
+            narration_failure?: components["schemas"]["BatchNarrationFailure"] | null;
+            /** Narration Reviews */
+            narration_reviews: components["schemas"]["NarrationReview"][];
+            remotion_props?: components["schemas"]["PublicRemotionVideoProps"] | null;
+            /** Render Input Sha256 */
+            render_input_sha256?: string | null;
+            status: components["schemas"]["VideoBatchStatus"];
+            /** Stories */
+            stories: components["schemas"]["PublicVideoBatchStory"][];
+            /** Subtitle */
+            subtitle?: string | null;
+            timeline_review?: components["schemas"]["TimelineReview"] | null;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            visual_reservations: components["schemas"]["PublicHostVisualReservations"];
+        };
+        /** PublicVideoBatchStory */
+        PublicVideoBatchStory: {
+            /** Category */
+            category: string;
+            /**
+             * Reserved At
+             * Format: date-time
+             */
+            reserved_at: string;
+            script: components["schemas"]["ScriptDocument"];
+            /** Script Sha256 */
+            script_sha256: string;
+            /** Sequence */
+            sequence: number;
+            source_manifest: components["schemas"]["PublicProductionManifest"];
+            /** Source Manifest Sha256 */
+            source_manifest_sha256: string;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Story Version */
+            story_version: number;
+            /** Title */
+            title: string;
+            /** Used At */
+            used_at?: string | null;
+        };
+        /** PublicVideoInputAsset */
+        PublicVideoInputAsset: {
+            /** Kind */
+            kind: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** PublicVideoRenderArtifact */
+        PublicVideoRenderArtifact: {
+            /** Outputs */
+            outputs: components["schemas"]["PublicVideoRenderOutput"][];
+            /**
+             * Rendered At
+             * Format: date-time
+             */
+            rendered_at: string;
+            /** Renderer */
+            renderer: string;
+        };
+        /** PublicVideoRenderOutput */
+        PublicVideoRenderOutput: {
+            /** Audio Codec */
+            audio_codec: string;
+            /** Duration In Frames */
+            duration_in_frames: number;
+            /** Fps */
+            fps: number;
+            /** Height */
+            height: number;
+            profile_id: components["schemas"]["VideoOutputProfileId"];
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Video Codec */
+            video_codec: string;
+            /** Width */
+            width: number;
         };
         /** RawDazhongImage */
         RawDazhongImage: {
@@ -1885,34 +2096,6 @@ export interface components {
             source: "reddit";
             /** Subreddit */
             subreddit: string;
-        };
-        /**
-         * RemotionVideoProps
-         * @description Backend-owned subset of ``video/src/schema.ts``.
-         *
-         *     This object is deliberately absent until batch narration has been manually
-         *     synthesized. It therefore cannot accidentally encode an unreviewed or
-         *     source-story-flat render plan.
-         */
-        RemotionVideoProps: {
-            bgm?: components["schemas"]["BgmRenderSpec"] | null;
-            /**
-             * Intro Duration Ms
-             * @default 700
-             */
-            intro_duration_ms: number;
-            manifest: components["schemas"]["ProductionManifest"];
-            /** Subtitle */
-            subtitle?: string | null;
-            theme?: components["schemas"]["VideoTheme"];
-            /** Title */
-            title: string;
-            /**
-             * Transition Duration Ms
-             * @default 180
-             */
-            transition_duration_ms: number;
-            visual_reservations?: components["schemas"]["HostVisualReservations"];
         };
         /** RenderVideoBatch */
         RenderVideoBatch: {
@@ -2943,51 +3126,6 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /** VideoBatch */
-        VideoBatch: {
-            artifact?: components["schemas"]["VideoRenderArtifact"] | null;
-            /**
-             * Batch Id
-             * Format: uuid
-             */
-            batch_id?: string;
-            bgm?: components["schemas"]["BgmSelection"] | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at?: string;
-            /** Input Assets */
-            input_assets?: components["schemas"]["VideoInputAsset"][];
-            last_failure?: components["schemas"]["VideoRenderFailure"] | null;
-            narration: components["schemas"]["BatchNarrationArtifact"];
-            narration_failure?: components["schemas"]["BatchNarrationFailure"] | null;
-            /** Narration Reviews */
-            narration_reviews?: components["schemas"]["NarrationReview"][];
-            remotion_props?: components["schemas"]["RemotionVideoProps"] | null;
-            /** Render Input Sha256 */
-            render_input_sha256?: string | null;
-            /** @default PENDING_NARRATION_REVIEW */
-            status: components["schemas"]["VideoBatchStatus"];
-            /** Stories */
-            stories: components["schemas"]["VideoBatchStory"][];
-            /** Subtitle */
-            subtitle?: string | null;
-            timeline_review?: components["schemas"]["TimelineReview"] | null;
-            /** Title */
-            title: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at?: string;
-            /**
-             * Version
-             * @default 1
-             */
-            version: number;
-            visual_reservations?: components["schemas"]["HostVisualReservations"];
-        };
         /**
          * VideoBatchStatus
          * @description Batch workflow deliberately separates editorial and expensive work.
@@ -2995,58 +3133,10 @@ export interface components {
          */
         VideoBatchStatus: "PENDING_NARRATION_REVIEW" | "PENDING_BATCH_TTS" | "PROCESSING_BATCH_TTS" | "PENDING_TIMELINE_REVIEW" | "READY_TO_RENDER" | "RENDERING" | "RENDERED" | "REJECTED" | "CANCELLED" | "FAILED";
         /**
-         * VideoBatchStory
-         * @description Immutable source-story evidence for one input to a merged narration.
-         *
-         *     ``source_manifest`` is intentionally not a chapter in the eventual batch
-         *     timeline. It remains a point-in-time source snapshot only; the separate
-         *     batch narration artifact is the sole input to Remotion.
-         */
-        VideoBatchStory: {
-            category: components["schemas"]["ContentCategory"];
-            /**
-             * Reserved At
-             * Format: date-time
-             */
-            reserved_at?: string;
-            script: components["schemas"]["ScriptDocument"];
-            /** Script Sha256 */
-            script_sha256: string;
-            /** Sequence */
-            sequence: number;
-            source_manifest: components["schemas"]["ProductionManifest"];
-            /** Source Manifest Sha256 */
-            source_manifest_sha256: string;
-            /**
-             * Story Id
-             * Format: uuid
-             */
-            story_id: string;
-            /** Story Version */
-            story_version: number;
-            /** Title */
-            title: string;
-            /** Used At */
-            used_at?: string | null;
-        };
-        /**
-         * VideoInputAsset
-         * @description Immutable evidence for a local file approved for a render.
-         */
-        VideoInputAsset: {
-            kind: components["schemas"]["VideoInputAssetKind"];
-            /** Local Path */
-            local_path: string;
-            /** Sha256 */
-            sha256: string;
-            /** Size Bytes */
-            size_bytes: number;
-        };
-        /**
-         * VideoInputAssetKind
+         * VideoLayout
          * @enum {string}
          */
-        VideoInputAssetKind: "audio" | "bgm";
+        VideoLayout: "vertical" | "horizontal";
         /** VideoMediaAsset */
         VideoMediaAsset: {
             /** Caption */
@@ -3068,22 +3158,28 @@ export interface components {
              */
             url: string;
         };
-        /** VideoRenderArtifact */
-        VideoRenderArtifact: {
-            /** Local Path */
-            local_path: string;
+        /**
+         * VideoOutputProfile
+         * @description A versioned render target, kept separate from editorial semantics.
+         */
+        VideoOutputProfile: {
             /**
-             * Rendered At
-             * Format: date-time
+             * Fps
+             * @default 30
              */
-            rendered_at?: string;
-            /** Renderer */
-            renderer: string;
-            /** Sha256 */
-            sha256: string;
-            /** Size Bytes */
-            size_bytes: number;
+            fps: number;
+            /** Height */
+            height: number;
+            layout: components["schemas"]["VideoLayout"];
+            profile_id: components["schemas"]["VideoOutputProfileId"];
+            /** Width */
+            width: number;
         };
+        /**
+         * VideoOutputProfileId
+         * @enum {string}
+         */
+        VideoOutputProfileId: "douyin_vertical" | "bilibili_horizontal";
         /** VideoRenderFailure */
         VideoRenderFailure: {
             /** Message */
@@ -5866,7 +5962,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"][];
+                    "application/json": components["schemas"]["PublicVideoBatch"][];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */
@@ -5935,7 +6031,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */
@@ -6002,7 +6098,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */
@@ -6200,7 +6296,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */
@@ -6271,7 +6367,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */
@@ -6342,8 +6438,74 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
+            };
+            /** @description Requested video batch or BGM track was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video batch state, input evidence, or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local video rendering failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getVideoBatchOutput: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+                profile_id: components["schemas"]["VideoOutputProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Requested video batch or BGM track was not found. */
             404: {
@@ -6413,7 +6575,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */
@@ -6484,7 +6646,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VideoBatch"];
+                    "application/json": components["schemas"]["PublicVideoBatch"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */

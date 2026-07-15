@@ -192,6 +192,53 @@ class HostVisualReservations(DomainModel):
     differential_art: DifferentialArtReservation | None = None
 
 
+class VideoOutputProfileId(StrEnum):
+    DOUYIN_VERTICAL = "douyin_vertical"
+    BILIBILI_HORIZONTAL = "bilibili_horizontal"
+
+
+class VideoLayout(StrEnum):
+    VERTICAL = "vertical"
+    HORIZONTAL = "horizontal"
+
+
+class VideoOutputProfile(DomainModel):
+    """A versioned render target, kept separate from editorial semantics."""
+
+    profile_id: VideoOutputProfileId
+    width: int = Field(gt=0, le=7_680)
+    height: int = Field(gt=0, le=7_680)
+    fps: int = Field(default=30, ge=1, le=120)
+    layout: VideoLayout
+
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> VideoOutputProfile:
+        if self.width % 2 or self.height % 2:
+            raise ValueError("H.264 output dimensions must be even")
+        if self.layout is VideoLayout.VERTICAL and self.width >= self.height:
+            raise ValueError("vertical output profiles require width < height")
+        if self.layout is VideoLayout.HORIZONTAL and self.width <= self.height:
+            raise ValueError("horizontal output profiles require width > height")
+        return self
+
+
+def default_video_output_profiles() -> list[VideoOutputProfile]:
+    return [
+        VideoOutputProfile(
+            profile_id=VideoOutputProfileId.DOUYIN_VERTICAL,
+            width=1_080,
+            height=1_920,
+            layout=VideoLayout.VERTICAL,
+        ),
+        VideoOutputProfile(
+            profile_id=VideoOutputProfileId.BILIBILI_HORIZONTAL,
+            width=1_920,
+            height=1_080,
+            layout=VideoLayout.HORIZONTAL,
+        ),
+    ]
+
+
 class RemotionVideoProps(DomainModel):
     """Backend-owned subset of ``video/src/schema.ts``.
 
@@ -208,6 +255,24 @@ class RemotionVideoProps(DomainModel):
     theme: VideoTheme = Field(default_factory=VideoTheme)
     bgm: BgmRenderSpec | None = None
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
+    output_profiles: list[VideoOutputProfile] = Field(
+        default_factory=default_video_output_profiles,
+        min_length=2,
+        max_length=8,
+    )
+
+    @model_validator(mode="after")
+    def validate_output_profiles(self) -> RemotionVideoProps:
+        profile_ids = [profile.profile_id for profile in self.output_profiles]
+        if len(profile_ids) != len(set(profile_ids)):
+            raise ValueError("output profile IDs must be unique")
+        required = {
+            VideoOutputProfileId.DOUYIN_VERTICAL,
+            VideoOutputProfileId.BILIBILI_HORIZONTAL,
+        }
+        if not required.issubset(profile_ids):
+            raise ValueError("Douyin and Bilibili output profiles are required")
+        return self
 
 
 class VideoBatchStory(DomainModel):
@@ -365,7 +430,32 @@ class TimelineReview(DomainModel):
         return self
 
 
-class VideoRenderArtifact(DomainModel):
+class VideoRenderOutput(DomainModel):
+    profile_id: VideoOutputProfileId
+    local_path: NonBlankStr
+    size_bytes: int = Field(gt=0)
+    sha256: Sha256
+    width: int = Field(gt=0, le=7_680)
+    height: int = Field(gt=0, le=7_680)
+    fps: int = Field(ge=1, le=120)
+    duration_in_frames: int = Field(gt=0)
+    video_codec: NonBlankStr
+    audio_codec: NonBlankStr
+
+    @field_validator("local_path")
+    @classmethod
+    def require_local_path(cls, value: str) -> str:
+        return _require_local_path(value)
+
+
+class LegacyVideoRenderArtifact(DomainModel):
+    """Read-only compatibility evidence for pre dual-output rendered batches.
+
+    Existing rendered batches hold durable story claims and cannot safely be
+    recreated.  Keeping their original shape readable is therefore an audit
+    requirement, not an invitation to produce new single-output artifacts.
+    """
+
     local_path: NonBlankStr
     size_bytes: int = Field(gt=0)
     sha256: Sha256
@@ -376,6 +466,34 @@ class VideoRenderArtifact(DomainModel):
     @classmethod
     def require_local_path(cls, value: str) -> str:
         return _require_local_path(value)
+
+    @field_validator("rendered_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("timestamps must be timezone-aware")
+        return value
+
+
+class VideoRenderArtifact(DomainModel):
+    """Atomic evidence for every required output of one semantic render snapshot."""
+
+    renderer: NonBlankStr
+    outputs: list[VideoRenderOutput] = Field(min_length=2, max_length=8)
+    rendered_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_outputs(self) -> VideoRenderArtifact:
+        profile_ids = [output.profile_id for output in self.outputs]
+        if len(profile_ids) != len(set(profile_ids)):
+            raise ValueError("render output profile IDs must be unique")
+        required = {
+            VideoOutputProfileId.DOUYIN_VERTICAL,
+            VideoOutputProfileId.BILIBILI_HORIZONTAL,
+        }
+        if not required.issubset(profile_ids):
+            raise ValueError("render artifact is missing a required output profile")
+        return self
 
     @field_validator("rendered_at")
     @classmethod
@@ -425,7 +543,7 @@ class VideoBatch(DomainModel):
     render_input_sha256: Sha256 | None = None
     narration_reviews: list[NarrationReview] = Field(default_factory=list, max_length=100)
     timeline_review: TimelineReview | None = None
-    artifact: VideoRenderArtifact | None = None
+    artifact: VideoRenderArtifact | LegacyVideoRenderArtifact | None = None
     narration_failure: BatchNarrationFailure | None = None
     last_failure: VideoRenderFailure | None = None
     version: int = Field(default=1, ge=1)

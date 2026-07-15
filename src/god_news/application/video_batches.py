@@ -110,6 +110,13 @@ class VideoBatchService:
     async def list_bgm(self) -> Sequence[BgmTrack]:
         return await self._bgm_catalog.list()
 
+    async def recover_interrupted(self) -> int:
+        """Make crash-orphaned render work retryable before accepting traffic."""
+
+        recovered = await self._repository.recover_interrupted_rendering()
+        await self._video_renderer.cleanup_interrupted(recovered)
+        return len(recovered)
+
     async def create(self, request: CreateVideoBatch) -> VideoBatch:
         """Reserve DONE stories and compose a *draft* batch narration.
 
@@ -389,7 +396,24 @@ class VideoBatchService:
                 artifact = await self._video_renderer.render(
                     running.batch_id,
                     running.remotion_props,
+                    running.input_assets,
                 )
+            except asyncio.CancelledError:
+                failed = running.model_copy(
+                    update={
+                        "status": VideoBatchStatus.FAILED,
+                        "last_failure": VideoRenderFailure(
+                            message="Local video rendering was interrupted."
+                        ),
+                        "updated_at": utc_now(),
+                    }
+                )
+                # Persist the recoverable terminal state even while the caller
+                # is being cancelled, then preserve cancellation semantics.
+                await asyncio.shield(
+                    self._repository.save(failed, expected_version=running.version)
+                )
+                raise
             except Exception as exc:
                 failed = running.model_copy(
                     update={
@@ -415,7 +439,10 @@ class VideoBatchService:
                     "updated_at": used_at,
                 }
             )
-            return await self._repository.save(rendered, expected_version=running.version)
+            return await self._save_render_commit(
+                rendered,
+                expected_version=running.version,
+            )
 
     async def cancel(self, batch_id: UUID) -> VideoBatch:
         """Release an unrendered batch without claiming unsafe subprocess control."""
@@ -762,6 +789,26 @@ class VideoBatchService:
         if isinstance(exc, GodNewsError):
             return exc.public_message
         return f"{type(exc).__name__}: local operation failed"
+
+    async def _save_render_commit(
+        self,
+        batch: VideoBatch,
+        *,
+        expected_version: int,
+    ) -> VideoBatch:
+        """Finish the durable render commit before propagating task cancellation."""
+
+        commit = asyncio.create_task(
+            self._repository.save(batch, expected_version=expected_version)
+        )
+        try:
+            return await asyncio.shield(commit)
+        except asyncio.CancelledError:
+            # A completed MP4 set without its DB evidence is an orphan and
+            # leaves the batch stuck in RENDERING.  Finish this short commit,
+            # then let the caller observe its cancellation.
+            await asyncio.shield(commit)
+            raise
 
     def _lock_for(self, batch_id: UUID) -> asyncio.Lock:
         lock = self._batch_locks.get(batch_id)

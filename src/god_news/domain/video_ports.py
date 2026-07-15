@@ -15,6 +15,7 @@ from god_news.domain.video import (
     VideoBatch,
     VideoBatchStatus,
     VideoBatchStory,
+    VideoInputAsset,
     VideoRenderArtifact,
 )
 
@@ -83,7 +84,14 @@ class BatchVideoRenderer(Protocol):
     @property
     def name(self) -> str: ...
 
-    async def render(self, batch_id: UUID, props: RemotionVideoProps) -> VideoRenderArtifact: ...
+    async def render(
+        self,
+        batch_id: UUID,
+        props: RemotionVideoProps,
+        input_assets: Sequence[VideoInputAsset],
+    ) -> VideoRenderArtifact: ...
+
+    async def cleanup_interrupted(self, batch_ids: Sequence[UUID]) -> int: ...
 
 
 class VideoBatchRepository(Protocol):
@@ -102,6 +110,8 @@ class VideoBatchRepository(Protocol):
     async def unavailable_story_ids(self, story_ids: Sequence[UUID]) -> frozenset[UUID]: ...
 
     async def save(self, batch: VideoBatch, *, expected_version: int) -> VideoBatch: ...
+
+    async def recover_interrupted_rendering(self) -> Sequence[UUID]: ...
 
     async def delete(self, batch_id: UUID) -> None: ...
 
