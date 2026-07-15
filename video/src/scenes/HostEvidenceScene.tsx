@@ -71,15 +71,32 @@ export const HostEvidenceScene = ({
   const frame = useCurrentFrame();
   const {width, height} = useVideoConfig();
   const horizontal = width > height;
-  const entrance = interpolate(frame, [0, 10], [28, 0], {
+  const captionEntrance = interpolate(frame, [0, 10], [28, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const opacity = interpolate(frame, [0, 8], [0, 1], {
+  const captionOpacity = interpolate(frame, [0, 8], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
   const {segment} = track;
+  const cornerHost = track.scene.host_slot === 'corner';
+  const enterProgress = track.scene.host_enter
+    ? interpolate(frame, [0, 10], [0, 1], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      })
+    : 1;
+  const exitStart = Math.max(0, track.durationInFrames - 9);
+  const exitProgress = track.scene.host_exit
+    ? interpolate(frame, [exitStart, Math.max(exitStart + 1, track.durationInFrames - 1)], [1, 0], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      })
+    : 1;
+  const hostOpacity = Math.min(enterProgress, exitProgress);
+  const hostShift = (1 - enterProgress) * (horizontal ? -34 : 34) +
+    (1 - exitProgress) * (horizontal ? -28 : 28);
   const rootStyle: CSSProperties = {
     background: `radial-gradient(circle at 86% 10%, ${props.theme.accent}22, transparent 30%), ${props.theme.background}`,
     color: props.theme.foreground,
@@ -108,18 +125,41 @@ export const HostEvidenceScene = ({
 
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: horizontal ? 'minmax(280px, 0.34fr) minmax(0, 0.66fr)' : '1fr',
-          gridTemplateRows: horizontal ? '1fr' : 'minmax(360px, 0.8fr) minmax(420px, 1fr)',
+          display: cornerHost ? 'block' : 'grid',
+          gridTemplateColumns: horizontal
+            ? 'minmax(280px, 0.34fr) minmax(0, 0.66fr)'
+            : '1fr',
+          gridTemplateRows: horizontal
+            ? '1fr'
+            : 'minmax(360px, 0.8fr) minmax(420px, 1fr)',
           gap: horizontal ? 34 : 30,
           marginTop: horizontal ? 30 : 42,
           minHeight: 0,
           flex: 1,
+          position: 'relative',
         }}
       >
-        <HostSilhouette accent={props.theme.accent} />
         <div
           style={{
+            ...(cornerHost
+              ? {
+                  position: 'absolute',
+                  right: horizontal ? 26 : 22,
+                  top: horizontal ? 26 : 22,
+                  width: horizontal ? '22%' : '42%',
+                  height: horizontal ? '54%' : '34%',
+                  zIndex: 2,
+                }
+              : {minHeight: 0}),
+            opacity: hostOpacity,
+            transform: `translateX(${hostShift}px)`,
+          }}
+        >
+          <HostSilhouette accent={props.theme.accent} />
+        </div>
+        <div
+          style={{
+            height: cornerHost ? '100%' : undefined,
             minHeight: 0,
             border: `2px solid ${props.theme.accent}55`,
             borderRadius: 30,
@@ -170,8 +210,8 @@ export const HostEvidenceScene = ({
       <div
         style={{
           marginTop: horizontal ? 28 : 38,
-          transform: `translateY(${entrance}px)`,
-          opacity,
+          transform: `translateY(${captionEntrance}px)`,
+          opacity: captionOpacity,
           borderTop: `1px solid ${props.theme.accent}55`,
           paddingTop: horizontal ? 22 : 28,
           fontSize: horizontal ? 38 : 48,

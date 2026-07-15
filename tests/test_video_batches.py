@@ -208,6 +208,22 @@ async def test_merged_audio_is_the_only_remotion_input_and_timeline_cannot_reord
     assert synthesized.remotion_props is not None
     assert synthesized.remotion_props.manifest == synthesized.narration.manifest
     assert synthesized.remotion_props.manifest.story_id == synthesized.batch_id
+    assert synthesized.remotion_props.episode_plan is not None
+    assert synthesized.remotion_props.episode_plan.batch_id == synthesized.batch_id
+    assert [
+        scene.narration_segment_id
+        for scene in synthesized.remotion_props.episode_plan.scenes
+    ] == [segment.segment_id for segment in synthesized.remotion_props.manifest.timeline]
+    for index, scene in enumerate(synthesized.remotion_props.episode_plan.scenes):
+        timeline = synthesized.remotion_props.manifest.timeline
+        previous = timeline[index - 1] if index else None
+        following = timeline[index + 1] if index + 1 < len(timeline) else None
+        assert scene.host_enter is (
+            previous is None or previous.speaker_id != timeline[index].speaker_id
+        )
+        assert scene.host_exit is (
+            following is None or following.speaker_id != timeline[index].speaker_id
+        )
     assert {segment.segment_id for segment in synthesized.remotion_props.manifest.timeline} == {
         segment.segment_id for segment in synthesized.narration.script.segments
     }
@@ -785,6 +801,9 @@ async def test_video_api_exposes_narration_review_manual_tts_and_timeline_gate(
             assert synthesized_response.status_code == 200
             synthesized = synthesized_response.json()
             assert synthesized["status"] == "PENDING_TIMELINE_REVIEW"
+            assert synthesized["remotion_props"]["episode_plan"]["batch_id"] == created[
+                "batch_id"
+            ]
             clip = synthesized["narration"]["audio"]["clips"][0]
 
             preview = await client.get(

@@ -14,6 +14,10 @@ from anyio import Path as AsyncPath
 from god_news.domain.enums import SpeechEmotion
 from god_news.domain.models import ProductionManifest, TimelineSegment
 from god_news.domain.video import (
+    EpisodeHostVisibility,
+    EpisodePlan,
+    EpisodeScene,
+    EpisodeSceneModule,
     RemotionVideoProps,
     VideoInputAsset,
     VideoInputAssetKind,
@@ -61,6 +65,42 @@ def _input_assets(audio_path: Path) -> list[VideoInputAsset]:
             size_bytes=len(payload),
         )
     ]
+
+
+def test_episode_scene_contract_rejects_invalid_renderer_capabilities() -> None:
+    with pytest.raises(ValueError, match="visible host"):
+        EpisodeScene(
+            sequence=0,
+            module_id=EpisodeSceneModule.HOST_EVIDENCE,
+            narration_segment_id=uuid4(),
+            speaker_id="narrator",
+            host_visibility=EpisodeHostVisibility.HIDDEN,
+        )
+
+
+def test_remotion_props_reject_episode_plan_identity_drift(tmp_path: Path) -> None:
+    audio = tmp_path / "audio.wav"
+    props = _props(audio)
+    segment = props.manifest.timeline[0]
+    plan = EpisodePlan(
+        batch_id=props.manifest.story_id,
+        scenes=[
+            EpisodeScene(
+                sequence=0,
+                module_id=EpisodeSceneModule.HOST_EVIDENCE,
+                narration_segment_id=segment.segment_id,
+                speaker_id="different-speaker",
+                host_visibility=EpisodeHostVisibility.VISIBLE,
+                host_slot="primary",
+                transition_type=segment.scene_transition,
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="speaker and transition"):
+        props.model_copy(update={"episode_plan": plan}).model_validate(
+            props.model_copy(update={"episode_plan": plan}).model_dump()
+        )
 
 
 @pytest.mark.asyncio

@@ -63,6 +63,36 @@ export const sampleProps: GodNewsVideoProps = {
   visual_reservations: {
     renderer: 'placeholder',
   },
+  episode_plan: {
+    schema_version: '1.0',
+    batch_id: '2bc6e989-33d7-45ad-87cd-7a57bbba85f4',
+    scenes: [
+      {
+        scene_id: '69a509c8-1ad7-4b45-a6a9-dfd74ed43dc6',
+        sequence: 0,
+        module_id: 'host_evidence',
+        narration_segment_id: 'de443fa0-6f3a-4ced-a480-82b4f936467c',
+        speaker_id: 'narrator',
+        host_visibility: 'visible',
+        host_slot: 'primary',
+        host_enter: true,
+        host_exit: true,
+        transition_type: 'mood_shift',
+      },
+      {
+        scene_id: 'bb786ae9-dddd-4b0c-a487-a2da1511b970',
+        sequence: 1,
+        module_id: 'evidence_fullscreen',
+        narration_segment_id: '1e5544e5-08b0-4381-8557-7097df912f20',
+        speaker_id: 'narrator',
+        host_visibility: 'hidden',
+        host_slot: null,
+        host_enter: false,
+        host_exit: false,
+        transition_type: 'black',
+      },
+    ],
+  },
   output_profiles: [
     {
       profile_id: 'douyin_vertical',

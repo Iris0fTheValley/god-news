@@ -2,7 +2,7 @@ import {AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig} from 'remotio
 
 import {buildRenderPlan} from './render-plan';
 import type {GodNewsVideoProps} from './schema';
-import {HostEvidenceScene} from './scenes/HostEvidenceScene';
+import {renderEpisodeScene} from './scenes/SceneRegistry';
 import {TitleCard} from './scenes/TitleCard';
 import {TransitionScene} from './scenes/TransitionScene';
 
@@ -70,11 +70,7 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
             durationInFrames={track.durationInFrames}
             name={`Story segment ${track.segment.sequence + 1}`}
           >
-            <HostEvidenceScene
-              props={props}
-              track={track}
-              segmentCount={segmentCount}
-            />
+            {renderEpisodeScene({props, track, segmentCount})}
             {audioSource ? <Audio src={audioSource} /> : null}
           </Sequence>
         );

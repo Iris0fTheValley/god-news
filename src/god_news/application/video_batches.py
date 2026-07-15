@@ -26,6 +26,11 @@ from god_news.domain.video import (
     BgmRenderSpec,
     BgmTrack,
     CreateVideoBatch,
+    EpisodeHostSlot,
+    EpisodeHostVisibility,
+    EpisodePlan,
+    EpisodeScene,
+    EpisodeSceneModule,
     HostVisualReservations,
     NarrationReview,
     NarrationReviewDecision,
@@ -687,13 +692,47 @@ class VideoBatchService:
     ) -> RemotionVideoProps:
         if manifest.story_id != batch_id:
             raise VideoBatchConflictError("Merged manifest must be owned by the video batch.")
+        episode_plan = VideoBatchService._build_episode_plan(batch_id, manifest)
         return RemotionVideoProps(
             manifest=manifest,
             title=title,
             subtitle=subtitle,
             bgm=bgm,
             visual_reservations=host,
+            episode_plan=episode_plan,
         )
+
+    @staticmethod
+    def _build_episode_plan(batch_id: UUID, manifest: ProductionManifest) -> EpisodePlan:
+        """Compile reviewed narration into replaceable semantic scene modules.
+
+        The initial policy keeps every narration segment in the registered
+        host/evidence module. A future director adapter may replace this policy
+        with a reviewed EpisodePlan without changing timing or Remotion internals.
+        """
+
+        scenes: list[EpisodeScene] = []
+        for index, segment in enumerate(manifest.timeline):
+            previous = manifest.timeline[index - 1] if index > 0 else None
+            following = (
+                manifest.timeline[index + 1]
+                if index + 1 < len(manifest.timeline)
+                else None
+            )
+            scenes.append(
+                EpisodeScene(
+                    sequence=index,
+                    module_id=EpisodeSceneModule.HOST_EVIDENCE,
+                    narration_segment_id=segment.segment_id,
+                    speaker_id=segment.speaker_id,
+                    host_visibility=EpisodeHostVisibility.VISIBLE,
+                    host_slot=EpisodeHostSlot.PRIMARY,
+                    host_enter=previous is None or previous.speaker_id != segment.speaker_id,
+                    host_exit=following is None or following.speaker_id != segment.speaker_id,
+                    transition_type=segment.scene_transition,
+                )
+            )
+        return EpisodePlan(batch_id=batch_id, scenes=scenes)
 
     @staticmethod
     def _validate_audio_snapshot_evidence(

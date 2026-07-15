@@ -1285,6 +1285,73 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * EpisodeHostSlot
+         * @enum {string}
+         */
+        EpisodeHostSlot: "primary" | "corner";
+        /**
+         * EpisodeHostVisibility
+         * @enum {string}
+         */
+        EpisodeHostVisibility: "visible" | "hidden";
+        /**
+         * EpisodePlan
+         * @description Editorial semantics between reviewed narration and low-level render frames.
+         */
+        EpisodePlan: {
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Scenes */
+            scenes: components["schemas"]["EpisodeScene"][];
+            /**
+             * Schema Version
+             * @default 1.0
+             * @constant
+             */
+            schema_version: "1.0";
+        };
+        /** EpisodeScene */
+        EpisodeScene: {
+            /**
+             * Host Enter
+             * @default false
+             */
+            host_enter: boolean;
+            /**
+             * Host Exit
+             * @default false
+             */
+            host_exit: boolean;
+            host_slot?: components["schemas"]["EpisodeHostSlot"] | null;
+            host_visibility: components["schemas"]["EpisodeHostVisibility"];
+            module_id: components["schemas"]["EpisodeSceneModule"];
+            /**
+             * Narration Segment Id
+             * Format: uuid
+             */
+            narration_segment_id: string;
+            /**
+             * Scene Id
+             * Format: uuid
+             */
+            scene_id?: string;
+            /** Sequence */
+            sequence: number;
+            /** Speaker Id */
+            speaker_id: string;
+            /** @default black */
+            transition_type: components["schemas"]["SceneTransition"];
+        };
+        /**
+         * EpisodeSceneModule
+         * @description Versioned semantic scene modules understood by deterministic renderers.
+         * @enum {string}
+         */
+        EpisodeSceneModule: "host_evidence" | "evidence_fullscreen";
         /** FirstReviewSubmission */
         FirstReviewSubmission: {
             /** Corrected Candidate Recommendation */
@@ -1782,6 +1849,7 @@ export interface components {
         /** PublicRemotionVideoProps */
         PublicRemotionVideoProps: {
             bgm?: components["schemas"]["PublicBgmRenderSpec"] | null;
+            episode_plan?: components["schemas"]["EpisodePlan"] | null;
             /** Intro Duration Ms */
             intro_duration_ms: number;
             manifest: components["schemas"]["PublicProductionManifest"];

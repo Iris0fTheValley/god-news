@@ -19,8 +19,10 @@ describe('GodNewsVideoPropsSchema', () => {
   it('uses black as the forward-compatible transition fallback', () => {
     const legacy = structuredClone(validProps) as unknown as {
       manifest: {timeline: Array<{scene_transition?: string}>};
+      episode_plan: {scenes: Array<{transition_type?: string}>};
     };
     delete legacy.manifest.timeline[0]!.scene_transition;
+    delete legacy.episode_plan.scenes[0]!.transition_type;
 
     expect(parseGodNewsVideoProps(legacy).manifest.timeline[0]!.scene_transition).toBe('black');
   });
@@ -66,5 +68,33 @@ describe('GodNewsVideoPropsSchema', () => {
     expect(vertical.manifest).toEqual(horizontal.manifest);
     expect(vertical.runtime_assets.output_profile_id).toBe('douyin_vertical');
     expect(horizontal.runtime_assets.output_profile_id).toBe('bilibili_horizontal');
+  });
+
+  it('rejects unregistered scene modules before rendering', () => {
+    const invalid = structuredClone(validProps) as unknown as {
+      episode_plan: {scenes: Array<{module_id: string}>};
+    };
+    invalid.episode_plan.scenes[0]!.module_id = 'invented_by_a_model';
+
+    expect(() => parseGodNewsVideoProps(invalid)).toThrow();
+  });
+
+  it('rejects scene capabilities that contradict host visibility', () => {
+    const invalid = structuredClone(validProps);
+    invalid.episode_plan!.scenes[0]!.host_visibility = 'hidden';
+    invalid.episode_plan!.scenes[0]!.host_slot = null;
+
+    expect(() => parseGodNewsVideoProps(invalid)).toThrow(
+      /host_evidence requires a visible host/u,
+    );
+  });
+
+  it('rejects scene identity that drifts from reviewed narration', () => {
+    const invalid = structuredClone(validProps);
+    invalid.episode_plan!.scenes[0]!.speaker_id = 'unreviewed-speaker';
+
+    expect(() => parseGodNewsVideoProps(invalid)).toThrow(
+      /scene identity must match reviewed narration/u,
+    );
   });
 });

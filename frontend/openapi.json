@@ -971,6 +971,128 @@
         "title": "EmotionReference",
         "type": "object"
       },
+      "EpisodeHostSlot": {
+        "enum": [
+          "primary",
+          "corner"
+        ],
+        "title": "EpisodeHostSlot",
+        "type": "string"
+      },
+      "EpisodeHostVisibility": {
+        "enum": [
+          "visible",
+          "hidden"
+        ],
+        "title": "EpisodeHostVisibility",
+        "type": "string"
+      },
+      "EpisodePlan": {
+        "additionalProperties": false,
+        "description": "Editorial semantics between reviewed narration and low-level render frames.",
+        "properties": {
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodeScene"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Scenes",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_id",
+          "scenes"
+        ],
+        "title": "EpisodePlan",
+        "type": "object"
+      },
+      "EpisodeScene": {
+        "additionalProperties": false,
+        "properties": {
+          "host_enter": {
+            "default": false,
+            "title": "Host Enter",
+            "type": "boolean"
+          },
+          "host_exit": {
+            "default": false,
+            "title": "Host Exit",
+            "type": "boolean"
+          },
+          "host_slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EpisodeHostSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host_visibility": {
+            "$ref": "#/components/schemas/EpisodeHostVisibility"
+          },
+          "module_id": {
+            "$ref": "#/components/schemas/EpisodeSceneModule"
+          },
+          "narration_segment_id": {
+            "format": "uuid",
+            "title": "Narration Segment Id",
+            "type": "string"
+          },
+          "scene_id": {
+            "format": "uuid",
+            "title": "Scene Id",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 99.0,
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "speaker_id": {
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "transition_type": {
+            "$ref": "#/components/schemas/SceneTransition",
+            "default": "black"
+          }
+        },
+        "required": [
+          "sequence",
+          "module_id",
+          "narration_segment_id",
+          "speaker_id",
+          "host_visibility"
+        ],
+        "title": "EpisodeScene",
+        "type": "object"
+      },
+      "EpisodeSceneModule": {
+        "description": "Versioned semantic scene modules understood by deterministic renderers.",
+        "enum": [
+          "host_evidence",
+          "evidence_fullscreen"
+        ],
+        "title": "EpisodeSceneModule",
+        "type": "string"
+      },
       "FirstReviewSubmission": {
         "additionalProperties": false,
         "properties": {
@@ -2354,6 +2476,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PublicBgmRenderSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "episode_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EpisodePlan"
               },
               {
                 "type": "null"

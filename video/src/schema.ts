@@ -181,6 +181,93 @@ export const ProductionManifestSchema = z
     }
   });
 
+export const EpisodeSceneModuleSchema = z.enum([
+  'host_evidence',
+  'evidence_fullscreen',
+]);
+
+export const EpisodeSceneSchema = z
+  .object({
+    scene_id: z.string().uuid(),
+    sequence: z.number().int().nonnegative().max(99),
+    module_id: EpisodeSceneModuleSchema,
+    narration_segment_id: z.string().uuid(),
+    speaker_id: nonBlank,
+    host_visibility: z.enum(['visible', 'hidden']),
+    host_slot: z.enum(['primary', 'corner']).nullable().optional(),
+    host_enter: z.boolean().default(false),
+    host_exit: z.boolean().default(false),
+    transition_type: SceneTransitionSchema.default('black'),
+  })
+  .strict()
+  .superRefine((scene, context) => {
+    if (scene.host_visibility === 'visible' && !scene.host_slot) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'visible episode hosts require a semantic slot',
+        path: ['host_slot'],
+      });
+    }
+    if (scene.host_visibility === 'hidden' && scene.host_slot) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'hidden episode hosts cannot reserve a visual slot',
+        path: ['host_slot'],
+      });
+    }
+    if (scene.module_id === 'host_evidence' && scene.host_visibility !== 'visible') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'host_evidence requires a visible host',
+        path: ['host_visibility'],
+      });
+    }
+    if (scene.module_id === 'evidence_fullscreen' && scene.host_visibility !== 'hidden') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'evidence_fullscreen requires a hidden host',
+        path: ['host_visibility'],
+      });
+    }
+  });
+
+export const EpisodePlanSchema = z
+  .object({
+    schema_version: z.literal('1.0').default('1.0'),
+    batch_id: z.string().uuid(),
+    scenes: z.array(EpisodeSceneSchema).min(1).max(100),
+  })
+  .strict()
+  .superRefine((plan, context) => {
+    const sceneIds = new Set<string>();
+    const segmentIds = new Set<string>();
+    plan.scenes.forEach((scene, index) => {
+      if (scene.sequence !== index) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'episode scene sequence must be contiguous and zero-based',
+          path: ['scenes', index, 'sequence'],
+        });
+      }
+      if (sceneIds.has(scene.scene_id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'episode scene IDs must be unique',
+          path: ['scenes', index, 'scene_id'],
+        });
+      }
+      if (segmentIds.has(scene.narration_segment_id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'narration segments may appear in only one episode scene',
+          path: ['scenes', index, 'narration_segment_id'],
+        });
+      }
+      sceneIds.add(scene.scene_id);
+      segmentIds.add(scene.narration_segment_id);
+    });
+  });
+
 const ThemeSchema = z
   .object({
     background: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#101512'),
@@ -257,6 +344,7 @@ export const GodNewsVideoPropsSchema = z
     }),
     bgm: BgmSchema.nullable().optional(),
     visual_reservations: VisualReservationsSchema.default({renderer: 'placeholder'}),
+    episode_plan: EpisodePlanSchema.nullable().optional(),
     output_profiles: z.array(OutputProfileSchema).min(1).max(8).default(defaultOutputProfiles),
     runtime_assets: RuntimeAssetsSchema.default({
       audio_by_segment_id: {},
@@ -313,6 +401,39 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
         path: ['runtime_assets', 'output_profile_id'],
       });
     }
+    if (props.episode_plan) {
+      if (props.episode_plan.batch_id !== props.manifest.story_id) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'episode plan must be owned by the rendered batch',
+          path: ['episode_plan', 'batch_id'],
+        });
+      }
+      const timeline = props.manifest.timeline;
+      if (props.episode_plan.scenes.length !== timeline.length) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'episode plan must cover every narration segment',
+          path: ['episode_plan', 'scenes'],
+        });
+      } else {
+        props.episode_plan.scenes.forEach((scene, index) => {
+          const segment = timeline[index];
+          if (
+            !segment ||
+            scene.narration_segment_id !== segment.segment_id ||
+            scene.speaker_id !== segment.speaker_id ||
+            scene.transition_type !== segment.scene_transition
+          ) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'episode scene identity must match reviewed narration',
+              path: ['episode_plan', 'scenes', index],
+            });
+          }
+        });
+      }
+    }
   });
 
 export const parseGodNewsVideoProps = (input: unknown): GodNewsVideoProps =>
@@ -324,4 +445,7 @@ export type OutputProfileId = z.infer<typeof OutputProfileIdSchema>;
 export type OutputProfile = z.infer<typeof OutputProfileSchema>;
 export type VideoTheme = z.infer<typeof ThemeSchema>;
 export type ProductionManifest = z.infer<typeof ProductionManifestSchema>;
+export type EpisodePlan = z.infer<typeof EpisodePlanSchema>;
+export type EpisodeScene = z.infer<typeof EpisodeSceneSchema>;
+export type EpisodeSceneModule = z.infer<typeof EpisodeSceneModuleSchema>;
 export type GodNewsVideoProps = z.infer<typeof GodNewsVideoPropsSchema>;

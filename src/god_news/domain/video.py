@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
 
-from god_news.domain.enums import ContentCategory
+from god_news.domain.enums import ContentCategory, SceneTransition
 from god_news.domain.models import (
     AudioBundle,
     DomainModel,
@@ -239,6 +239,74 @@ def default_video_output_profiles() -> list[VideoOutputProfile]:
     ]
 
 
+class EpisodeSceneModule(StrEnum):
+    """Versioned semantic scene modules understood by deterministic renderers."""
+
+    HOST_EVIDENCE = "host_evidence"
+    EVIDENCE_FULLSCREEN = "evidence_fullscreen"
+
+
+class EpisodeHostSlot(StrEnum):
+    PRIMARY = "primary"
+    CORNER = "corner"
+
+
+class EpisodeHostVisibility(StrEnum):
+    VISIBLE = "visible"
+    HIDDEN = "hidden"
+
+
+class EpisodeScene(DomainModel):
+    scene_id: UUID = Field(default_factory=uuid4)
+    sequence: int = Field(ge=0, le=99)
+    module_id: EpisodeSceneModule
+    narration_segment_id: UUID
+    speaker_id: NonBlankStr
+    host_visibility: EpisodeHostVisibility
+    host_slot: EpisodeHostSlot | None = None
+    host_enter: bool = False
+    host_exit: bool = False
+    transition_type: SceneTransition = SceneTransition.BLACK
+
+    @model_validator(mode="after")
+    def validate_module_capabilities(self) -> EpisodeScene:
+        if self.host_visibility is EpisodeHostVisibility.VISIBLE and self.host_slot is None:
+            raise ValueError("visible episode hosts require a semantic slot")
+        if self.host_visibility is EpisodeHostVisibility.HIDDEN and self.host_slot is not None:
+            raise ValueError("hidden episode hosts cannot reserve a visual slot")
+        if (
+            self.module_id is EpisodeSceneModule.HOST_EVIDENCE
+            and self.host_visibility is not EpisodeHostVisibility.VISIBLE
+        ):
+            raise ValueError("host_evidence scenes require a visible host")
+        if (
+            self.module_id is EpisodeSceneModule.EVIDENCE_FULLSCREEN
+            and self.host_visibility is not EpisodeHostVisibility.HIDDEN
+        ):
+            raise ValueError("evidence_fullscreen scenes require the host to leave the frame")
+        return self
+
+
+class EpisodePlan(DomainModel):
+    """Editorial semantics between reviewed narration and low-level render frames."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    batch_id: UUID
+    scenes: list[EpisodeScene] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_scene_sequence(self) -> EpisodePlan:
+        if [scene.sequence for scene in self.scenes] != list(range(len(self.scenes))):
+            raise ValueError("episode scene sequence must be contiguous and zero-based")
+        scene_ids = [scene.scene_id for scene in self.scenes]
+        if len(scene_ids) != len(set(scene_ids)):
+            raise ValueError("episode scene IDs must be unique")
+        segment_ids = [scene.narration_segment_id for scene in self.scenes]
+        if len(segment_ids) != len(set(segment_ids)):
+            raise ValueError("each narration segment must belong to exactly one episode scene")
+        return self
+
+
 class RemotionVideoProps(DomainModel):
     """Backend-owned subset of ``video/src/schema.ts``.
 
@@ -255,6 +323,7 @@ class RemotionVideoProps(DomainModel):
     theme: VideoTheme = Field(default_factory=VideoTheme)
     bgm: BgmRenderSpec | None = None
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
+    episode_plan: EpisodePlan | None = None
     output_profiles: list[VideoOutputProfile] = Field(
         default_factory=default_video_output_profiles,
         min_length=2,
@@ -272,6 +341,25 @@ class RemotionVideoProps(DomainModel):
         }
         if not required.issubset(profile_ids):
             raise ValueError("Douyin and Bilibili output profiles are required")
+        if self.episode_plan is not None:
+            if self.episode_plan.batch_id != self.manifest.story_id:
+                raise ValueError("episode plan must be owned by the rendered batch")
+            if [scene.narration_segment_id for scene in self.episode_plan.scenes] != [
+                segment.segment_id for segment in self.manifest.timeline
+            ]:
+                raise ValueError("episode scenes must cover the manifest timeline in order")
+            for scene, segment in zip(
+                self.episode_plan.scenes,
+                self.manifest.timeline,
+                strict=True,
+            ):
+                if (
+                    scene.speaker_id != segment.speaker_id
+                    or scene.transition_type != segment.scene_transition
+                ):
+                    raise ValueError(
+                        "episode scene speaker and transition must match reviewed narration"
+                    )
         return self
 
 

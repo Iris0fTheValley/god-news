@@ -11,6 +11,7 @@ from god_news.domain.models import CaptionVariant, ScriptDocument, SynthesisMeta
 from god_news.domain.video import (
     BatchNarrationFailure,
     BatchNarrationSourceEvidence,
+    EpisodePlan,
     NarrationReview,
     TimelineReview,
     VideoBatchStatus,
@@ -168,6 +169,7 @@ class PublicRemotionVideoProps(ApiModel):
     theme: VideoTheme
     bgm: PublicBgmRenderSpec | None = None
     visual_reservations: PublicHostVisualReservations
+    episode_plan: EpisodePlan | None = None
     output_profiles: list[VideoOutputProfile]
 
 

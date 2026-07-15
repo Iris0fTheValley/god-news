@@ -1,4 +1,4 @@
-import type {GodNewsVideoProps, TimelineSegment} from './schema';
+import type {EpisodeScene, GodNewsVideoProps, TimelineSegment} from './schema';
 
 export type IntroTrack = Readonly<{
   kind: 'intro';
@@ -11,6 +11,7 @@ export type SegmentTrack = Readonly<{
   from: number;
   durationInFrames: number;
   segment: TimelineSegment;
+  scene: EpisodeScene;
 }>;
 
 export type TransitionTrack = Readonly<{
@@ -58,6 +59,21 @@ export const buildRenderPlan = (
     cursor += introFrames;
   }
 
+  const scenes = props.episode_plan?.scenes ?? props.manifest.timeline.map(
+    (segment, index): EpisodeScene => ({
+      scene_id: segment.segment_id,
+      sequence: index,
+      module_id: 'host_evidence',
+      narration_segment_id: segment.segment_id,
+      speaker_id: segment.speaker_id,
+      host_visibility: 'visible',
+      host_slot: 'primary',
+      host_enter: index === 0,
+      host_exit: index === props.manifest.timeline.length - 1,
+      transition_type: segment.scene_transition,
+    }),
+  );
+
   props.manifest.timeline.forEach((segment, index) => {
     const segmentFrames = positiveMillisecondsToFrames(
       segment.end_ms - segment.start_ms,
@@ -68,6 +84,7 @@ export const buildRenderPlan = (
       from: cursor,
       durationInFrames: segmentFrames,
       segment,
+      scene: scenes[index]!,
     });
     cursor += segmentFrames;
 

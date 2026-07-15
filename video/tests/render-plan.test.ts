@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
 import {buildRenderPlan} from '../src/render-plan';
+import {registeredEpisodeSceneModules} from '../src/scenes/SceneRegistry';
 import {validProps} from './fixtures';
 
 describe('buildRenderPlan', () => {
@@ -45,5 +46,20 @@ describe('buildRenderPlan', () => {
   it('rejects invalid frame rates', () => {
     expect(() => buildRenderPlan(validProps, 0)).toThrow(/positive integer/u);
     expect(() => buildRenderPlan(validProps, 29.97)).toThrow(/positive integer/u);
+  });
+
+  it('binds each reviewed segment to its registered semantic scene', () => {
+    const segmentTracks = buildRenderPlan(validProps, 30).tracks.filter(
+      (track) => track.kind === 'segment',
+    );
+
+    expect(segmentTracks.map((track) => track.scene.module_id)).toEqual([
+      'host_evidence',
+      'evidence_fullscreen',
+    ]);
+    expect(registeredEpisodeSceneModules).toEqual([
+      'host_evidence',
+      'evidence_fullscreen',
+    ]);
   });
 });
