@@ -4,7 +4,14 @@ import pytest
 from pydantic import ValidationError
 
 from god_news.domain.enums import CaptionKind, SpeechEmotion
-from god_news.domain.models import CaptionVariant, ScriptDocument, ScriptSegment
+from god_news.domain.models import (
+    CaptionVariant,
+    IngestRequest,
+    ScriptDocument,
+    ScriptPreferences,
+    ScriptSegment,
+    TextSource,
+)
 
 
 def test_legacy_script_json_is_upgraded_to_structured_spoken_text() -> None:
@@ -64,4 +71,21 @@ def test_verbatim_caption_must_match_tts_input_exactly() -> None:
             emotion=SpeechEmotion.HAPPINESS,
             speed=1.0,
             pitch=0.0,
+        )
+
+
+def test_short_narration_defaults_to_twenty_seconds_and_accepts_five() -> None:
+    request = IngestRequest(source=TextSource(text="A small good-news item."))
+    assert request.target_duration_seconds == 20
+
+    preferences = ScriptPreferences(
+        style="concise",
+        target_duration_seconds=5,
+        speaker_id="narrator",
+    )
+    assert preferences.target_duration_seconds == 5
+
+    with pytest.raises(ValidationError):
+        ScriptPreferences.model_validate(
+            {**preferences.model_dump(), "target_duration_seconds": 4}
         )

@@ -1272,7 +1272,7 @@ export interface components {
             style: string;
             /**
              * Target Duration Seconds
-             * @default 90
+             * @default 20
              */
             target_duration_seconds: number;
             /**
@@ -2829,7 +2829,7 @@ export interface components {
             style: string;
             /**
              * Target Duration Seconds
-             * @default 90
+             * @default 20
              */
             target_duration_seconds: number;
             /**
@@ -2971,7 +2971,7 @@ export interface components {
             style: string;
             /**
              * Target Duration Seconds
-             * @default 90
+             * @default 20
              */
             target_duration_seconds: number;
             /**

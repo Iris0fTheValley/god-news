@@ -74,7 +74,7 @@ class IngestRequest(DomainModel):
     source: SourceRequest
     target_language: NonBlankStr = "zh-CN"
     style: NonBlankStr = "clear, accurate short-video narration"
-    target_duration_seconds: int = Field(default=90, ge=15, le=600)
+    target_duration_seconds: int = Field(default=20, ge=5, le=600)
     speaker_id: NonBlankStr = "narrator"
     emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
@@ -97,7 +97,7 @@ class SourceItemIngestRequest(DomainModel):
     item: RawSourceItem
     target_language: NonBlankStr = "zh-CN"
     style: NonBlankStr = "clear, accurate short-video narration"
-    target_duration_seconds: int = Field(default=90, ge=15, le=600)
+    target_duration_seconds: int = Field(default=20, ge=5, le=600)
     speaker_id: NonBlankStr = "narrator"
     emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
@@ -200,7 +200,7 @@ class TranslationResult(DomainModel):
 
 class ScriptPreferences(DomainModel):
     style: NonBlankStr
-    target_duration_seconds: int = Field(ge=15, le=600)
+    target_duration_seconds: int = Field(ge=5, le=600)
     speaker_id: NonBlankStr
     emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
@@ -627,7 +627,7 @@ class StoryUpdate(DomainModel):
     expected_story_version: int = Field(ge=1)
     title: NonBlankStr | None = None
     style: NonBlankStr | None = None
-    target_duration_seconds: int | None = Field(default=None, ge=15, le=600)
+    target_duration_seconds: int | None = Field(default=None, ge=5, le=600)
 
     @model_validator(mode="after")
     def require_edit(self) -> StoryUpdate:

@@ -20,7 +20,7 @@ interface FormValues {
 
 const DEFAULT_INGEST_PREFERENCES = {
   style: 'clear, accurate short-video narration',
-  target_duration_seconds: 90,
+  target_duration_seconds: 20,
   speaker_id: 'narrator',
   emotion: 'happiness' as const,
   speed: 1,

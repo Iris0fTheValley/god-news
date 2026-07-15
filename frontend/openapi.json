@@ -1293,9 +1293,9 @@
             "type": "string"
           },
           "target_duration_seconds": {
-            "default": 90,
+            "default": 20,
             "maximum": 600.0,
-            "minimum": 15.0,
+            "minimum": 5.0,
             "title": "Target Duration Seconds",
             "type": "integer"
           },
@@ -5006,7 +5006,7 @@
           },
           "target_duration_seconds": {
             "maximum": 600.0,
-            "minimum": 15.0,
+            "minimum": 5.0,
             "title": "Target Duration Seconds",
             "type": "integer"
           }
@@ -5441,9 +5441,9 @@
             "type": "string"
           },
           "target_duration_seconds": {
-            "default": 90,
+            "default": 20,
             "maximum": 600.0,
-            "minimum": 15.0,
+            "minimum": 5.0,
             "title": "Target Duration Seconds",
             "type": "integer"
           },
@@ -5810,9 +5810,9 @@
             "type": "string"
           },
           "target_duration_seconds": {
-            "default": 90,
+            "default": 20,
             "maximum": 600.0,
-            "minimum": 15.0,
+            "minimum": 5.0,
             "title": "Target Duration Seconds",
             "type": "integer"
           },
@@ -6235,7 +6235,7 @@
             "anyOf": [
               {
                 "maximum": 600.0,
-                "minimum": 15.0,
+                "minimum": 5.0,
                 "type": "integer"
               },
               {

@@ -208,7 +208,7 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
         </label>
         <label className="field">
           <span>目标秒数</span>
-          <input className="input" type="number" min={15} max={600} {...register('duration', {valueAsNumber: true})} />
+          <input className="input" type="number" min={5} max={600} {...register('duration', {valueAsNumber: true})} />
         </label>
       </div>
       <label className="field">

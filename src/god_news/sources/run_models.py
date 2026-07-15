@@ -40,7 +40,7 @@ class SourceRunRequest(DomainModel):
     limit: int = Field(default=10, ge=1, le=50)
     target_language: NonBlankStr = "zh-CN"
     style: NonBlankStr = "clear, accurate short-video narration"
-    target_duration_seconds: int = Field(default=90, ge=15, le=600)
+    target_duration_seconds: int = Field(default=20, ge=5, le=600)
     speaker_id: NonBlankStr = "narrator"
     emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)

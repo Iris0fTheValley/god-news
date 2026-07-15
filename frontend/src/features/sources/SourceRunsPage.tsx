@@ -47,7 +47,7 @@ function initialRequest(): SourceRunRequest {
     limit: 10,
     target_language: 'zh-CN',
     style: 'clear, accurate short-video narration',
-    target_duration_seconds: 90,
+    target_duration_seconds: 20,
     speaker_id: 'narrator',
     emotion: 'happiness',
     speed: 1,

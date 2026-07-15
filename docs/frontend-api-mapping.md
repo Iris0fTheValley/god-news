@@ -31,6 +31,7 @@ pnpm --dir frontend check
 `POST /api/v1/stories/{id}/resume` 只恢复 `FETCHED`、`TRANSLATED`、`PROCESSING_SCRIPT` 和 `PROCESSING_TTS` 的中断工作；不会从 `SCRIPT_READY` 或 `PENDING_TTS` 自动开始高能耗合成。
 
 脚本段 API 使用结构化 `spoken_text`、`spoken_language` 与 `captions[]`；`captions` 区分 `verbatim` 和 `translation`，且逐字段校验逐字字幕必须与实际 TTS 输入完全一致。旧持久化数据中的 `text` / `language` 仍可读取，但新响应和新写入只输出结构化字段。脚本段同时保留 `speaker_id`、`emotion`、`speed`、`pitch`、`visual_hint`；其中 `emotion` 为 `happiness`、`sadness`、`anger`、`disgust`、`like`、`surprise`、`fear` 之一，`scene_transition` 为 `black`、`crossfade`、`slide`、`wipe`、`mood_shift` 之一。无效 LLM 输出分别回退为初审偏好情绪和 `black`；`visual_hint`、`pitch` 即使当前 UI 隐藏也保持 API 兼容。
+`target_duration_seconds` 只约束 AI 口播，默认 20 秒并允许 5–600 秒；它不约束后续原始来源视频模块的素材时长或整条故事编译时长。
 
 ## 角色
 
