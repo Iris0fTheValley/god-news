@@ -2,10 +2,10 @@ import type {GodNewsVideoProps} from '../src/schema';
 
 export const validProps: GodNewsVideoProps = {
   manifest: {
-    schema_version: '1.0',
+    schema_version: '2.0',
     story_id: 'b942617e-7b92-44f6-9601-62291fc60bcc',
     script_revision: 2,
-    language: 'zh-CN',
+    spoken_language: 'zh-CN',
     total_duration_ms: 2500,
     timeline: [
       {
@@ -13,7 +13,9 @@ export const validProps: GodNewsVideoProps = {
         sequence: 0,
         start_ms: 0,
         end_ms: 1000,
-        text: '第一段',
+        spoken_text: '第一段',
+        spoken_language: 'zh-CN',
+        captions: [{language: 'zh-CN', kind: 'verbatim', text: '第一段'}],
         speaker_id: 'narrator',
         emotion: 'neutral',
         scene_transition: 'crossfade',
@@ -25,7 +27,9 @@ export const validProps: GodNewsVideoProps = {
         sequence: 1,
         start_ms: 1000,
         end_ms: 2500,
-        text: '第二段',
+        spoken_text: '第二段',
+        spoken_language: 'zh-CN',
+        captions: [{language: 'zh-CN', kind: 'verbatim', text: '第二段'}],
         speaker_id: 'guest',
         emotion: 'warm',
         scene_transition: 'black',

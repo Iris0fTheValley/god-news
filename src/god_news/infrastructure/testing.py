@@ -329,10 +329,11 @@ class DeterministicTextGenerator:
         self.script_calls += 1
         return ScriptDraft(
             title="Offline deterministic script",
-            language=translation.target_language,
+            spoken_language=preferences.spoken_language or translation.target_language,
             segments=[
                 ScriptSegmentDraft(
-                    text=translation.summary,
+                    spoken_text=translation.summary,
+                    spoken_language=preferences.spoken_language or translation.target_language,
                     speaker_id=preferences.speaker_id,
                     emotion=preferences.emotion,
                     speed=preferences.speed,
@@ -374,7 +375,7 @@ class DeterministicSpeechSynthesizer:
             raise TTSGenerationError("Injected offline TTS failure.", story_id)
         clips: list[AudioClip] = []
         for segment in script.segments:
-            duration_ms = max(500, len(segment.text) * 40)
+            duration_ms = max(500, len(segment.spoken_text) * 40)
             path = (
                 self._output_dir
                 / str(story_id)
@@ -406,7 +407,7 @@ class DeterministicSpeechSynthesizer:
                 gpt_weights_sha256=empty_hash,
                 sovits_weights_sha256=empty_hash,
                 prompt_language="und",
-                text_language=script.language,
+                text_language=script.spoken_language,
             ),
             clips=clips,
         )

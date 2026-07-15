@@ -67,6 +67,7 @@ interface RoleFormState {
   sovitsWeightsPath: string;
   ttsModelProfile: string;
   referenceLanguage: string;
+  defaultSpokenLanguage: string;
   emotionRefs: Record<SpeechEmotion, EmotionReference>;
   defaultEmotion: string;
   defaultSpeed: number;
@@ -89,6 +90,7 @@ function emptyForm(): RoleFormState {
     sovitsWeightsPath: '',
     ttsModelProfile: '',
     referenceLanguage: '',
+    defaultSpokenLanguage: 'zh-CN',
     emotionRefs: emptyEmotionRefs(),
     defaultEmotion: 'happiness',
     defaultSpeed: 1,
@@ -112,6 +114,7 @@ function formFromRole(role: RoleProfile): RoleFormState {
     sovitsWeightsPath: role.sovits_weights_path ?? '',
     ttsModelProfile: role.tts_model_profile ?? '',
     referenceLanguage: role.reference_language ?? '',
+    defaultSpokenLanguage: role.default_spoken_language,
     emotionRefs: completeEmotionRefs(role.emotion_refs),
     defaultEmotion: role.default_emotion,
     defaultSpeed: role.default_speed,
@@ -159,6 +162,7 @@ function validateAndBuildRole(
     speaker_id: form.speakerId.trim() || form.slug || slugify(form.name),
     character_prompt: form.characterPrompt,
     default_emotion: form.defaultEmotion,
+    default_spoken_language: form.defaultSpokenLanguage.trim(),
     default_speed: form.defaultSpeed,
     default_pitch: form.defaultPitch,
     visual_assets: form.visualAssets,
@@ -323,6 +327,7 @@ export function RolesPage() {
                 <label className="field"><span>SoVITS 权重路径</span><input className="input mono" placeholder="…/model.pth" value={editing.sovitsWeightsPath} onChange={(event) => setEditing({...editing, sovitsWeightsPath: event.target.value})} /></label>
                 <label className="field"><span>TTS 模型配置</span><input className="input mono" placeholder="v2Pro" value={editing.ttsModelProfile} onChange={(event) => setEditing({...editing, ttsModelProfile: event.target.value})} /></label>
                 <label className="field"><span>参考文本语言</span><input className="input mono" placeholder="all_zh / all_ja（可选）" value={editing.referenceLanguage} onChange={(event) => setEditing({...editing, referenceLanguage: event.target.value})} /></label>
+                <label className="field"><span>默认口播语言</span><input className="input mono" required placeholder="zh-CN / en-US / ja-JP" value={editing.defaultSpokenLanguage} onChange={(event) => setEditing({...editing, defaultSpokenLanguage: event.target.value})} /></label>
                 <label className="field"><span>默认情绪</span><select className="select" value={editing.defaultEmotion} onChange={(event) => setEditing({...editing, defaultEmotion: event.target.value})}>{!isSpeechEmotion(editing.defaultEmotion) ? <option value={editing.defaultEmotion}>保留历史值：{editing.defaultEmotion}</option> : null}{SPEECH_EMOTIONS.map((emotion) => <option key={emotion} value={emotion}>{SPEECH_EMOTION_LABELS[emotion]}</option>)}</select></label>
                 <label className="field"><span>默认语速</span><input className="input" type="number" min={0.6} max={1.65} step={0.05} value={editing.defaultSpeed} onChange={(event) => setEditing({...editing, defaultSpeed: Number(event.target.value)})} /></label>
                 <label className="field"><span>默认音高</span><input className="input" type="number" min={-12} max={12} step={0.5} value={editing.defaultPitch} onChange={(event) => setEditing({...editing, defaultPitch: Number(event.target.value)})} /></label>

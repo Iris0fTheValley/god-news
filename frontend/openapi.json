@@ -336,6 +336,39 @@
         "title": "BgmTrack",
         "type": "object"
       },
+      "CaptionKind": {
+        "enum": [
+          "verbatim",
+          "translation"
+        ],
+        "title": "CaptionKind",
+        "type": "string"
+      },
+      "CaptionVariant": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CaptionKind"
+          },
+          "language": {
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language",
+          "kind",
+          "text"
+        ],
+        "title": "CaptionVariant",
+        "type": "object"
+      },
       "ClassificationMetrics": {
         "additionalProperties": false,
         "properties": {
@@ -1877,14 +1910,12 @@
       "ProductionManifest": {
         "additionalProperties": false,
         "properties": {
-          "language": {
-            "minLength": 1,
-            "title": "Language",
-            "type": "string"
-          },
           "schema_version": {
-            "const": "1.0",
-            "default": "1.0",
+            "default": "2.0",
+            "enum": [
+              "1.0",
+              "2.0"
+            ],
             "title": "Schema Version",
             "type": "string"
           },
@@ -1892,6 +1923,11 @@
             "minimum": 1.0,
             "title": "Script Revision",
             "type": "integer"
+          },
+          "spoken_language": {
+            "minLength": 1,
+            "title": "Spoken Language",
+            "type": "string"
           },
           "story_id": {
             "format": "uuid",
@@ -1916,7 +1952,7 @@
         "required": [
           "story_id",
           "script_revision",
-          "language",
+          "spoken_language",
           "total_duration_ms",
           "timeline"
         ],
@@ -2240,18 +2276,21 @@
       "PublicProductionManifest": {
         "additionalProperties": false,
         "properties": {
-          "language": {
-            "title": "Language",
-            "type": "string"
-          },
           "schema_version": {
-            "const": "1.0",
+            "enum": [
+              "1.0",
+              "2.0"
+            ],
             "title": "Schema Version",
             "type": "string"
           },
           "script_revision": {
             "title": "Script Revision",
             "type": "integer"
+          },
+          "spoken_language": {
+            "title": "Spoken Language",
+            "type": "string"
           },
           "story_id": {
             "format": "uuid",
@@ -2274,7 +2313,7 @@
           "schema_version",
           "story_id",
           "script_revision",
-          "language",
+          "spoken_language",
           "total_duration_ms",
           "timeline"
         ],
@@ -2349,6 +2388,13 @@
       "PublicTimelineSegment": {
         "additionalProperties": false,
         "properties": {
+          "captions": {
+            "items": {
+              "$ref": "#/components/schemas/CaptionVariant"
+            },
+            "title": "Captions",
+            "type": "array"
+          },
           "emotion": {
             "$ref": "#/components/schemas/SpeechEmotion"
           },
@@ -2372,13 +2418,17 @@
             "title": "Speaker Id",
             "type": "string"
           },
+          "spoken_language": {
+            "title": "Spoken Language",
+            "type": "string"
+          },
+          "spoken_text": {
+            "title": "Spoken Text",
+            "type": "string"
+          },
           "start_ms": {
             "title": "Start Ms",
             "type": "integer"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
           },
           "visual_hint": {
             "anyOf": [
@@ -2397,7 +2447,9 @@
           "sequence",
           "start_ms",
           "end_ms",
-          "text",
+          "spoken_text",
+          "spoken_language",
+          "captions",
           "speaker_id",
           "emotion",
           "scene_transition"
@@ -4333,6 +4385,12 @@
             "title": "Default Speed",
             "type": "number"
           },
+          "default_spoken_language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Default Spoken Language",
+            "type": "string"
+          },
           "display_name": {
             "minLength": 1,
             "title": "Display Name",
@@ -4481,6 +4539,12 @@
             "title": "Default Speed",
             "type": "number"
           },
+          "default_spoken_language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Default Spoken Language",
+            "type": "string"
+          },
           "display_name": {
             "minLength": 1,
             "title": "Display Name",
@@ -4627,6 +4691,12 @@
             "minimum": 0.6,
             "title": "Default Speed",
             "type": "number"
+          },
+          "default_spoken_language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Default Spoken Language",
+            "type": "string"
           },
           "display_name": {
             "minLength": 1,
@@ -4845,11 +4915,6 @@
       "ScriptDocument": {
         "additionalProperties": false,
         "properties": {
-          "language": {
-            "minLength": 1,
-            "title": "Language",
-            "type": "string"
-          },
           "revision": {
             "default": 1,
             "minimum": 1.0,
@@ -4865,6 +4930,11 @@
             "title": "Segments",
             "type": "array"
           },
+          "spoken_language": {
+            "minLength": 1,
+            "title": "Spoken Language",
+            "type": "string"
+          },
           "title": {
             "minLength": 1,
             "title": "Title",
@@ -4873,7 +4943,7 @@
         },
         "required": [
           "title",
-          "language",
+          "spoken_language",
           "segments"
         ],
         "title": "ScriptDocument",
@@ -4882,6 +4952,18 @@
       "ScriptPreferences": {
         "additionalProperties": false,
         "properties": {
+          "caption_language": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption Language"
+          },
           "emotion": {
             "$ref": "#/components/schemas/SpeechEmotion",
             "default": "happiness"
@@ -4904,6 +4986,18 @@
             "minimum": 0.6,
             "title": "Speed",
             "type": "number"
+          },
+          "spoken_language": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spoken Language"
           },
           "style": {
             "minLength": 1,
@@ -4980,6 +5074,14 @@
       "ScriptSegment": {
         "additionalProperties": false,
         "properties": {
+          "captions": {
+            "items": {
+              "$ref": "#/components/schemas/CaptionVariant"
+            },
+            "maxItems": 20,
+            "title": "Captions",
+            "type": "array"
+          },
           "emotion": {
             "$ref": "#/components/schemas/SpeechEmotion"
           },
@@ -5014,9 +5116,15 @@
             "title": "Speed",
             "type": "number"
           },
-          "text": {
+          "spoken_language": {
+            "default": "und",
             "minLength": 1,
-            "title": "Text",
+            "title": "Spoken Language",
+            "type": "string"
+          },
+          "spoken_text": {
+            "minLength": 1,
+            "title": "Spoken Text",
             "type": "string"
           },
           "visual_hint": {
@@ -5033,7 +5141,7 @@
         },
         "required": [
           "sequence",
-          "text",
+          "spoken_text",
           "speaker_id",
           "emotion",
           "speed",
@@ -6506,6 +6614,14 @@
             "title": "Audio Path",
             "type": "string"
           },
+          "captions": {
+            "items": {
+              "$ref": "#/components/schemas/CaptionVariant"
+            },
+            "maxItems": 20,
+            "title": "Captions",
+            "type": "array"
+          },
           "emotion": {
             "$ref": "#/components/schemas/SpeechEmotion"
           },
@@ -6533,15 +6649,21 @@
             "title": "Speaker Id",
             "type": "string"
           },
+          "spoken_language": {
+            "default": "und",
+            "minLength": 1,
+            "title": "Spoken Language",
+            "type": "string"
+          },
+          "spoken_text": {
+            "minLength": 1,
+            "title": "Spoken Text",
+            "type": "string"
+          },
           "start_ms": {
             "minimum": 0.0,
             "title": "Start Ms",
             "type": "integer"
-          },
-          "text": {
-            "minLength": 1,
-            "title": "Text",
-            "type": "string"
           },
           "visual_hint": {
             "anyOf": [
@@ -6560,7 +6682,7 @@
           "sequence",
           "start_ms",
           "end_ms",
-          "text",
+          "spoken_text",
           "speaker_id",
           "emotion",
           "audio_path"

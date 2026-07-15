@@ -117,6 +117,7 @@ class Database:
             "sovits_weights_path": "TEXT NULL",
             "tts_model_profile": "TEXT NULL",
             "reference_language": "TEXT NULL",
+            "default_spoken_language": "TEXT NOT NULL DEFAULT 'zh-CN'",
             "character_prompt": "TEXT NOT NULL DEFAULT ''",
             "emotion_refs_json": "TEXT NOT NULL DEFAULT '{}'",
             "tts_enabled": "BOOLEAN NOT NULL DEFAULT 0",

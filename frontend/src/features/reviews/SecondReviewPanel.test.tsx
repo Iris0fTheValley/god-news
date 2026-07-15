@@ -58,9 +58,19 @@ describe('SecondReviewPanel', () => {
   it('returns an actually revised script to the script-review gate', async () => {
     const user = userEvent.setup();
     const story = finalReviewStory();
+    const revisedText = '修订后的第一段。';
     const revisedScript = {
       ...scriptFixture,
-      segments: [{...scriptFixture.segments[0], text: '修订后的第一段。'}, ...scriptFixture.segments.slice(1)],
+      segments: [
+        {
+          ...scriptFixture.segments[0],
+          spoken_text: revisedText,
+          captions: scriptFixture.segments[0].captions?.map((caption) => (
+            caption.kind === 'verbatim' ? {...caption, text: revisedText} : caption
+          )),
+        },
+        ...scriptFixture.segments.slice(1),
+      ],
     };
     apiMocks.submitSecondReview.mockResolvedValue(story);
     renderWithApp(<SecondReviewPanel story={story} revisedScript={revisedScript} />);

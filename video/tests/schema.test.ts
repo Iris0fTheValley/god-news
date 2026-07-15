@@ -4,8 +4,16 @@ import {parseGodNewsVideoProps} from '../src/schema';
 import {validProps} from './fixtures';
 
 describe('GodNewsVideoPropsSchema', () => {
-  it('accepts the backend ProductionManifest 1.0 shape', () => {
+  it('accepts the backend structured ProductionManifest 2.0 shape', () => {
     expect(parseGodNewsVideoProps(validProps)).toEqual(validProps);
+  });
+
+  it('rejects captions that drift from the exact spoken text', () => {
+    const invalid = structuredClone(validProps);
+    invalid.manifest.timeline[0]!.captions[0]!.text = 'different';
+    expect(() => parseGodNewsVideoProps(invalid)).toThrow(
+      /verbatim caption must match spoken text and language/u,
+    );
   });
 
   it('uses black as the forward-compatible transition fallback', () => {

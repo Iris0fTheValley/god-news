@@ -8,8 +8,9 @@ from uuid import uuid4
 import pytest
 
 from god_news.config import LLMProvider
-from god_news.domain.enums import ContentCategory, SceneTransition, SpeechEmotion
+from god_news.domain.enums import CaptionKind, ContentCategory, SceneTransition, SpeechEmotion
 from god_news.domain.models import (
+    CaptionVariant,
     EditorialScreening,
     ProductionManifest,
     ScriptPreferences,
@@ -279,12 +280,14 @@ async def test_script_output_uses_valid_llm_emotion_and_transition_with_safe_fal
                             "title": "Narration",
                             "segments": [
                                 {
-                                    "text": "A surprising development.",
+                                    "spoken_text": "A surprising development.",
+                                    "caption_text": "一个令人惊讶的新进展。",
                                     "emotion": "surprise",
                                     "scene_transition": "slide",
                                 },
                                 {
-                                    "text": "A safe fallback applies here.",
+                                    "spoken_text": "A safe fallback applies here.",
+                                    "caption_text": "这里会使用安全的回退值。",
                                     "emotion": "not-an-emotion",
                                     "scene_transition": "not-a-transition",
                                 },
@@ -338,6 +341,8 @@ async def test_script_output_uses_valid_llm_emotion_and_transition_with_safe_fal
             target_duration_seconds=60,
             speaker_id="narrator",
             emotion=SpeechEmotion.FEAR,
+            spoken_language="en-US",
+            caption_language="zh-CN",
         ),
         memories=[],
     )
@@ -350,6 +355,13 @@ async def test_script_output_uses_valid_llm_emotion_and_transition_with_safe_fal
         SceneTransition.SLIDE,
         SceneTransition.BLACK,
     ]
+    assert draft.spoken_language == "en-US"
+    assert draft.segments[0].spoken_text == "A surprising development."
+    assert [caption.kind for caption in draft.segments[0].captions] == [
+        CaptionKind.VERBATIM,
+        CaptionKind.TRANSLATION,
+    ]
+    assert draft.segments[0].captions[1].text == "一个令人惊讶的新进展。"
     system_prompt = create.await_args.kwargs["messages"][0]["content"]
     assert "happiness, sadness, anger, disgust, like, surprise, fear" in system_prompt
 
@@ -363,7 +375,7 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
     source_manifest = ProductionManifest(
         story_id=source_id,
         script_revision=script.revision,
-        language=script.language,
+        spoken_language=script.spoken_language,
         total_duration_ms=clip.duration_ms,
         timeline=[
             TimelineSegment(
@@ -371,7 +383,16 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
                 sequence=0,
                 start_ms=0,
                 end_ms=clip.duration_ms,
-                text=segment.text,
+                spoken_text=segment.spoken_text,
+                spoken_language=segment.spoken_language,
+                captions=[
+                    CaptionVariant(
+                        language=caption.language,
+                        kind=caption.kind,
+                        text=caption.text,
+                    )
+                    for caption in segment.captions
+                ],
                 speaker_id=segment.speaker_id,
                 emotion=segment.emotion,
                 scene_transition=segment.scene_transition,
@@ -400,13 +421,15 @@ async def test_batch_narration_composer_merges_scripts_with_safe_voice_fallbacks
                         {
                             "segments": [
                                 {
-                                    "text": "A natural opening connects the stories.",
+                                    "spoken_text": "A natural opening connects the stories.",
+                                    "caption_text": "A natural opening connects the stories.",
                                     "speaker_id": "unapproved-speaker",
                                     "emotion": "unknown-emotion",
                                     "scene_transition": "crossfade",
                                 },
                                 {
-                                    "text": "The next source follows with its facts.",
+                                    "spoken_text": "The next source follows with its facts.",
+                                    "caption_text": "The next source follows with its facts.",
                                     "speaker_id": "narrator",
                                     "emotion": "fear",
                                     "scene_transition": "not-a-transition",

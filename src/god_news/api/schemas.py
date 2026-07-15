@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from god_news.domain.enums import AudioFormat, SceneTransition, SpeechEmotion
-from god_news.domain.models import ScriptDocument, SynthesisMetadata
+from god_news.domain.models import CaptionVariant, ScriptDocument, SynthesisMetadata
 from god_news.domain.video import (
     BatchNarrationFailure,
     BatchNarrationSourceEvidence,
@@ -107,7 +107,9 @@ class PublicTimelineSegment(ApiModel):
     sequence: int
     start_ms: int
     end_ms: int
-    text: str
+    spoken_text: str
+    spoken_language: str
+    captions: list[CaptionVariant]
     speaker_id: str
     emotion: SpeechEmotion
     scene_transition: SceneTransition
@@ -116,10 +118,10 @@ class PublicTimelineSegment(ApiModel):
 
 
 class PublicProductionManifest(ApiModel):
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.0", "2.0"]
     story_id: UUID
     script_revision: int
-    language: str
+    spoken_language: str
     total_duration_ms: int
     timeline: list[PublicTimelineSegment]
 

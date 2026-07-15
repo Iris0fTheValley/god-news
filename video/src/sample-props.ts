@@ -2,10 +2,10 @@ import type {GodNewsVideoProps} from './schema';
 
 export const sampleProps: GodNewsVideoProps = {
   manifest: {
-    schema_version: '1.0',
+    schema_version: '2.0',
     story_id: '2bc6e989-33d7-45ad-87cd-7a57bbba85f4',
     script_revision: 1,
-    language: 'zh-CN',
+    spoken_language: 'zh-CN',
     total_duration_ms: 7600,
     timeline: [
       {
@@ -13,7 +13,15 @@ export const sampleProps: GodNewsVideoProps = {
         sequence: 0,
         start_ms: 0,
         end_ms: 3400,
-        text: '一个普通的善意举动，也能让陌生人的一天重新亮起来。',
+        spoken_text: '一个普通的善意举动，也能让陌生人的一天重新亮起来。',
+        spoken_language: 'zh-CN',
+        captions: [
+          {
+            language: 'zh-CN',
+            kind: 'verbatim',
+            text: '一个普通的善意举动，也能让陌生人的一天重新亮起来。',
+          },
+        ],
         speaker_id: 'narrator',
         emotion: 'warm',
         scene_transition: 'mood_shift',
@@ -25,7 +33,15 @@ export const sampleProps: GodNewsVideoProps = {
         sequence: 1,
         start_ms: 3400,
         end_ms: 7600,
-        text: '新闻不只记录世界，也提醒我们，温柔一直存在。',
+        spoken_text: '新闻不只记录世界，也提醒我们，温柔一直存在。',
+        spoken_language: 'zh-CN',
+        captions: [
+          {
+            language: 'zh-CN',
+            kind: 'verbatim',
+            text: '新闻不只记录世界，也提醒我们，温柔一直存在。',
+          },
+        ],
         speaker_id: 'narrator',
         emotion: 'hopeful',
         scene_transition: 'black',

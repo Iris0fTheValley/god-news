@@ -183,7 +183,7 @@ class DeterministicBatchNarrationComposer:
             raise RuntimeError("injected deterministic batch narration failure")
         if not sources:
             raise ValueError("batch narration needs at least one source")
-        languages = {source.script.language for source in sources}
+        languages = {source.script.spoken_language for source in sources}
         segments: list[ScriptSegment] = []
         for sequence, source in enumerate(sources):
             anchor = source.script.segments[0]

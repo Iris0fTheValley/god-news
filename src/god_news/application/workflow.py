@@ -559,7 +559,9 @@ class StoryWorkflow:
                     sequence=segment.sequence,
                     start_ms=cursor,
                     end_ms=end,
-                    text=segment.text,
+                    spoken_text=segment.spoken_text,
+                    spoken_language=segment.spoken_language,
+                    captions=segment.captions,
                     speaker_id=segment.speaker_id,
                     emotion=segment.emotion,
                     scene_transition=segment.scene_transition,
@@ -571,7 +573,7 @@ class StoryWorkflow:
         return ProductionManifest(
             story_id=story_id,
             script_revision=story.script.revision,
-            language=story.script.language,
+            spoken_language=story.script.spoken_language,
             total_duration_ms=cursor,
             timeline=timeline,
         )
@@ -879,7 +881,7 @@ class StoryWorkflow:
     async def _remember_script(self, story: Story, *, approved: bool) -> None:
         if story.script is None:
             return
-        text = "\n".join(segment.text for segment in story.script.segments)
+        text = "\n".join(segment.spoken_text for segment in story.script.segments)
         await self._memory.remember(
             MemoryWrite(
                 content=f"Editorial script revision {story.script.revision}: {text}",

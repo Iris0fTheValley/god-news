@@ -66,13 +66,23 @@ export const SceneTransitionSchema = z.enum([
   'mood_shift',
 ]);
 
+export const CaptionVariantSchema = z
+  .object({
+    language: nonBlank,
+    kind: z.enum(['verbatim', 'translation']),
+    text: nonBlank,
+  })
+  .strict();
+
 export const TimelineSegmentSchema = z
   .object({
     segment_id: z.string().uuid(),
     sequence: z.number().int().nonnegative(),
     start_ms: z.number().int().nonnegative(),
     end_ms: z.number().int().positive(),
-    text: nonBlank,
+    spoken_text: nonBlank,
+    spoken_language: nonBlank,
+    captions: z.array(CaptionVariantSchema).min(1).max(20),
     speaker_id: nonBlank,
     emotion: nonBlank,
     // Outgoing transition: rendered after this segment and before the next.
@@ -85,14 +95,49 @@ export const TimelineSegmentSchema = z
   .refine((segment) => segment.end_ms > segment.start_ms, {
     message: 'end_ms must be greater than start_ms',
     path: ['end_ms'],
+  })
+  .superRefine((segment, context) => {
+    const keys = new Set<string>();
+    const verbatim = segment.captions.filter((caption) => caption.kind === 'verbatim');
+    for (const [index, caption] of segment.captions.entries()) {
+      const key = `${caption.language.toLocaleLowerCase()}\u0000${caption.kind}`;
+      if (keys.has(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'caption language and kind pairs must be unique',
+          path: ['captions', index],
+        });
+      }
+      keys.add(key);
+    }
+    if (verbatim.length !== 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'exactly one verbatim caption is required',
+        path: ['captions'],
+      });
+      return;
+    }
+    const verbatimCaption = verbatim[0];
+    if (verbatimCaption === undefined) return;
+    if (
+      verbatimCaption.text !== segment.spoken_text ||
+      verbatimCaption.language.toLocaleLowerCase() !== segment.spoken_language.toLocaleLowerCase()
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'verbatim caption must match spoken text and language',
+        path: ['captions'],
+      });
+    }
   });
 
 export const ProductionManifestSchema = z
   .object({
-    schema_version: z.literal('1.0'),
+    schema_version: z.enum(['1.0', '2.0']),
     story_id: z.string().uuid(),
     script_revision: z.number().int().positive(),
-    language: nonBlank,
+    spoken_language: nonBlank,
     total_duration_ms: z.number().int().positive(),
     timeline: z.array(TimelineSegmentSchema).min(1).max(100),
   })

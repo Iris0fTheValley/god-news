@@ -181,7 +181,8 @@ export const HostEvidenceScene = ({
           textWrap: 'balance',
         }}
       >
-        {segment.text}
+        {segment.captions.find((caption) => caption.kind === 'translation')?.text ??
+          segment.spoken_text}
       </div>
       <div
         style={{

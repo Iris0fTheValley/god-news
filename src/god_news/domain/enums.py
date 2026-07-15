@@ -57,6 +57,11 @@ class SceneTransition(StrEnum):
     MOOD_SHIFT = "mood_shift"
 
 
+class CaptionKind(StrEnum):
+    VERBATIM = "verbatim"
+    TRANSLATION = "translation"
+
+
 class ContentCategory(StrEnum):
     KINDNESS = "kindness"
     CATS_DOGS = "cats_dogs"

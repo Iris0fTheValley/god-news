@@ -57,7 +57,30 @@ function cloneSegments(segments: ScriptSegment[]): ScriptSegment[] {
   return segments.map((segment) => ({
     ...segment,
     segment_id: segment.segment_id ?? crypto.randomUUID(),
+    captions: (segment.captions ?? []).map((caption) => ({...caption})),
   }));
+}
+
+function withSpokenText(segment: ScriptSegment, spokenText: string): ScriptSegment {
+  const captions = (segment.captions ?? []).map((caption) => (
+    caption.kind === 'verbatim'
+      ? {...caption, language: segment.spoken_language, text: spokenText}
+      : caption
+  ));
+  if (!captions.some((caption) => caption.kind === 'verbatim')) {
+    captions.unshift({kind: 'verbatim', language: segment.spoken_language, text: spokenText});
+  }
+  return {...segment, spoken_text: spokenText, captions};
+}
+
+function withSpokenLanguage(segment: ScriptSegment, language: string): ScriptSegment {
+  return {
+    ...segment,
+    spoken_language: language,
+    captions: (segment.captions ?? []).map((caption) => (
+      caption.kind === 'verbatim' ? {...caption, language} : caption
+    )),
+  };
 }
 
 export function ScriptEditor({
@@ -195,6 +218,12 @@ export function ScriptEditor({
     onChange({...script, segments});
   };
 
+  const replaceSegment = (index: number, segment: ScriptSegment) => {
+    const segments = script.segments.map((item, itemIndex) => itemIndex === index ? segment : item);
+    pushHistory();
+    onChange({...script, segments});
+  };
+
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction;
     if (target < 0 || target >= script.segments.length) return;
@@ -218,7 +247,9 @@ export function ScriptEditor({
     const segment: ScriptSegment = {
       segment_id: crypto.randomUUID(),
       sequence: script.segments.length,
-      text: '新增旁白段落',
+      spoken_text: '新增旁白段落',
+      spoken_language: script.spoken_language,
+      captions: [{kind: 'verbatim', language: script.spoken_language, text: '新增旁白段落'}],
       speaker_id: template?.speaker_id ?? 'narrator',
       emotion: template?.emotion ?? 'happiness',
       speed: template?.speed ?? 1,
@@ -313,7 +344,7 @@ export function ScriptEditor({
             && deleteVisualMutation.variables === segmentId;
           const canMutateSegmentVisual = canMutateVisuals && segmentId !== undefined;
           return (
-            <li key={segment.segment_id ?? `${String(index)}-${segment.text}`} className="segment-block">
+            <li key={segment.segment_id ?? `${String(index)}-${segment.spoken_text}`} className="segment-block">
               <div className="segment-identity">
                 <span className="segment-number metadata">{String(index + 1).padStart(2, '0')}</span>
                 <label className="field">
@@ -366,13 +397,35 @@ export function ScriptEditor({
               </div>
               <label className="field segment-text">
                 <span>口播</span>
+                <input
+                  className="input"
+                  aria-label={`第 ${String(index + 1)} 段口播语言`}
+                  value={segment.spoken_language}
+                  readOnly={readOnly}
+                  onChange={(event) => replaceSegment(index, withSpokenLanguage(segment, event.target.value))}
+                />
                 <textarea
                   className="textarea"
-                  value={segment.text}
+                  value={segment.spoken_text}
                   readOnly={readOnly}
-                  onChange={(event) => updateSegment(index, {text: event.target.value})}
+                  onChange={(event) => replaceSegment(index, withSpokenText(segment, event.target.value))}
                 />
               </label>
+              {(segment.captions ?? []).filter((caption) => caption.kind === 'translation').map((caption) => (
+                <label className="field segment-text" key={`${caption.kind}-${caption.language}`}>
+                  <span>翻译字幕 · {caption.language}</span>
+                  <textarea
+                    className="textarea compact"
+                    value={caption.text}
+                    readOnly={readOnly}
+                    onChange={(event) => updateSegment(index, {
+                      captions: (segment.captions ?? []).map((item) => item === caption
+                        ? {...item, text: event.target.value}
+                        : item),
+                    })}
+                  />
+                </label>
+              ))}
               <section className="segment-visual" aria-label={`第 ${String(index + 1)} 段画面素材`}>
                 <div className="segment-visual-heading">
                   <span>画面 / 图片</span>

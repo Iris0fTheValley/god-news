@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from pydantic import (
+    AliasChoices,
     AnyHttpUrl,
     BaseModel,
     ConfigDict,
@@ -17,6 +18,7 @@ from pydantic import (
 
 from god_news.domain.enums import (
     AudioFormat,
+    CaptionKind,
     ContentCategory,
     ReviewDecision,
     ReviewStage,
@@ -203,6 +205,8 @@ class ScriptPreferences(DomainModel):
     emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     speed: float = Field(default=1.0, ge=0.6, le=1.65)
     pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
+    spoken_language: NonBlankStr | None = None
+    caption_language: NonBlankStr | None = None
 
     @field_validator("emotion", mode="before")
     @classmethod
@@ -210,8 +214,18 @@ class ScriptPreferences(DomainModel):
         return normalize_legacy_speech_emotion(value)
 
 
-class ScriptSegmentDraft(DomainModel):
+class CaptionVariant(DomainModel):
+    language: NonBlankStr
+    kind: CaptionKind
     text: NonBlankStr
+
+
+class ScriptSegmentDraft(DomainModel):
+    spoken_text: NonBlankStr = Field(
+        validation_alias=AliasChoices("spoken_text", "text")
+    )
+    spoken_language: NonBlankStr = "und"
+    captions: list[CaptionVariant] = Field(default_factory=list, max_length=20)
     speaker_id: NonBlankStr = "narrator"
     emotion: SpeechEmotion = SpeechEmotion.HAPPINESS
     scene_transition: SceneTransition = SceneTransition.BLACK
@@ -224,17 +238,50 @@ class ScriptSegmentDraft(DomainModel):
     def normalize_legacy_emotion(cls, value: object) -> object:
         return normalize_legacy_speech_emotion(value)
 
+    @model_validator(mode="after")
+    def validate_caption_alignment(self) -> ScriptSegmentDraft:
+        self.captions = _validated_captions(
+            self.captions,
+            spoken_text=self.spoken_text,
+            spoken_language=self.spoken_language,
+        )
+        return self
+
+    @property
+    def text(self) -> str:
+        """Read-only compatibility for internal callers during schema migration."""
+
+        return self.spoken_text
+
 
 class ScriptDraft(DomainModel):
     title: NonBlankStr
-    language: NonBlankStr
+    spoken_language: NonBlankStr = Field(
+        validation_alias=AliasChoices("spoken_language", "language")
+    )
     segments: list[ScriptSegmentDraft] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def apply_document_language(self) -> ScriptDraft:
+        self.segments = [
+            _draft_with_document_language(segment, self.spoken_language)
+            for segment in self.segments
+        ]
+        return self
+
+    @property
+    def language(self) -> str:
+        return self.spoken_language
 
 
 class ScriptSegment(DomainModel):
     segment_id: UUID = Field(default_factory=uuid4)
     sequence: int = Field(ge=0)
-    text: NonBlankStr
+    spoken_text: NonBlankStr = Field(
+        validation_alias=AliasChoices("spoken_text", "text")
+    )
+    spoken_language: NonBlankStr = "und"
+    captions: list[CaptionVariant] = Field(default_factory=list, max_length=20)
     speaker_id: NonBlankStr
     emotion: SpeechEmotion
     # This describes the transition after this segment.  Renderers may use a
@@ -249,15 +296,34 @@ class ScriptSegment(DomainModel):
     def normalize_legacy_emotion(cls, value: object) -> object:
         return normalize_legacy_speech_emotion(value)
 
+    @model_validator(mode="after")
+    def validate_caption_alignment(self) -> ScriptSegment:
+        self.captions = _validated_captions(
+            self.captions,
+            spoken_text=self.spoken_text,
+            spoken_language=self.spoken_language,
+        )
+        return self
+
+    @property
+    def text(self) -> str:
+        return self.spoken_text
+
 
 class ScriptDocument(DomainModel):
     revision: int = Field(default=1, ge=1)
     title: NonBlankStr
-    language: NonBlankStr
+    spoken_language: NonBlankStr = Field(
+        validation_alias=AliasChoices("spoken_language", "language")
+    )
     segments: list[ScriptSegment] = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_sequences(self) -> ScriptDocument:
+        self.segments = [
+            _segment_with_document_language(segment, self.spoken_language)
+            for segment in self.segments
+        ]
         expected = list(range(len(self.segments)))
         actual = [segment.sequence for segment in self.segments]
         if actual != expected:
@@ -267,17 +333,83 @@ class ScriptDocument(DomainModel):
             raise ValueError("script segment_id values must be unique")
         return self
 
+    @property
+    def language(self) -> str:
+        return self.spoken_language
+
     @classmethod
     def from_draft(cls, draft: ScriptDraft, *, revision: int = 1) -> ScriptDocument:
         return cls(
             revision=revision,
             title=draft.title,
-            language=draft.language,
+            spoken_language=draft.spoken_language,
             segments=[
                 ScriptSegment(sequence=index, **segment.model_dump())
                 for index, segment in enumerate(draft.segments)
             ],
         )
+
+
+def _validated_captions(
+    captions: list[CaptionVariant],
+    *,
+    spoken_text: str,
+    spoken_language: str,
+) -> list[CaptionVariant]:
+    if not captions:
+        return [
+            CaptionVariant(
+                language=spoken_language,
+                kind=CaptionKind.VERBATIM,
+                text=spoken_text,
+            )
+        ]
+    keys = [(caption.language.casefold(), caption.kind) for caption in captions]
+    if len(keys) != len(set(keys)):
+        raise ValueError("caption language/kind pairs must be unique")
+    verbatim = [caption for caption in captions if caption.kind is CaptionKind.VERBATIM]
+    if len(verbatim) != 1:
+        raise ValueError("segments require exactly one verbatim caption")
+    if (
+        verbatim[0].language.casefold() != spoken_language.casefold()
+        or verbatim[0].text != spoken_text
+    ):
+        raise ValueError("verbatim caption must exactly match spoken text and language")
+    return captions
+
+
+def _draft_with_document_language(
+    segment: ScriptSegmentDraft,
+    document_language: str,
+) -> ScriptSegmentDraft:
+    if segment.spoken_language != "und":
+        return segment
+    captions = [
+        caption.model_copy(update={"language": document_language})
+        if caption.language == "und"
+        else caption
+        for caption in segment.captions
+    ]
+    return segment.model_copy(
+        update={"spoken_language": document_language, "captions": captions}
+    )
+
+
+def _segment_with_document_language(
+    segment: ScriptSegment,
+    document_language: str,
+) -> ScriptSegment:
+    if segment.spoken_language != "und":
+        return segment
+    captions = [
+        caption.model_copy(update={"language": document_language})
+        if caption.language == "und"
+        else caption
+        for caption in segment.captions
+    ]
+    return segment.model_copy(
+        update={"spoken_language": document_language, "captions": captions}
+    )
 
 
 class AudioClip(DomainModel):
@@ -358,7 +490,11 @@ class TimelineSegment(DomainModel):
     sequence: int = Field(ge=0)
     start_ms: int = Field(ge=0)
     end_ms: int = Field(gt=0)
-    text: NonBlankStr
+    spoken_text: NonBlankStr = Field(
+        validation_alias=AliasChoices("spoken_text", "text")
+    )
+    spoken_language: NonBlankStr = "und"
+    captions: list[CaptionVariant] = Field(default_factory=list, max_length=20)
     speaker_id: NonBlankStr
     emotion: SpeechEmotion
     scene_transition: SceneTransition = SceneTransition.BLACK
@@ -374,16 +510,51 @@ class TimelineSegment(DomainModel):
     def validate_time_range(self) -> TimelineSegment:
         if self.end_ms <= self.start_ms:
             raise ValueError("end_ms must be greater than start_ms")
+        self.captions = _validated_captions(
+            self.captions,
+            spoken_text=self.spoken_text,
+            spoken_language=self.spoken_language,
+        )
         return self
+
+    @property
+    def text(self) -> str:
+        return self.spoken_text
 
 
 class ProductionManifest(DomainModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "2.0"] = "2.0"
     story_id: UUID
     script_revision: int = Field(ge=1)
-    language: NonBlankStr
+    spoken_language: NonBlankStr = Field(
+        validation_alias=AliasChoices("spoken_language", "language")
+    )
     total_duration_ms: int = Field(gt=0)
     timeline: list[TimelineSegment] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def apply_manifest_language(self) -> ProductionManifest:
+        self.timeline = [
+            segment.model_copy(
+                update={
+                    "spoken_language": self.spoken_language,
+                    "captions": [
+                        caption.model_copy(update={"language": self.spoken_language})
+                        if caption.language == "und"
+                        else caption
+                        for caption in segment.captions
+                    ],
+                }
+            )
+            if segment.spoken_language == "und"
+            else segment
+            for segment in self.timeline
+        ]
+        return self
+
+    @property
+    def language(self) -> str:
+        return self.spoken_language
 
 
 class PipelineFailure(DomainModel):

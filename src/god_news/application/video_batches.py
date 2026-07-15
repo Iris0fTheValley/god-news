@@ -656,7 +656,9 @@ class VideoBatchService:
                     sequence=segment.sequence,
                     start_ms=cursor,
                     end_ms=end,
-                    text=segment.text,
+                    spoken_text=segment.spoken_text,
+                    spoken_language=segment.spoken_language,
+                    captions=segment.captions,
                     speaker_id=segment.speaker_id,
                     emotion=segment.emotion,
                     scene_transition=segment.scene_transition,
@@ -668,7 +670,7 @@ class VideoBatchService:
         return ProductionManifest(
             story_id=batch_id,
             script_revision=script.revision,
-            language=script.language,
+            spoken_language=script.spoken_language,
             total_duration_ms=cursor,
             timeline=timeline,
         )

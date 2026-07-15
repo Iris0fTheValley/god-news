@@ -21,6 +21,8 @@ interface ReviewForm {
   style: string;
   duration: number;
   speakerId: string;
+  spokenLanguage: string;
+  captionLanguage: string;
   speed: number;
   note: string;
 }
@@ -55,6 +57,8 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
       style: story.preferences.style,
       duration: story.preferences.target_duration_seconds,
       speakerId: story.preferences.speaker_id,
+      spokenLanguage: story.preferences.spoken_language ?? '',
+      captionLanguage: story.preferences.caption_language ?? story.target_language,
       speed: story.preferences.speed,
       note: '',
     },
@@ -98,6 +102,8 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           style: values.style,
           target_duration_seconds: Number(values.duration),
           speaker_id: role.speaker_id,
+          spoken_language: values.spokenLanguage.trim() || role.default_spoken_language,
+          caption_language: values.captionLanguage.trim(),
           emotion,
           speed: Number(values.speed),
           pitch: story.preferences.pitch,
@@ -164,7 +170,10 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
               {...register('speakerId', {
                 onChange: (event: ChangeEvent<HTMLSelectElement>) => {
                   const role = eligibleRoles.find((item) => item.speaker_id === event.currentTarget.value);
-                  if (role !== undefined) setValue('speed', role.default_speed, {shouldDirty: true});
+                  if (role !== undefined) {
+                    setValue('speed', role.default_speed, {shouldDirty: true});
+                    setValue('spokenLanguage', role.default_spoken_language, {shouldDirty: true});
+                  }
                 },
               })}
             >
@@ -181,6 +190,14 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           <label className="field">
             <span>语速</span>
             <input className="input" type="number" min={0.6} max={1.65} step={0.05} {...register('speed', {valueAsNumber: true})} />
+          </label>
+          <label className="field">
+            <span>口播语言</span>
+            <input className="input mono" placeholder={selectedRole?.default_spoken_language ?? 'zh-CN'} {...register('spokenLanguage')} />
+          </label>
+          <label className="field">
+            <span>字幕语言</span>
+            <input className="input mono" required placeholder="zh-CN" {...register('captionLanguage')} />
           </label>
         </div>
       </fieldset>

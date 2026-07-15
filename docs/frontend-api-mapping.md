@@ -1,6 +1,6 @@
 # god-news 前后端接口契约
 
-更新时间：2026-07-13
+更新时间：2026-07-15
 
 本文件描述工作台实际调用的后端能力。`frontend/openapi.json` 与
 `frontend/src/api/generated.ts` 由 FastAPI 导出，是可生成的唯一事实来源；本文件只补充业务语义和使用边界。
@@ -30,7 +30,7 @@ pnpm --dir frontend check
 
 `POST /api/v1/stories/{id}/resume` 只恢复 `FETCHED`、`TRANSLATED`、`PROCESSING_SCRIPT` 和 `PROCESSING_TTS` 的中断工作；不会从 `SCRIPT_READY` 或 `PENDING_TTS` 自动开始高能耗合成。
 
-脚本段 API 保留 `speaker_id`、`emotion`、`speed`、`pitch`、`visual_hint`；其中 `emotion` 为 `happiness`、`sadness`、`anger`、`disgust`、`like`、`surprise`、`fear` 之一，`scene_transition` 为 `black`、`crossfade`、`slide`、`wipe`、`mood_shift` 之一。无效 LLM 输出分别回退为初审偏好情绪和 `black`；`visual_hint`、`pitch` 即使当前 UI 隐藏也保持 API 兼容。
+脚本段 API 使用结构化 `spoken_text`、`spoken_language` 与 `captions[]`；`captions` 区分 `verbatim` 和 `translation`，且逐字段校验逐字字幕必须与实际 TTS 输入完全一致。旧持久化数据中的 `text` / `language` 仍可读取，但新响应和新写入只输出结构化字段。脚本段同时保留 `speaker_id`、`emotion`、`speed`、`pitch`、`visual_hint`；其中 `emotion` 为 `happiness`、`sadness`、`anger`、`disgust`、`like`、`surprise`、`fear` 之一，`scene_transition` 为 `black`、`crossfade`、`slide`、`wipe`、`mood_shift` 之一。无效 LLM 输出分别回退为初审偏好情绪和 `black`；`visual_hint`、`pitch` 即使当前 UI 隐藏也保持 API 兼容。
 
 ## 角色
 
@@ -41,7 +41,7 @@ pnpm --dir frontend check
 | 替换 | `PUT /api/v1/roles/{profile_id}` | 需要 `expected_version` 乐观锁。 |
 | 停用 | `DELETE /api/v1/roles/{profile_id}` | 软停用并返回新版本；历史故事和成片保留引用。 |
 
-启用本地 TTS 的角色须提交 `tts_enabled=true`、成对的 `gpt_weights_path` / `sovits_weights_path`、`tts_model_profile` 和完整七项 `emotion_refs`；可选的 `reference_language` 用于参考文本（DSakiko 日语配置会导入为 `all_ja`）。合成器按脚本段的 `speaker_id` 与 `emotion` 选择参考材料；同一权重相邻段只切参考音频，不重载模型。不同权重会严格顺序切换：先杀净旧 loopback 子进程，再启动下一套，因此任一时刻只驻留一套重型权重。
+启用本地 TTS 的角色须提交 `tts_enabled=true`、成对的 `gpt_weights_path` / `sovits_weights_path`、`tts_model_profile` 和完整七项 `emotion_refs`；`default_spoken_language` 是脚本初审时使用的默认口播语言，`reference_language` 仅用于 GPT-SoVITS 参考文本，两者不得混用（DSakiko 日语参考配置会导入为 `all_ja`）。合成器按脚本段的 `speaker_id` 与 `emotion` 选择参考材料，并且只读取 `spoken_text`，翻译字幕不会进入 TTS；同一权重相邻段只切参考音频，不重载模型。不同权重会严格顺序切换：先杀净旧 loopback 子进程，再启动下一套，因此任一时刻只驻留一套重型权重。
 
 ## 采集运行
 

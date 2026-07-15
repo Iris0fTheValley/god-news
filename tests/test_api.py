@@ -142,7 +142,13 @@ async def test_api_drives_the_full_offline_pipeline(stack: Stack) -> None:
 
             manifest = await client.get(f"/api/v1/stories/{story_id}/production-manifest")
             assert manifest.status_code == 200
-            assert manifest.json()["schema_version"] == "1.0"
+            manifest_body = manifest.json()
+            assert manifest_body["schema_version"] == "2.0"
+            assert manifest_body["spoken_language"] == "zh-CN"
+            assert manifest_body["timeline"][0]["spoken_text"]
+            assert manifest_body["timeline"][0]["captions"][0]["kind"] == "verbatim"
+            assert "language" not in manifest_body
+            assert "text" not in manifest_body["timeline"][0]
 
             missing = await client.get(f"/api/v1/stories/{uuid4()}")
             assert missing.status_code == 404

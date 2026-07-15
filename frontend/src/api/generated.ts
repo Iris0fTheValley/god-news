@@ -907,6 +907,19 @@ export interface components {
             /** Track Id */
             track_id: string;
         };
+        /**
+         * CaptionKind
+         * @enum {string}
+         */
+        CaptionKind: "verbatim" | "translation";
+        /** CaptionVariant */
+        CaptionVariant: {
+            kind: components["schemas"]["CaptionKind"];
+            /** Language */
+            language: string;
+            /** Text */
+            text: string;
+        };
         /** ClassificationMetrics */
         ClassificationMetrics: {
             /** Accepted Count */
@@ -1486,16 +1499,16 @@ export interface components {
         };
         /** ProductionManifest */
         ProductionManifest: {
-            /** Language */
-            language: string;
             /**
              * Schema Version
-             * @default 1.0
-             * @constant
+             * @default 2.0
+             * @enum {string}
              */
-            schema_version: "1.0";
+            schema_version: "1.0" | "2.0";
             /** Script Revision */
             script_revision: number;
+            /** Spoken Language */
+            spoken_language: string;
             /**
              * Story Id
              * Format: uuid
@@ -1618,15 +1631,15 @@ export interface components {
         };
         /** PublicProductionManifest */
         PublicProductionManifest: {
-            /** Language */
-            language: string;
             /**
              * Schema Version
-             * @constant
+             * @enum {string}
              */
-            schema_version: "1.0";
+            schema_version: "1.0" | "2.0";
             /** Script Revision */
             script_revision: number;
+            /** Spoken Language */
+            spoken_language: string;
             /**
              * Story Id
              * Format: uuid
@@ -1656,6 +1669,8 @@ export interface components {
         };
         /** PublicTimelineSegment */
         PublicTimelineSegment: {
+            /** Captions */
+            captions: components["schemas"]["CaptionVariant"][];
             emotion: components["schemas"]["SpeechEmotion"];
             /** End Ms */
             end_ms: number;
@@ -1669,10 +1684,12 @@ export interface components {
             sequence: number;
             /** Speaker Id */
             speaker_id: string;
+            /** Spoken Language */
+            spoken_language: string;
+            /** Spoken Text */
+            spoken_text: string;
             /** Start Ms */
             start_ms: number;
-            /** Text */
-            text: string;
             /** Visual Hint */
             visual_hint?: string | null;
         };
@@ -2384,6 +2401,11 @@ export interface components {
              * @default 1
              */
             default_speed: number;
+            /**
+             * Default Spoken Language
+             * @default zh-CN
+             */
+            default_spoken_language: string;
             /** Display Name */
             display_name: string;
             /** Emotion Refs */
@@ -2452,6 +2474,11 @@ export interface components {
              * @default 1
              */
             default_speed: number;
+            /**
+             * Default Spoken Language
+             * @default zh-CN
+             */
+            default_spoken_language: string;
             /** Display Name */
             display_name: string;
             /** Emotion Refs */
@@ -2510,6 +2537,11 @@ export interface components {
              * @default 1
              */
             default_speed: number;
+            /**
+             * Default Spoken Language
+             * @default zh-CN
+             */
+            default_spoken_language: string;
             /** Display Name */
             display_name: string;
             /** Emotion Refs */
@@ -2580,8 +2612,6 @@ export interface components {
         };
         /** ScriptDocument */
         ScriptDocument: {
-            /** Language */
-            language: string;
             /**
              * Revision
              * @default 1
@@ -2589,11 +2619,15 @@ export interface components {
             revision: number;
             /** Segments */
             segments: components["schemas"]["ScriptSegment"][];
+            /** Spoken Language */
+            spoken_language: string;
             /** Title */
             title: string;
         };
         /** ScriptPreferences */
         ScriptPreferences: {
+            /** Caption Language */
+            caption_language?: string | null;
             /** @default happiness */
             emotion: components["schemas"]["SpeechEmotion"];
             /**
@@ -2608,6 +2642,8 @@ export interface components {
              * @default 1
              */
             speed: number;
+            /** Spoken Language */
+            spoken_language?: string | null;
             /** Style */
             style: string;
             /** Target Duration Seconds */
@@ -2634,6 +2670,8 @@ export interface components {
         };
         /** ScriptSegment */
         ScriptSegment: {
+            /** Captions */
+            captions?: components["schemas"]["CaptionVariant"][];
             emotion: components["schemas"]["SpeechEmotion"];
             /** Pitch */
             pitch: number;
@@ -2650,8 +2688,13 @@ export interface components {
             speaker_id: string;
             /** Speed */
             speed: number;
-            /** Text */
-            text: string;
+            /**
+             * Spoken Language
+             * @default und
+             */
+            spoken_language: string;
+            /** Spoken Text */
+            spoken_text: string;
             /** Visual Hint */
             visual_hint?: string | null;
         };
@@ -3210,6 +3253,8 @@ export interface components {
         TimelineSegment: {
             /** Audio Path */
             audio_path: string;
+            /** Captions */
+            captions?: components["schemas"]["CaptionVariant"][];
             emotion: components["schemas"]["SpeechEmotion"];
             /** End Ms */
             end_ms: number;
@@ -3224,10 +3269,15 @@ export interface components {
             sequence: number;
             /** Speaker Id */
             speaker_id: string;
+            /**
+             * Spoken Language
+             * @default und
+             */
+            spoken_language: string;
+            /** Spoken Text */
+            spoken_text: string;
             /** Start Ms */
             start_ms: number;
-            /** Text */
-            text: string;
             /** Visual Hint */
             visual_hint?: string | null;
         };

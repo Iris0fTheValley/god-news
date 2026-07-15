@@ -93,6 +93,7 @@ async def test_sql_role_profiles_support_versioned_crud(tmp_path: Path) -> None:
         assert created.visual_assets.live2d_asset_ref == "roles/main/model3.json"
         assert created.gpt_weights_path == r"J:\models\gpt-narrator.pth"
         assert created.sovits_weights_path == r"J:\models\sovits-narrator.pth"
+        assert created.default_spoken_language == "zh-CN"
 
         replacement_values = _role().model_dump()
         replacement_values["display_name"] = "Updated host"

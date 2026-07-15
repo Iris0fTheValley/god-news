@@ -88,7 +88,7 @@ function BatchNarrationAudioPreview({batch}: {batch: VideoBatch}) {
                 <span className="audio-index metadata">
                   <Headphones size={16} aria-hidden="true" /> {String(index + 1).padStart(2, '0')}
                 </span>
-                <p>{segment?.text ?? '对应的统一旁白脚本文本不可用。'}</p>
+                <p>{segment?.spoken_text ?? '对应的统一旁白脚本文本不可用。'}</p>
                 <span className="metadata">
                   {(clip.duration_ms / 1000).toFixed(2)}s · {String(clip.sample_rate_hz)}Hz · {String(clip.channels)}ch
                 </span>

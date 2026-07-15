@@ -22,6 +22,7 @@ const ttsRole: RoleProfile = {
   speaker_id: 'narrator',
   character_prompt: 'A clear news narrator.',
   default_emotion: 'happiness',
+  default_spoken_language: 'en-US',
   default_speed: 1,
   default_pitch: 0,
   gpt_weights_path: 'voices/narrator.ckpt',
@@ -62,7 +63,12 @@ describe('FirstReviewPanel', () => {
       expected_story_version: 3,
       corrected_key_points: ['核对原始证据', '主人已确认接回'],
     });
-    expect(payload.preferences).toMatchObject({speaker_id: 'narrator', emotion: 'happiness'});
+    expect(payload.preferences).toMatchObject({
+      speaker_id: 'narrator',
+      emotion: 'happiness',
+      spoken_language: 'en-US',
+      caption_language: 'zh-CN',
+    });
     expect(payload.review_id).toEqual(expect.any(String));
   });
 

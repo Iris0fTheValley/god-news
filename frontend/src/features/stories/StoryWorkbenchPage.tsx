@@ -247,7 +247,7 @@ export function StoryWorkbenchPage() {
                   <p className="eyebrow">SCRIPT</p>
                   <h2>口播脚本</h2>
                 </div>
-                <span className="metadata">{String(scriptDraft.segments.length)} 段 · {scriptDraft.language}</span>
+                <span className="metadata">{String(scriptDraft.segments.length)} 段 · {scriptDraft.spoken_language}</span>
               </div>
               <div className="panel-body">
                 <ScriptEditor
@@ -278,7 +278,7 @@ export function StoryWorkbenchPage() {
             <section className="panel">
               <div className="panel-header">
                 <div>
-                  <p className="eyebrow">MANIFEST 1.0</p>
+                  <p className="eyebrow">MANIFEST 2.0</p>
                   <h2>视频时间轴输入</h2>
                 </div>
                 <span className="metadata">{manifestQuery.data === undefined ? '读取中' : `${(manifestQuery.data.total_duration_ms / 1000).toFixed(2)}s`}</span>
@@ -288,7 +288,7 @@ export function StoryWorkbenchPage() {
                 {manifestQuery.data?.timeline.map((item) => (
                   <div key={item.segment_id}>
                     <span className="metadata">{(item.start_ms / 1000).toFixed(2)} → {(item.end_ms / 1000).toFixed(2)}</span>
-                    <p>{item.text}</p>
+                    <p>{(item.captions ?? []).find((caption) => caption.kind === 'translation')?.text ?? item.spoken_text}</p>
                   </div>
                 ))}
               </div>

@@ -20,7 +20,7 @@ function hasSameRenderableContent(
   if (original === null) return false;
   if (
     original.title !== revised.title
-    || original.language !== revised.language
+    || original.spoken_language !== revised.spoken_language
     || original.segments.length !== revised.segments.length
   ) {
     return false;
@@ -30,7 +30,9 @@ function hasSameRenderableContent(
     return candidate !== undefined
       && segment.segment_id === candidate.segment_id
       && segment.sequence === candidate.sequence
-      && segment.text === candidate.text
+      && segment.spoken_text === candidate.spoken_text
+      && segment.spoken_language === candidate.spoken_language
+      && JSON.stringify(segment.captions ?? []) === JSON.stringify(candidate.captions ?? [])
       && segment.speaker_id === candidate.speaker_id
       && segment.emotion === candidate.emotion
       && segment.scene_transition === candidate.scene_transition

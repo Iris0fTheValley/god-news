@@ -13,8 +13,8 @@ from uuid import uuid4
 import pytest
 import yaml
 
-from god_news.domain.enums import SpeechEmotion
-from god_news.domain.models import AudioClip, ScriptDocument, ScriptSegment
+from god_news.domain.enums import CaptionKind, SpeechEmotion
+from god_news.domain.models import AudioClip, CaptionVariant, ScriptDocument, ScriptSegment
 from god_news.errors import ConfigurationError, TTSGenerationError
 from god_news.infrastructure.tts.dsakiko import (
     load_dsakiko_emotion_refs,
@@ -410,7 +410,20 @@ async def test_tts_request_switches_reference_audio_and_prompt_per_segment(tmp_p
     server = cast(Any, SimpleNamespace(port=18_001, force_shutdown=False))
     first = ScriptSegment(
         sequence=0,
-        text="First emotion.",
+        spoken_text="First emotion.",
+        spoken_language="en-US",
+        captions=[
+            CaptionVariant(
+                language="en-US",
+                kind=CaptionKind.VERBATIM,
+                text="First emotion.",
+            ),
+            CaptionVariant(
+                language="zh-CN",
+                kind=CaptionKind.TRANSLATION,
+                text="第一种情绪。",
+            ),
+        ],
         speaker_id="guest",
         emotion=SpeechEmotion.HAPPINESS,
         speed=1.0,
@@ -455,6 +468,8 @@ async def test_tts_request_switches_reference_audio_and_prompt_per_segment(tmp_p
         "sad reference",
     ]
     assert [request["prompt_lang"] for request in client.requests] == ["all_ja", "en"]
+    assert client.requests[0]["text"] == "First emotion."
+    assert "第一种情绪" not in json.dumps(client.requests[0], ensure_ascii=False)
 
 
 @pytest.mark.asyncio

@@ -308,7 +308,7 @@ class VideoBatchStory(DomainModel):
             raise ValueError("source manifest ID must match story_id")
         if self.source_manifest.script_revision != self.script.revision:
             raise ValueError("source manifest revision must match source script revision")
-        if self.source_manifest.language != self.script.language:
+        if self.source_manifest.spoken_language != self.script.spoken_language:
             raise ValueError("source manifest language must match source script language")
         if self.script_sha256 != model_sha256(self.script):
             raise ValueError("script_sha256 does not match source script")
@@ -328,7 +328,9 @@ class VideoBatchStory(DomainModel):
                 or timeline.start_ms != cursor
                 or timeline.end_ms <= cursor
                 or timeline.segment_id != script.segment_id
-                or timeline.text != script.text
+                or timeline.spoken_text != script.spoken_text
+                or timeline.spoken_language != script.spoken_language
+                or timeline.captions != script.captions
                 or timeline.speaker_id != script.speaker_id
                 or timeline.emotion != script.emotion
                 or timeline.scene_transition != script.scene_transition
@@ -610,7 +612,7 @@ class VideoBatch(DomainModel):
         if (
             manifest.story_id != self.batch_id
             or manifest.script_revision != script.revision
-            or manifest.language != script.language
+            or manifest.spoken_language != script.spoken_language
             or len(manifest.timeline) != len(script.segments)
         ):
             raise ValueError("merged production manifest does not match batch narration identity")
@@ -626,7 +628,9 @@ class VideoBatch(DomainModel):
                 or timeline.start_ms != cursor
                 or timeline.end_ms != cursor + clip.duration_ms
                 or timeline.segment_id != segment.segment_id
-                or timeline.text != segment.text
+                or timeline.spoken_text != segment.spoken_text
+                or timeline.spoken_language != segment.spoken_language
+                or timeline.captions != segment.captions
                 or timeline.speaker_id != segment.speaker_id
                 or timeline.emotion != segment.emotion
                 or timeline.scene_transition != segment.scene_transition

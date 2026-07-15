@@ -1035,7 +1035,7 @@ class GPTSoVITSSpeechSynthesizer:
         prompt_language: str,
     ) -> AudioClip:
         request = _TTSRequest(
-            text=segment.text,
+            text=segment.spoken_text,
             text_lang=self._text_language,
             ref_audio_path=str(reference_audio_path),
             prompt_text=reference_text,

@@ -54,12 +54,14 @@ export const storyFixture = {
 export const scriptFixture = {
   revision: 1,
   title: '雨天里的善意',
-  language: 'zh-CN',
+  spoken_language: 'zh-CN',
   segments: [
     {
       segment_id: 'a4e83d19-35b8-4f8c-9098-384b1897a790',
       sequence: 0,
-      text: '雨下得很大。',
+      spoken_text: '雨下得很大。',
+      spoken_language: 'zh-CN',
+      captions: [{kind: 'verbatim', language: 'zh-CN', text: '雨下得很大。'}],
       speaker_id: 'narrator',
       emotion: 'happiness',
       speed: 1,
@@ -70,7 +72,9 @@ export const scriptFixture = {
     {
       segment_id: '7dfbda2e-9b88-451a-b8fb-866cb5c3a498',
       sequence: 1,
-      text: '但有人停下了脚步。',
+      spoken_text: '但有人停下了脚步。',
+      spoken_language: 'zh-CN',
+      captions: [{kind: 'verbatim', language: 'zh-CN', text: '但有人停下了脚步。'}],
       speaker_id: 'narrator',
       emotion: 'like',
       speed: 1,

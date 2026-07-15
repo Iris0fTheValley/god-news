@@ -38,6 +38,9 @@ class RoleProfileRow(Base):
     speaker_id: Mapped[str] = mapped_column(String(200), nullable=False)
     character_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     default_emotion: Mapped[str] = mapped_column(String(100), nullable=False)
+    default_spoken_language: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="zh-CN"
+    )
     default_speed: Mapped[float] = mapped_column(Float, nullable=False)
     default_pitch: Mapped[float] = mapped_column(Float, nullable=False)
     gpt_weights_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
@@ -67,6 +70,7 @@ def _row_values(profile: RoleProfile) -> dict[str, object]:
         "speaker_id": profile.speaker_id,
         "character_prompt": profile.character_prompt,
         "default_emotion": profile.default_emotion,
+        "default_spoken_language": profile.default_spoken_language,
         "default_speed": profile.default_speed,
         "default_pitch": profile.default_pitch,
         "gpt_weights_path": profile.gpt_weights_path,
@@ -97,6 +101,7 @@ def _to_profile(row: RoleProfileRow) -> RoleProfile:
         speaker_id=row.speaker_id,
         character_prompt=row.character_prompt,
         default_emotion=row.default_emotion,
+        default_spoken_language=row.default_spoken_language,
         default_speed=row.default_speed,
         default_pitch=row.default_pitch,
         gpt_weights_path=row.gpt_weights_path,

@@ -123,6 +123,7 @@ class RoleProfileInput(OperationsModel):
     speaker_id: NonBlankStr
     character_prompt: str = Field(default="", max_length=12_000)
     default_emotion: NonBlankStr = "neutral"
+    default_spoken_language: NonBlankStr = "zh-CN"
     default_speed: float = Field(default=1.0, ge=0.6, le=1.65)
     default_pitch: float = Field(default=0.0, ge=-12.0, le=12.0)
     gpt_weights_path: AssetRef | None = None
