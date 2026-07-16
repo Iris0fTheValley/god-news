@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "library-volunteers.png",
+  "creator": "god-news project via OpenAI built-in image generation",
+  "created_at": "2026-07-16",
+  "sha256": "5d889c330a1f398041ea2d37449dc062aeda493f1cdd712c05567959bb3932a4",
+  "width": 1672,
+  "height": 941,
+  "rights_status": "project_owned_ai_generated_demo",
+  "publishable": true,
+  "attribution_required": false,
+  "representation": "Self-authored demonstration image; not a photograph of a real reported event.",
+  "prompt": "A candid editorial photograph of diverse adult volunteers arranging donated books in a small warm community library, with natural morning light, no logos, no readable text, no public figures, and no claim that it depicts a real event."
+}

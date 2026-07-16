@@ -41,6 +41,7 @@ from god_news.domain.video import (
     SubmitNarrationReview,
     SubmitTimelineReview,
     SynthesizeBatchNarration,
+    TemplateDefinition,
     TimelineReview,
     TimelineReviewDecision,
     VideoBatch,
@@ -49,6 +50,8 @@ from god_news.domain.video import (
     VideoInputAsset,
     VideoInputAssetKind,
     VideoRenderFailure,
+    VisualAssetType,
+    VisualRenderAsset,
     is_video_batch_transition_allowed,
     model_sha256,
     narration_source_evidence_sha256,
@@ -62,6 +65,11 @@ from god_news.domain.video_ports import (
     SourceVideoAssetLibrary,
     StoryManifestPool,
     VideoBatchRepository,
+    VisualAssetLibrary,
+)
+from god_news.domain.video_templates import (
+    TemplateRegistry,
+    create_default_template_registry,
 )
 from god_news.errors import GodNewsError
 from god_news.video_errors import (
@@ -78,6 +86,14 @@ CATEGORY_ORDER: dict[ContentCategory, int] = {
     ContentCategory.CATS_DOGS: 2,
     ContentCategory.FORUM: 3,
 }
+
+
+class _EmptyVisualAssetLibrary:
+    async def approved_for_stories(
+        self,
+        stories: Sequence[Story],
+    ) -> dict[UUID, Sequence[VisualRenderAsset]]:
+        return {story.story_id: () for story in stories}
 
 
 class VideoBatchService:
@@ -101,6 +117,8 @@ class VideoBatchService:
         bgm_catalog: BgmCatalog,
         source_video_library: SourceVideoAssetLibrary,
         audio_root: Path,
+        visual_asset_library: VisualAssetLibrary | None = None,
+        template_registry: TemplateRegistry | None = None,
         candidate_scan_limit: int = 1_000,
         asset_lifecycle_lock: asyncio.Lock | None = None,
     ) -> None:
@@ -114,6 +132,9 @@ class VideoBatchService:
         self._video_renderer = video_renderer
         self._bgm_catalog = bgm_catalog
         self._source_video_library = source_video_library
+        self._require_visual_assets = visual_asset_library is not None
+        self._visual_asset_library = visual_asset_library or _EmptyVisualAssetLibrary()
+        self._template_registry = template_registry or create_default_template_registry()
         self._audio_root = audio_root.expanduser().resolve()
         self._candidate_scan_limit = candidate_scan_limit
         self._asset_lifecycle_lock = asset_lifecycle_lock or asyncio.Lock()
@@ -150,6 +171,10 @@ class VideoBatchService:
 
             batch_id = uuid4()
             stories = await self._build_batch_stories(ordered, reserved_at=utc_now())
+            template = self._template_registry.resolve(
+                request.template_id,
+                request.template_version,
+            )
             approved_source_videos = await self._source_video_library.approved_for_stories(
                 [story.story_id for story in stories]
             )
@@ -180,6 +205,7 @@ class VideoBatchService:
                 batch_id=batch_id,
                 title=request.title,
                 subtitle=request.subtitle,
+                template=template,
                 stories=stories,
                 narration=narration,
                 bgm=bgm,
@@ -331,6 +357,8 @@ class VideoBatchService:
                 bgm=(running.bgm.render_spec() if running.bgm is not None else None),
                 host=host,
                 source_videos=source_videos,
+                template=running.template,
+                require_visual_assets=self._require_visual_assets,
             )
             input_assets = await asyncio.to_thread(self._snapshot_input_assets, props)
             self._validate_audio_snapshot_evidence(audio, input_assets)
@@ -616,6 +644,7 @@ class VideoBatchService:
         *,
         reserved_at: datetime,
     ) -> builtins.list[VideoBatchStory]:
+        visuals_by_story = await self._visual_asset_library.approved_for_stories(stories)
         result: builtins.list[VideoBatchStory] = []
         for sequence, story in enumerate(stories):
             assert story.translation is not None
@@ -636,6 +665,7 @@ class VideoBatchService:
                     script_sha256=model_sha256(script),
                     source_manifest=manifest,
                     source_manifest_sha256=model_sha256(manifest),
+                    visual_assets=list(visuals_by_story.get(story.story_id, ())),
                     reserved_at=reserved_at,
                 )
             )
@@ -735,6 +765,8 @@ class VideoBatchService:
         bgm: BgmRenderSpec | None,
         host: HostVisualReservations,
         source_videos: Sequence[SourceVideoRenderAsset],
+        template: TemplateDefinition | None = None,
+        require_visual_assets: bool = False,
     ) -> RemotionVideoProps:
         if manifest.story_id != batch_id:
             raise VideoBatchConflictError("Merged manifest must be owned by the video batch.")
@@ -743,13 +775,25 @@ class VideoBatchService:
             stories,
             source_videos,
         )
+        # Compatibility-only service instances used by isolated unit tests may
+        # omit the visual library entirely. They retain the pre-template render
+        # contract; production containers always provide the library and
+        # therefore always freeze the selected template into render props.
+        render_template = template if require_visual_assets else None
         episode_plan = VideoBatchService._build_episode_plan(
             batch_id,
             manifest,
             direction=direction,
             stories=stories,
             source_videos=selected_source_videos,
+            template=render_template,
+            require_visual_assets=require_visual_assets,
         )
+        visual_assets = [
+            asset
+            for story in stories
+            for asset in story.visual_assets
+        ]
         return RemotionVideoProps(
             manifest=manifest,
             title=title,
@@ -759,6 +803,8 @@ class VideoBatchService:
             visual_reservations=host,
             episode_plan=episode_plan,
             source_videos=selected_source_videos,
+            visual_assets=visual_assets,
+            template=render_template,
         )
 
     @staticmethod
@@ -798,6 +844,8 @@ class VideoBatchService:
         direction: ProgramDirectorPlan | None = None,
         stories: Sequence[VideoBatchStory] = (),
         source_videos: Sequence[SourceVideoRenderAsset] = (),
+        template: TemplateDefinition | None = None,
+        require_visual_assets: bool = False,
     ) -> EpisodePlan:
         """Compile reviewed narration into replaceable semantic scene modules.
 
@@ -812,14 +860,31 @@ class VideoBatchService:
         for source_video in source_videos:
             source_videos_by_story.setdefault(source_video.story_id, []).append(source_video)
 
-        scene_specs: list[tuple[EpisodeSceneModule, UUID | None, UUID | None]] = []
+        story_by_segment = {
+            segment.segment_id: story.story_id
+            for story in stories
+            for segment in story.script.segments
+        }
+        scene_specs: list[
+            tuple[EpisodeSceneModule, UUID | None, UUID | None, UUID | None]
+        ] = []
         if direction is None:
             scene_specs.extend(
-                (EpisodeSceneModule.HOST_EVIDENCE, segment.segment_id, None)
+                (
+                    EpisodeSceneModule.HOST_EVIDENCE,
+                    segment.segment_id,
+                    None,
+                    story_by_segment.get(segment.segment_id),
+                )
                 for segment in manifest.timeline
             )
             scene_specs.extend(
-                (EpisodeSceneModule.SOURCE_VIDEO, None, source_video.asset_id)
+                (
+                    EpisodeSceneModule.SOURCE_VIDEO,
+                    None,
+                    source_video.asset_id,
+                    source_video.story_id,
+                )
                 for source_video in source_videos
             )
         else:
@@ -833,21 +898,39 @@ class VideoBatchService:
             }
             for story_direction in direction.stories:
                 scene_specs.extend(
-                    (story_direction.narration_module, segment_id, None)
+                    (
+                        story_direction.narration_module,
+                        segment_id,
+                        None,
+                        story_direction.story_id,
+                    )
                     for segment_id in story_direction.source_segment_ids
                 )
                 scene_specs.extend(
-                    (EpisodeSceneModule.SOURCE_VIDEO, None, asset.asset_id)
+                    (
+                        EpisodeSceneModule.SOURCE_VIDEO,
+                        None,
+                        asset.asset_id,
+                        story_direction.story_id,
+                    )
                     for asset in source_videos_by_story.get(story_direction.story_id, [])
                 )
                 bridge = bridges_by_source.get(story_direction.story_id)
                 if bridge is not None:
                     scene_specs.append(
-                        (EpisodeSceneModule.HOST_EVIDENCE, bridge.segment_id, None)
+                        (
+                            EpisodeSceneModule.HOST_EVIDENCE,
+                            bridge.segment_id,
+                            None,
+                            story_direction.story_id,
+                        )
                     )
 
         scenes: list[EpisodeScene] = []
-        for index, (module_id, segment_id, source_video_id) in enumerate(scene_specs):
+        story_visuals = {story.story_id: story.visual_assets for story in stories}
+        for index, (module_id, segment_id, source_video_id, story_id) in enumerate(
+            scene_specs
+        ):
             if module_id is EpisodeSceneModule.SOURCE_VIDEO:
                 scenes.append(
                     EpisodeScene(
@@ -867,7 +950,24 @@ class VideoBatchService:
                 raise VideoBatchConflictError(
                     "Program direction references narration outside the reviewed manifest."
                 )
+            if story_id is None:
+                raise VideoBatchConflictError(
+                    "Narration scene is not bound to immutable story evidence."
+                )
             visible = module_id is EpisodeSceneModule.HOST_EVIDENCE
+            visuals = VideoBatchService._scene_visuals(
+                story_visuals.get(story_id, []),
+                segment_id=segment_id,
+            )
+            if require_visual_assets and not visuals:
+                raise VideoBatchConflictError(
+                    "Every narration scene requires a reviewed image or source screenshot."
+                )
+            variant_id = (
+                template.default_scene_variants[module_id]
+                if template is not None
+                else None
+            )
             scenes.append(
                 EpisodeScene(
                     sequence=index,
@@ -881,6 +981,9 @@ class VideoBatchService:
                     ),
                     host_slot=EpisodeHostSlot.PRIMARY if visible else None,
                     transition_type=segment.scene_transition,
+                    variant_id=variant_id,
+                    visual_asset_ids=[asset.asset_id for asset in visuals],
+                    primary_visual_asset_id=(visuals[0].asset_id if visuals else None),
                 )
             )
 
@@ -908,6 +1011,29 @@ class VideoBatchService:
                 )
             )
         return EpisodePlan(batch_id=batch_id, scenes=resolved)
+
+    @staticmethod
+    def _scene_visuals(
+        assets: Sequence[VisualRenderAsset],
+        *,
+        segment_id: UUID,
+    ) -> list[VisualRenderAsset]:
+        segment_assets = [
+            asset
+            for asset in assets
+            if asset.asset_type is VisualAssetType.IMAGE
+            and asset.segment_id == segment_id
+        ]
+        screenshots = [
+            asset
+            for asset in assets
+            if asset.asset_type is VisualAssetType.SOURCE_SCREENSHOT
+        ]
+        # A scene has one primary evidence slot. Prefer the editor's
+        # revision-bound segment choice; otherwise use the reviewed source
+        # screenshot. Keeping this deterministic prevents the template from
+        # silently changing composition when both assets exist.
+        return segment_assets[:1] or screenshots[:1]
 
     @staticmethod
     def _validate_audio_snapshot_evidence(
@@ -938,6 +1064,17 @@ class VideoBatchService:
         candidates.extend(
             (VideoInputAssetKind.HOST_VIDEO, asset.local_path)
             for asset in props.visual_reservations.host_videos
+        )
+        candidates.extend(
+            (
+                (
+                    VideoInputAssetKind.IMAGE
+                    if asset.asset_type is VisualAssetType.IMAGE
+                    else VideoInputAssetKind.SOURCE_SCREENSHOT
+                ),
+                asset.local_path,
+            )
+            for asset in props.visual_assets
         )
         if props.bgm is not None:
             candidates.append((VideoInputAssetKind.BGM, props.bgm.local_path))

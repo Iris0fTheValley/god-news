@@ -19,8 +19,9 @@ const GLOBAL_SHORTCUTS: ShortcutGroup[] = [
       {label: '角色管理', keys: ['3']},
       {label: '视频批次', keys: ['4']},
       {label: '采集运行', keys: ['5']},
-      {label: '运维日志', keys: ['6']},
-      {label: 'BGM 管理', keys: ['7']},
+      {label: 'BGM 管理', keys: ['6']},
+      {label: '运维日志', keys: ['7']},
+      {label: '模板实验室', keys: ['8']},
     ],
   },
   {

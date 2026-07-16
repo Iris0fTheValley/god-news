@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "community-library-source.png",
+  "creator": "god-news project",
+  "created_at": "2026-07-16",
+  "sha256": "04705a12161f0c96cf6e06aa45c5491095501cdb3f9aa97f1758f576a21d9264",
+  "width": 1280,
+  "height": 1649,
+  "rights_status": "project_owned_source_page_capture",
+  "publishable": true,
+  "attribution_required": false,
+  "canonical_source": "community-library-source.html",
+  "capture_method": "Playwright with locally installed Microsoft Edge, full-page screenshot",
+  "representation": "Screenshot of a self-authored demonstration article; not a capture of an external publication."
+}

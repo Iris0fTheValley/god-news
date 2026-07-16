@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import argparse
 import audioop
+import hashlib
 import json
+import math
 import os
+import statistics
 import sys
 import wave
+from collections.abc import Iterator
 from contextlib import suppress
 from fractions import Fraction
 from pathlib import Path
@@ -26,6 +30,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--scale", type=float, default=1.0)
     parser.add_argument("--offset-x", type=float, default=0.0)
     parser.add_argument("--offset-y", type=float, default=0.0)
+    parser.add_argument("--motion-intensity", type=float, default=0.35)
+    parser.add_argument("--mouth-attack-ms", type=float, default=45.0)
+    parser.add_argument("--mouth-release-ms", type=float, default=140.0)
     return parser
 
 
@@ -54,6 +61,9 @@ def _read_pcm_envelope(audio_path: Path, *, fps: int, frame_count: int) -> list[
         if channels < 1 or sample_rate < 1:
             raise ValueError("audio must contain PCM samples")
         pcm = source.readframes(source.getnframes())
+        if sample_width == 1:
+            # WAV stores 8-bit PCM unsigned while audioop interprets it as signed.
+            pcm = audioop.bias(pcm, 1, -128)
 
     bytes_per_sample_frame = sample_width * channels
     envelope: list[float] = []
@@ -64,12 +74,59 @@ def _read_pcm_envelope(audio_path: Path, *, fps: int, frame_count: int) -> list[
         end = sample_end * bytes_per_sample_frame
         window = pcm[start:end]
         rms = audioop.rms(window, sample_width) if window else 0
-        # A soft noise gate avoids a permanently moving mouth while preserving
-        # normal speech dynamics. The value is deliberately renderer-owned and
-        # does not leak into the editorial or role contracts.
-        normalized = max(0.0, min(1.0, (rms - 180.0) / 5_500.0))
+        full_scale = float((1 << (sample_width * 8 - 1)) - 1)
+        amplitude = rms / full_scale
+        # Normalize every PCM width before applying the renderer-owned gate.
+        normalized = max(0.0, min(1.0, (amplitude - 0.006) / 0.168))
         envelope.append(normalized**0.72)
     return envelope
+
+
+def _smooth_envelope(
+    values: list[float],
+    *,
+    fps: int,
+    attack_ms: float,
+    release_ms: float,
+) -> list[float]:
+    if fps < 1 or attack_ms <= 0 or release_ms <= 0:
+        raise ValueError("mouth smoothing requires positive fps and time constants")
+    attack = 1.0 - math.exp(-1.0 / (fps * attack_ms / 1_000.0))
+    release = 1.0 - math.exp(-1.0 / (fps * release_ms / 1_000.0))
+    current = 0.0
+    smoothed: list[float] = []
+    for target in values:
+        coefficient = attack if target > current else release
+        current += (target - current) * coefficient
+        smoothed.append(max(0.0, min(1.0, current)))
+    return smoothed
+
+
+def _blink_openness(frame_index: int, *, fps: int) -> float:
+    """Deterministic blink state that remains active while a motion is playing."""
+
+    seconds = frame_index / fps
+    cycle = 3.4 + 0.35 * math.sin(math.floor(seconds / 3.4) * 1.618)
+    phase = seconds % cycle
+    if phase >= 0.19:
+        return 1.0
+    if phase < 0.065:
+        return max(0.0, 1.0 - phase / 0.065)
+    if phase < 0.105:
+        return 0.0
+    return min(1.0, (phase - 0.105) / 0.085)
+
+
+def _idle_pose(frame_index: int, *, fps: int, intensity: float) -> dict[str, float]:
+    seconds = frame_index / fps
+    return {
+        "PARAM_ANGLE_X": intensity * (3.4 * math.sin(seconds * 0.61)),
+        "PARAM_ANGLE_Y": intensity * (2.1 * math.sin(seconds * 0.43 + 0.8)),
+        "PARAM_ANGLE_Z": intensity * (1.2 * math.sin(seconds * 0.37 + 1.7)),
+        "PARAM_BODY_ANGLE_X": intensity * (1.4 * math.sin(seconds * 0.29 + 0.2)),
+        "PARAM_EYE_BALL_X": intensity * (0.28 * math.sin(seconds * 0.53 + 1.2)),
+        "PARAM_EYE_BALL_Y": intensity * (0.16 * math.sin(seconds * 0.41 + 2.0)),
+    }
 
 
 def _motion_group(model_data: dict[str, object], emotion: str) -> str | None:
@@ -84,6 +141,48 @@ def _motion_group(model_data: dict[str, object], emotion: str) -> str | None:
     return None
 
 
+def _motion_count(model_data: dict[str, object], group: str | None) -> int:
+    motions = model_data.get("motions")
+    if group is None or not isinstance(motions, dict):
+        return 0
+    entries = motions.get(group)
+    return len(entries) if isinstance(entries, list) else 0
+
+
+def _expression_name(model_data: dict[str, object], emotion: str) -> str | None:
+    expressions = model_data.get("expressions")
+    if not isinstance(expressions, list):
+        return None
+    names = [
+        item.get("name")
+        for item in expressions
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    ]
+    for candidate in (emotion, emotion.casefold(), "smile"):
+        if candidate in names:
+            return candidate
+    return None
+
+
+def _percentile(values: list[float], fraction: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = round((len(ordered) - 1) * fraction)
+    return float(ordered[index])
+
+
+def _successive(values: list[str]) -> Iterator[tuple[str, str]]:
+    iterator = iter(values)
+    try:
+        previous = next(iterator)
+    except StopIteration:
+        return
+    for current in iterator:
+        yield previous, current
+        previous = current
+
+
 def render(args: argparse.Namespace) -> None:
     if args.duration_ms < 1:
         raise ValueError("duration-ms must be positive")
@@ -93,6 +192,10 @@ def render(args: argparse.Namespace) -> None:
         raise ValueError("fps must be between 1 and 120")
     if not 0.05 <= args.scale <= 10:
         raise ValueError("scale must be between 0.05 and 10")
+    if not 0 <= args.motion_intensity <= 1:
+        raise ValueError("motion-intensity must be between 0 and 1")
+    if args.mouth_attack_ms <= 0 or args.mouth_release_ms <= 0:
+        raise ValueError("mouth smoothing values must be positive")
 
     model_path = _require_file(args.model, "model")
     audio_path = _require_file(args.audio, "audio")
@@ -101,7 +204,17 @@ def render(args: argparse.Namespace) -> None:
         raise ValueError("output must use the .webm extension")
     model_data = _validate_model(model_path)
     frame_count = max(1, round(args.duration_ms * args.fps / 1_000))
-    envelope = _read_pcm_envelope(audio_path, fps=args.fps, frame_count=frame_count)
+    raw_envelope = _read_pcm_envelope(
+        audio_path,
+        fps=args.fps,
+        frame_count=frame_count,
+    )
+    envelope = _smooth_envelope(
+        raw_envelope,
+        fps=args.fps,
+        attack_ms=args.mouth_attack_ms,
+        release_ms=args.mouth_release_ms,
+    )
 
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
     import av
@@ -158,12 +271,22 @@ def render(args: argparse.Namespace) -> None:
         model.Resize(args.width, args.height)
         model.SetScale(args.scale)
         model.SetOffset(args.offset_x, args.offset_y)
-        model.SetAutoBlinkEnable(True)
+        model.SetAutoBlinkEnable(False)
         model.SetAutoBreathEnable(True)
 
         group = _motion_group(model_data, args.emotion)
+        motion_count = _motion_count(model_data, group)
+        motion_index = 0
         if group is not None:
-            model.StartMotion(group, 0, 3)
+            model.StartMotion(group, motion_index, 3)
+        expression = _expression_name(model_data, args.emotion)
+        if expression is not None:
+            model.SetExpression(expression)
+        parameter_indexes = {
+            model.GetParameter(index).id: index
+            for index in range(model.GetParameterCount())
+        }
+        parameter_ids = set(parameter_indexes)
 
         container = av.open(os.fspath(output_path), mode="w", format="webm")
         stream = container.add_stream("libvpx-vp9", rate=args.fps)
@@ -172,11 +295,40 @@ def render(args: argparse.Namespace) -> None:
         stream.pix_fmt = "yuva420p"
         stream.options = {"lossless": "1", "auto-alt-ref": "0"}
         rendered_frames = 0
+        frame_hashes: list[str] = []
+        blink_events = 0
+        blink_active = False
+        motion_restarts = 0
+        mouth_deltas: list[float] = []
+        previous_mouth = 0.0
         for frame_index, mouth_open in enumerate(envelope):
             UtSystem.setUserTimeMSec(round(frame_index * 1_000 / args.fps))
             glClear(GL_COLOR_BUFFER_BIT)
             model.Update()
-            model.SetParameterValue("PARAM_MOUTH_OPEN_Y", mouth_open)
+            if group is not None and motion_count > 0 and model.IsMotionFinished():
+                motion_index = (motion_index + 1) % motion_count
+                model.StartMotion(group, motion_index, 3)
+                motion_restarts += 1
+            for parameter_id, value in _idle_pose(
+                frame_index,
+                fps=args.fps,
+                intensity=args.motion_intensity,
+            ).items():
+                if parameter_id in parameter_ids:
+                    model.AddParameterValue(parameter_id, value, 1.0)
+            blink = _blink_openness(frame_index, fps=args.fps)
+            now_blinking = blink < 0.999
+            if now_blinking and not blink_active:
+                blink_events += 1
+            blink_active = now_blinking
+            for eye_id in ("PARAM_EYE_L_OPEN", "PARAM_EYE_R_OPEN"):
+                if eye_id in parameter_ids:
+                    current = model.GetParameter(parameter_indexes[eye_id]).value
+                    model.SetParameterValue(eye_id, current * blink, 1.0)
+            if "PARAM_MOUTH_OPEN_Y" in parameter_ids:
+                model.SetParameterValue("PARAM_MOUTH_OPEN_Y", mouth_open, 1.0)
+            mouth_deltas.append(abs(mouth_open - previous_mouth))
+            previous_mouth = mouth_open
             model.Draw()
             glFinish()
             pixels = bytes(
@@ -198,6 +350,7 @@ def render(args: argparse.Namespace) -> None:
                 alpha = pixels[3::4]
                 if not alpha or min(alpha) == max(alpha):
                     raise RuntimeError("OpenGL capture did not preserve a varying alpha channel")
+            frame_hashes.append(hashlib.sha256(pixels).hexdigest())
             rgba = np.frombuffer(pixels, dtype=np.uint8).reshape(
                 args.height,
                 args.width,
@@ -216,6 +369,21 @@ def render(args: argparse.Namespace) -> None:
         container = None
         if not output_path.is_file() or output_path.stat().st_size == 0:
             raise RuntimeError("Live2D encoder did not create a non-empty output")
+        duplicate_pairs = sum(
+            previous == current
+            for previous, current in _successive(frame_hashes)
+        )
+        longest_duplicate_run = 0
+        current_duplicate_run = 0
+        for previous, current in _successive(frame_hashes):
+            if previous == current:
+                current_duplicate_run += 1
+                longest_duplicate_run = max(
+                    longest_duplicate_run,
+                    current_duplicate_run,
+                )
+            else:
+                current_duplicate_run = 0
         print(
             json.dumps(
                 {
@@ -223,6 +391,40 @@ def render(args: argparse.Namespace) -> None:
                     "envelope_frames": len(envelope),
                     "rendered_frames": rendered_frames,
                     "fps": args.fps,
+                    "time_delta_ms_min": math.floor(1_000 / args.fps),
+                    "time_delta_ms_max": math.ceil(1_000 / args.fps),
+                    "motion_group": group,
+                    "motion_restarts": motion_restarts,
+                    "expression": expression,
+                    "blink_events": blink_events,
+                    "mouth_min": min(envelope, default=0.0),
+                    "mouth_p50": statistics.median(envelope) if envelope else 0.0,
+                    "mouth_p95": _percentile(envelope, 0.95),
+                    "mouth_max": max(envelope, default=0.0),
+                    "mouth_max_delta": max(mouth_deltas, default=0.0),
+                    "voiced_frame_ratio": (
+                        sum(value > 0.02 for value in envelope) / len(envelope)
+                        if envelope
+                        else 0.0
+                    ),
+                    "exact_duplicate_pair_ratio": (
+                        duplicate_pairs / max(1, len(frame_hashes) - 1)
+                    ),
+                    "longest_exact_duplicate_run": longest_duplicate_run,
+                    "controlled_parameters": sorted(
+                        parameter_ids
+                        & {
+                            "PARAM_ANGLE_X",
+                            "PARAM_ANGLE_Y",
+                            "PARAM_ANGLE_Z",
+                            "PARAM_BODY_ANGLE_X",
+                            "PARAM_EYE_BALL_X",
+                            "PARAM_EYE_BALL_Y",
+                            "PARAM_EYE_L_OPEN",
+                            "PARAM_EYE_R_OPEN",
+                            "PARAM_MOUTH_OPEN_Y",
+                        }
+                    ),
                 },
                 separators=(",", ":"),
             )

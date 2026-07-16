@@ -103,7 +103,7 @@ pnpm --filter @god-news/video test
 
 ## 真实双比例端到端演示
 
-以下命令使用当前配置的 DeepSeek、GPT-SoVITS、DSakiko Cubism 2 角色和真实 Remotion 渲染器，生成一套约五分钟的 9:16 / 16:9 技术演示。演示新闻与五段原视频均由脚本本地生成并标记为自制素材，不会把权利未知的互联网内容伪装成可发布新闻：
+以下命令使用当前配置的 GPT-SoVITS、DSakiko Cubism 2 角色和真实 Remotion 渲染器，生成一套内容驱动的 9:16 / 16:9 技术演示。当前固定演示包含五条故事、一段有限长度源视频、真实图片与各故事独立的来源网页截图；总时长由实际 TTS、源视频和转场编译得出，不会循环素材或填充到虚假的目标时长。演示素材均为项目自制，不会把权利未知的互联网内容伪装成可发布新闻：
 
 ```powershell
 $env:GOD_NEWS_E2E_DSAKIKO_ROOT = "J:\path\to\DSakiko"
@@ -114,15 +114,33 @@ python scripts/run_e2e_video.py
 
 - 1080×1920 抖音 MP4；
 - 1920×1080 Bilibili MP4；
-- 开头、中段、片尾代表帧；
+- 每个故事开始、中间、结束以及所有转场、片头、片尾的代表帧和 contact sheet；
 - `artifact-report.json`，包含导演计划、口播/字幕、TTS 与 Live2D 哈希、源视频权利状态和双输出媒体信息。
 
 角色路径、模型、参考音频和密钥不会进入 Git。渲染子进程若以明确的 `FAILED` 状态结束，E2E 驱动最多执行一次有界重试；所有上游审核快照保持不变。
 
+## 模板实验室
+
+前端 `/template-lab` 使用与生产渲染相同的 Remotion Composition、模板快照、布局编译器和场景注册表。它可以切换 `world_warmth@1.0.0` 的语义场景、视觉变体、横竖屏 profile 与真实 fixture，并提供播放、逐帧、关键帧跳转、安全区/素材/主持人/字幕诊断层、可复现 URL 和 validated props 导出。
+
+```powershell
+pnpm --filter @god-news/frontend dev
+# 打开 http://127.0.0.1:5173/template-lab
+
+# Microsoft Edge 真实媒体、控制台与字幕溢出回归
+$env:GOD_NEWS_TEMPLATE_LAB_HOST_VIDEO = "I:\path\to\reviewed-live2d-host.webm"
+pnpm --dir frontend exec playwright test --project=desktop template-lab.visual.spec.ts
+```
+
+Template Lab 的 Live2D 预览必须提供真实预渲染 WebM；缺少媒体时会明确停止，不会画假主持人。角色 WebM 来自用户本地 Live2D 模型，因此被 Git 忽略，不随仓库重新分发；可在 URL 参数或页面输入框中提供本地开发服务器可访问的预渲染媒体。视觉回归会从 `GOD_NEWS_TEMPLATE_LAB_HOST_VIDEO` 将已审核文件临时复制到 public 目录，并在测试结束后删除；变量缺失时仅明确跳过两项主持人用例，其余真实媒体检查仍运行。页面中的截图和视觉回归操作会复制真实可执行命令，不伪造浏览器内截图能力。
+
+历史上未保存模板版本的旧批次仍可审计读取，但不会静默套用当前模板重新渲染。新生产批次必须冻结模板 ID、版本、能力、变体、布局与设计令牌。
+
 ## 当前运行边界
 
 - 四个真实内容源只有在对应凭据、用途授权和站点条款均确认后才会启用；离线演示不访问真实网络。
-- 视频批次、时间轴审阅、审核输入快照、严格类型的 `ProgramDirectorPlan` / `EpisodePlan`、审核通过的原始视频和真实 Remotion 双格式渲染已接入。节目导演只排列不可变的已审核故事、选择注册场景、决定已批准原视频是否在故事后插入，并为相邻故事生成显式串联段；确定性编译器负责节目脚本与时间轴。`GOD_NEWS_VIDEO_RENDERER_ENABLED=false` 仍是安全默认值。
+- 视频批次、时间轴审阅、审核输入快照、严格类型的 `ProgramDirectorPlan` / `EpisodePlan`、版本化模板、类型化视觉素材、审核通过的原始视频和真实 Remotion 双格式渲染已接入。节目导演只排列不可变的已审核故事、选择注册语义场景、决定已批准原视频是否在故事后插入，并为相邻故事生成显式串联段；模板与确定性编译器负责视觉变体、布局和时间轴。`GOD_NEWS_VIDEO_RENDERER_ENABLED=false` 仍是安全默认值。
 - DSakiko 兼容的 Cubism 2 Live2D 可选适配器会在最终批次 TTS 后，按每段最终 `speaker_id` 在一次性 OpenGL 子进程中生成透明 VP9 WebM。审核快照记录角色版本、模型树哈希、音频哈希和角色视频哈希；Remotion 不加载 Live2D SDK。启用前须配置 `GOD_NEWS_VIDEO_LIVE2D_PYTHON_EXECUTABLE` 与 `GOD_NEWS_VIDEO_LIVE2D_TRUSTED_ASSET_ROOTS`，模型文件不进入仓库。
+- 生产视频质量门需要功能完整的 FFmpeg（支持 `blackdetect` 与 `freezedetect`），通过 `GOD_NEWS_VIDEO_QUALITY_FFMPEG_COMMAND` 配置。Remotion 自带的裁剪版 FFmpeg 仍用于封装，但不会被误当作视觉质量分析器。
 - 已启用 TTS 的角色使用独立的权重对、七组情绪参考音频/文本与可选参考语言；合成器按段选择角色和情绪。为保护显存，不同权重永不并存，切换时会先终止旧本地子进程。
 - 固定内容源的网络采集节奏由后端强制：同一来源两次网络采集完成之间不少于 30 秒，全局最多两个采集请求并行。前端不提供频率设置；随仓库启动命令固定为单 worker，若未来部署多进程/多实例，须先替换为持久化租约适配器。

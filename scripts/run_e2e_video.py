@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import colorsys
 import hashlib
 import json
 import os
-import shutil
-import struct
 import sys
 import wave
-import zlib
-from collections.abc import Sequence
+from collections.abc import AsyncIterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -24,7 +20,9 @@ from god_news.container import AppContainer, build_container
 from god_news.domain.enums import (
     CaptionKind,
     ContentCategory,
+    ReviewDecision,
     SceneTransition,
+    SourceKind,
     SpeechEmotion,
     StoryStatus,
 )
@@ -33,15 +31,14 @@ from god_news.domain.models import (
     AudioClip,
     CaptionVariant,
     EditorialScreening,
-    FetchedDocument,
     ProductionManifest,
     ScriptDocument,
     ScriptPreferences,
     ScriptSegment,
+    SecondReviewSubmission,
     SourceSnapshot,
     Story,
     SynthesisMetadata,
-    TextSource,
     TimelineSegment,
     TranslationResult,
     utc_now,
@@ -69,6 +66,7 @@ from god_news.domain.video import (
     VideoRenderArtifact,
 )
 from god_news.domain.video_ports import ProgramDirector
+from god_news.domain.visual_assets import UploadSegmentVisualAssetRequest
 from god_news.infrastructure.llm.openai_compatible import (
     OpenAICompatibleProgramDirector,
     OpenAICompatibleTextGenerator,
@@ -79,6 +77,9 @@ from god_news.infrastructure.video_assets import LocalBgmCatalog
 from god_news.infrastructure.video_live2d import LocalLive2DHostRenderer
 from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
+from god_news.infrastructure.video_visual_assets import ApprovedVisualAssetLibrary
+from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
+from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
 from god_news.operations.models import (
     RoleKind,
     RoleProfile,
@@ -98,7 +99,6 @@ class DemoStorySpec:
     caption_text: str
     source_captions: tuple[tuple[str, str], ...]
     category: ContentCategory
-    hue: int
     tone_hz: int
 
 
@@ -117,7 +117,6 @@ DEMO_STORIES: tuple[DemoStorySpec, ...] = (
             ("Children open a new reading corner.", "孩子们迎来了新的阅读角。"),
         ),
         category=ContentCategory.KINDNESS,
-        hue=25,
         tone_hz=330,
     ),
     DemoStorySpec(
@@ -134,7 +133,6 @@ DEMO_STORIES: tuple[DemoStorySpec, ...] = (
             ("The turtle reaches the water on its own.", "海龟靠自己的力量回到海中。"),
         ),
         category=ContentCategory.CATS_DOGS,
-        hue=95,
         tone_hz=392,
     ),
     DemoStorySpec(
@@ -151,7 +149,6 @@ DEMO_STORIES: tuple[DemoStorySpec, ...] = (
             ("The classroom lights turn on with stored energy.", "教室用储存的能量点亮了灯。"),
         ),
         category=ContentCategory.KINDNESS,
-        hue=155,
         tone_hz=440,
     ),
     DemoStorySpec(
@@ -168,7 +165,6 @@ DEMO_STORIES: tuple[DemoStorySpec, ...] = (
             ("Anyone who needs food may take it freely.", "有需要的人都可以自由取用。"),
         ),
         category=ContentCategory.FORUM,
-        hue=215,
         tone_hz=494,
     ),
     DemoStorySpec(
@@ -185,7 +181,6 @@ DEMO_STORIES: tuple[DemoStorySpec, ...] = (
             ("The family arrives for a quiet reunion.", "家人赶来。小狗与他们温柔重逢。"),
         ),
         category=ContentCategory.SHORT_VIDEO,
-        hue=285,
         tone_hz=523,
     ),
 )
@@ -261,7 +256,11 @@ class RequiredDemoPolicyDirector:
                     "narration_module": (
                         EpisodeSceneModule.HOST_EVIDENCE
                         if index == 0
-                        else story.narration_module
+                        else (
+                            EpisodeSceneModule.EVIDENCE_FULLSCREEN
+                            if index == 1
+                            else story.narration_module
+                        )
                     ),
                     "source_video_placement": (
                         SourceVideoPlacement.AFTER_STORY
@@ -283,7 +282,7 @@ class RequiredDemoPolicyDirector:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate and verify one five-minute dual-profile god-news demonstration "
+            "Generate and verify one complete dual-profile god-news demonstration "
             "through the real program, TTS, Live2D, and Remotion boundaries."
         )
     )
@@ -295,9 +294,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--character", default="soyo")
     parser.add_argument("--speaker-id", default="dsakiko-soyo")
-    parser.add_argument("--source-duration-seconds", type=int, default=51)
+    parser.add_argument("--source-duration-seconds", type=int, default=18)
     parser.add_argument("--live2d-size", type=int, default=512)
-    parser.add_argument("--live2d-fps", type=int, default=15)
+    parser.add_argument("--live2d-fps", type=int, default=30)
     parser.add_argument("--render-timeout-seconds", type=float, default=7_200)
     parser.add_argument("--render-concurrency", type=int, default=8)
     parser.add_argument("--render-attempts", type=int, default=2)
@@ -373,145 +372,83 @@ async def generate_source_video(
     ffmpeg: Path,
     path: Path,
     duration_seconds: int,
-    hue: int,
+    image_path: Path,
+    screenshot_path: Path,
     tone_hz: int,
 ) -> None:
+    """Create one finite, project-owned documentary clip from reviewed rasters.
+
+    The two shots each have their own deterministic camera move and are joined
+    once. No short video is looped to manufacture duration.
+    """
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    seed_root = path.parent / f".{path.stem}-seed"
-    frames_root = seed_root / "frames"
-    seed_path = seed_root / "seed.mp4"
-    try:
-        await asyncio.to_thread(
-            generate_loop_frames,
-            frames_root,
-            hue,
-            30,
-            640,
-            360,
-        )
-        seed_root.mkdir(parents=True, exist_ok=True)
-        await run_process(
-            str(ffmpeg),
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-framerate",
-            "10",
-            "-start_number",
-            "0",
-            "-i",
-            str(frames_root / "frame-%03d.png"),
-            "-f",
-            "lavfi",
-            "-i",
-            f"sine=frequency={tone_hz}:sample_rate=48000:duration=3",
-            "-t",
-            "3",
-            "-af",
-            "volume=0.04",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "64k",
-            "-shortest",
-            str(seed_path),
-            cwd=path.parent,
-            timeout_seconds=300,
-        )
-        await run_process(
-            str(ffmpeg),
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-stream_loop",
-            "-1",
-            "-i",
-            str(seed_path),
-            "-t",
-            str(duration_seconds),
-            "-c",
-            "copy",
-            "-movflags",
-            "+faststart",
-            str(path),
-            cwd=path.parent,
-            timeout_seconds=max(300, duration_seconds * 10),
-        )
-    finally:
-        await asyncio.to_thread(shutil.rmtree, seed_root, True)
-
-
-def png_chunk(kind: bytes, payload: bytes) -> bytes:
-    return (
-        struct.pack(">I", len(payload))
-        + kind
-        + payload
-        + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    first_duration = duration_seconds / 2
+    second_duration = duration_seconds - first_duration
+    first_frames = max(1, round(first_duration * 30))
+    second_frames = max(1, round(second_duration * 30))
+    transition_duration = min(1.0, first_duration / 4, second_duration / 4)
+    transition_offset = first_duration - transition_duration
+    filter_graph = (
+        f"[0:v]scale=1280:720:force_original_aspect_ratio=increase,"
+        f"crop=1280:720,scale=w='trunc((1280+120*n/{first_frames})/2)*2':"
+        f"h='trunc((720+68*n/{first_frames})/2)*2':eval=frame,"
+        "crop=1280:720,fps=30,setpts=PTS-STARTPTS,setsar=1/1[v0];"
+        f"[1:v]scale=1280:720:force_original_aspect_ratio=increase,"
+        f"crop=1280:720,scale=w='trunc((1400-120*n/{second_frames})/2)*2':"
+        f"h='trunc((788-68*n/{second_frames})/2)*2':eval=frame,"
+        "crop=1280:720,fps=30,setpts=PTS-STARTPTS,setsar=1/1[v1];"
+        f"[v0][v1]xfade=transition=fade:duration={transition_duration:.3f}:"
+        f"offset={transition_offset:.3f}[video]"
     )
-
-
-def write_rgb_png(path: Path, width: int, height: int, pixels: bytes) -> None:
-    stride = width * 3
-    scanlines = b"".join(
-        b"\0" + pixels[offset : offset + stride]
-        for offset in range(0, len(pixels), stride)
+    await run_process(
+        str(ffmpeg),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-loop",
+        "1",
+        "-t",
+        f"{first_duration:.3f}",
+        "-i",
+        str(image_path),
+        "-loop",
+        "1",
+        "-t",
+        f"{second_duration:.3f}",
+        "-i",
+        str(screenshot_path),
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency={tone_hz}:sample_rate=48000:duration={duration_seconds}",
+        "-filter_complex",
+        filter_graph,
+        "-map",
+        "[video]",
+        "-map",
+        "2:a",
+        "-t",
+        str(duration_seconds),
+        "-af",
+        "volume=0.035",
+        "-c:v",
+        "h264_mf",
+        "-b:v",
+        "5M",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "96k",
+        "-movflags",
+        "+faststart",
+        str(path),
+        cwd=path.parent,
+        timeout_seconds=max(300, duration_seconds * 15),
     )
-    payload = (
-        b"\x89PNG\r\n\x1a\n"
-        + png_chunk(
-            b"IHDR",
-            struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0),
-        )
-        + png_chunk(b"IDAT", zlib.compress(scanlines, level=6))
-        + png_chunk(b"IEND", b"")
-    )
-    path.write_bytes(payload)
-
-
-def generate_loop_frames(
-    frames_root: Path,
-    hue: int,
-    frame_count: int,
-    width: int,
-    height: int,
-) -> None:
-    frames_root.mkdir(parents=True, exist_ok=False)
-    red, green, blue = (
-        round(channel * 255)
-        for channel in colorsys.hsv_to_rgb((hue % 360) / 360, 0.58, 0.52)
-    )
-    for frame in range(frame_count):
-        moving_x = round((width + 180) * frame / frame_count) - 90
-        pixels = bytearray(width * height * 3)
-        cursor = 0
-        for y in range(height):
-            row_light = round(22 * y / max(1, height - 1))
-            for x in range(width):
-                grid = 14 if (x // 48 + y // 48) % 2 == 0 else 0
-                glow = max(0, 60 - abs(x - moving_x))
-                pixels[cursor] = min(255, red + row_light + grid + glow)
-                pixels[cursor + 1] = min(
-                    255,
-                    green + row_light // 2 + grid + glow // 2,
-                )
-                pixels[cursor + 2] = min(255, blue + grid + glow // 3)
-                cursor += 3
-        write_rgb_png(
-            frames_root / f"frame-{frame:03d}.png",
-            width,
-            height,
-            bytes(pixels),
-        )
 
 
 def ensure_role_request(
@@ -591,13 +528,18 @@ def build_story(
     original_text = (
         f"{spec.original_text}\n\nE2E fixture instance: {content_instance_id}/{index + 1}."
     )
-    source = FetchedDocument.from_text(
-        TextSource(
-            text=original_text,
-            title=spec.title,
-            language="en",
-        )
-    ).source
+    source_url = (
+        f"https://example.com/god-news-demo/{content_instance_id}/{index + 1}"
+    )
+    source = SourceSnapshot(
+        kind=SourceKind.URL,
+        source_uri=source_url,
+        final_uri=source_url,
+        title=spec.title,
+        detected_language="en",
+        fetcher="self-authored-e2e-source",
+        content_sha256=hashlib.sha256(original_text.encode("utf-8")).hexdigest(),
+    )
     segment = ScriptSegment(
         sequence=0,
         spoken_text=spec.spoken_text,
@@ -654,7 +596,7 @@ def build_story(
         clips=[source_clip],
     )
     story = Story(
-        status=StoryStatus.DONE,
+        status=StoryStatus.PENDING_SECOND_REVIEW,
         title=spec.title,
         source=cast(SourceSnapshot, source),
         original_text=original_text,
@@ -714,6 +656,62 @@ def build_story(
     return story, manifest
 
 
+async def _file_body(path: Path) -> AsyncIterable[bytes]:
+    with path.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            yield chunk
+
+
+async def approve_story_visuals(
+    *,
+    container: AppContainer,
+    story: Story,
+    image_path: Path,
+    screenshot_path: Path,
+    include_editor_image: bool,
+) -> Story:
+    service = container.visual_assets
+    if service is None:
+        raise RuntimeError("Visual asset service is unavailable.")
+
+    screenshot = await service.register_source_screenshot(
+        story_id=story.story_id,
+        expected_story_version=story.version,
+        filename=screenshot_path.name,
+        declared_content_type="image/png",
+        body=_file_body(screenshot_path),
+    )
+    next_version = screenshot.story_version
+    if include_editor_image:
+        if story.script is None:
+            raise RuntimeError("E2E story script is unavailable for segment image review.")
+        uploaded = await service.upload_segment(
+            story_id=story.story_id,
+            segment_id=story.script.segments[0].segment_id,
+            request=UploadSegmentVisualAssetRequest(
+                expected_story_version=next_version,
+                expected_script_revision=story.script.revision,
+                filename=image_path.name,
+            ),
+            declared_content_type="image/png",
+            body=_file_body(image_path),
+        )
+        next_version = uploaded.story_version
+
+    return await container.workflow.submit_second_review(
+        story.story_id,
+        SecondReviewSubmission(
+            expected_story_version=next_version,
+            decision=ReviewDecision.APPROVE,
+            reviewer_id="e2e-visual-reviewer",
+            note=(
+                "Development-only approval of project-owned image and self-authored "
+                "source-page screenshot evidence."
+            ),
+        ),
+    )
+
+
 def timed_source_captions(
     spec: DemoStorySpec,
     duration_ms: int,
@@ -752,6 +750,8 @@ async def build_source_assets(
     source_root: Path,
     stories: Sequence[Story],
     duration_seconds: int,
+    image_path: Path,
+    screenshot_path: Path,
 ) -> list[SourceVideoRenderAsset]:
     semaphore = asyncio.Semaphore(2)
 
@@ -766,7 +766,8 @@ async def build_source_assets(
                 ffmpeg=ffmpeg,
                 path=path,
                 duration_seconds=duration_seconds,
-                hue=spec.hue,
+                image_path=image_path,
+                screenshot_path=screenshot_path,
                 tone_hz=spec.tone_hz,
             )
         probe = await inspector.inspect(path)
@@ -791,7 +792,7 @@ async def build_source_assets(
             in_ms=0,
             out_ms=probe.duration_ms,
             audio_mode=SourceVideoAudioMode.ORIGINAL,
-            source_label=f"Self-generated E2E fixture · {spec.title}",
+            source_label=f"Project-owned finite documentary clip · {spec.title}",
             captions=timed_source_captions(spec, probe.duration_ms),
         )
 
@@ -805,20 +806,76 @@ async def build_source_assets(
     )
 
 
-async def extract_representative_frames(
+def visual_review_times(batch: VideoBatch) -> list[tuple[str, float]]:
+    props = batch.remotion_props
+    if props is None or props.episode_plan is None:
+        raise RuntimeError("Visual review requires compiled Remotion props.")
+    segments = {
+        segment.segment_id: segment for segment in props.manifest.timeline
+    }
+    source_videos = {
+        asset.asset_id: asset for asset in props.source_videos
+    }
+    cursor_ms = props.intro_duration_ms
+    points: list[tuple[str, float]] = []
+    if props.intro_duration_ms > 0:
+        points.append(("intro", props.intro_duration_ms / 2_000))
+    for scene in props.episode_plan.scenes:
+        if scene.narration_segment_id is not None:
+            segment = segments[scene.narration_segment_id]
+            duration_ms = segment.end_ms - segment.start_ms
+        else:
+            if scene.source_video_asset_id is None:
+                raise RuntimeError("Visual review found a scene without media identity.")
+            asset = source_videos[scene.source_video_asset_id]
+            duration_ms = asset.out_ms - asset.in_ms
+        safe_margin = min(250, max(1, duration_ms // 10))
+        points.extend(
+            [
+                (f"scene-{scene.sequence:02d}-start", (cursor_ms + safe_margin) / 1_000),
+                (f"scene-{scene.sequence:02d}-middle", (cursor_ms + duration_ms / 2) / 1_000),
+                (
+                    f"scene-{scene.sequence:02d}-end",
+                    (cursor_ms + duration_ms - safe_margin) / 1_000,
+                ),
+            ]
+        )
+        cursor_ms += duration_ms
+        if props.transition_duration_ms > 0:
+            points.append(
+                (
+                    f"transition-{scene.sequence:02d}",
+                    (cursor_ms + props.transition_duration_ms / 2) / 1_000,
+                )
+            )
+            cursor_ms += props.transition_duration_ms
+    if props.outro_duration_ms > 0:
+        points.append(("outro", (cursor_ms + props.outro_duration_ms / 2) / 1_000))
+    # De-duplicate sub-frame-adjacent points while preserving semantic labels.
+    unique: list[tuple[str, float]] = []
+    for label, second in points:
+        if not unique or abs(unique[-1][1] - second) >= 1 / 30:
+            unique.append((label, second))
+    return unique
+
+
+async def extract_visual_review_evidence(
     *,
     ffmpeg: Path,
+    batch: VideoBatch,
     artifact: VideoRenderArtifact,
     frame_root: Path,
-) -> dict[str, list[str]]:
+) -> dict[str, dict[str, object]]:
     await asyncio.to_thread(frame_root.mkdir, parents=True, exist_ok=True)
-    result: dict[str, list[str]] = {}
+    review_points = visual_review_times(batch)
+    if len(review_points) < 20:
+        raise RuntimeError("Visual review plan must contain at least twenty samples.")
+    result: dict[str, dict[str, object]] = {}
     for output in artifact.outputs:
-        duration_seconds = output.duration_in_frames / output.fps
-        times = (1.0, duration_seconds / 2, max(1.0, duration_seconds - 1.0))
         paths: list[str] = []
-        for label, second in zip(("start", "middle", "end"), times, strict=True):
-            path = frame_root / f"{output.profile_id.value}-{label}.png"
+        samples: list[dict[str, object]] = []
+        for index, (label, second) in enumerate(review_points):
+            path = frame_root / f"{output.profile_id.value}-frame-{index:03d}.png"
             await run_process(
                 str(ffmpeg),
                 "-hide_banner",
@@ -836,7 +893,44 @@ async def extract_representative_frames(
                 timeout_seconds=120,
             )
             paths.append(str(path.resolve()))
-        result[output.profile_id.value] = paths
+            samples.append(
+                {
+                    "label": label,
+                    "time_seconds": round(second, 3),
+                    "path": str(path.resolve()),
+                }
+            )
+        columns = 5
+        rows = (len(paths) + columns - 1) // columns
+        contact_sheet = frame_root / f"{output.profile_id.value}-contact-sheet.png"
+        await run_process(
+            str(ffmpeg),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-framerate",
+            "1",
+            "-start_number",
+            "0",
+            "-i",
+            str(frame_root / f"{output.profile_id.value}-frame-%03d.png"),
+            "-vf",
+            (
+                "scale=320:180:force_original_aspect_ratio=decrease,"
+                "pad=320:180:(ow-iw)/2:(oh-ih)/2:color=0x101512,"
+                f"tile={columns}x{rows}:padding=4:margin=4"
+            ),
+            "-frames:v",
+            "1",
+            str(contact_sheet),
+            cwd=frame_root,
+            timeout_seconds=180,
+        )
+        result[output.profile_id.value] = {
+            "samples": samples,
+            "contact_sheet": str(contact_sheet.resolve()),
+        }
     return result
 
 
@@ -848,7 +942,7 @@ def build_report(
     batch: VideoBatch,
     artifact: VideoRenderArtifact,
     source_assets: Sequence[SourceVideoRenderAsset],
-    frame_paths: dict[str, list[str]],
+    frame_paths: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     narration = batch.narration
     remotion_props = batch.remotion_props
@@ -880,13 +974,22 @@ def build_report(
         "program_script": narration.script.model_dump(mode="json"),
         "program_audio": narration.audio.model_dump(mode="json"),
         "episode_plan": remotion_props.episode_plan.model_dump(mode="json"),
+        "template": (
+            remotion_props.template.model_dump(mode="json")
+            if remotion_props.template is not None
+            else None
+        ),
+        "visual_assets": [
+            asset.model_dump(mode="json") for asset in remotion_props.visual_assets
+        ],
         "source_assets": [
             {
                 **asset.model_dump(mode="json", exclude={"local_path"}),
                 "local_path": asset.local_path,
-                "creator": "god-news E2E fixture generator",
-                "rights_status": "self_generated_publishable_demo",
+                "creator": "god-news project-owned demo asset pipeline",
+                "rights_status": "project_owned_ai_assisted_demo",
                 "attribution_required": False,
+                "looped_source_video": False,
             }
             for asset in source_assets
         ],
@@ -895,7 +998,7 @@ def build_report(
             for asset in batch.visual_reservations.host_videos
         ],
         "render_artifact": artifact.model_dump(mode="json"),
-        "representative_frames": frame_paths,
+        "visual_review_evidence": frame_paths,
     }
 
 
@@ -906,8 +1009,8 @@ async def main() -> None:
             "--dsakiko-root or GOD_NEWS_E2E_DSAKIKO_ROOT is required for real Live2D/TTS."
         )
     dsakiko_root = args.dsakiko_root.expanduser().resolve(strict=True)
-    if args.source_duration_seconds < 45 or args.source_duration_seconds > 60:
-        raise SystemExit("--source-duration-seconds must stay between 45 and 60.")
+    if args.source_duration_seconds < 10 or args.source_duration_seconds > 30:
+        raise SystemExit("--source-duration-seconds must stay between 10 and 30.")
     if args.live2d_size % 2:
         raise SystemExit("--live2d-size must be even.")
     if args.render_attempts < 1 or args.render_attempts > 3:
@@ -921,12 +1024,33 @@ async def main() -> None:
     source_root = run_root / "source-videos"
     render_root = run_root / "renders"
     live2d_root = run_root / "live2d"
-    frame_root = run_root / "representative-frames"
+    frame_root = run_root / "visual-review"
     report_path = run_root / "artifact-report.json"
     source_audio = run_root / "source-story-evidence.wav"
     write_evidence_wav(source_audio)
+    image_path = (WORKSPACE / "assets" / "demo-owned" / "library-volunteers.png").resolve(
+        strict=True
+    )
+    screenshot_path = (
+        WORKSPACE / "assets" / "demo-owned" / "community-library-source.png"
+    ).resolve(strict=True)
+    story_screenshots = [
+        screenshot_path,
+        (WORKSPACE / "assets" / "demo-owned" / "turtle-release-source.png").resolve(
+            strict=True
+        ),
+        (
+            WORKSPACE / "assets" / "demo-owned" / "solar-classroom-source.png"
+        ).resolve(strict=True),
+        (
+            WORKSPACE / "assets" / "demo-owned" / "community-fridge-source.png"
+        ).resolve(strict=True),
+        (
+            WORKSPACE / "assets" / "demo-owned" / "lost-dog-reunion-source.png"
+        ).resolve(strict=True),
+    ]
 
-    ffmpeg = discover_compositor_binary(WORKSPACE, "ffmpeg")
+    ffmpeg = (dsakiko_root / "GPT_SoVITS" / "ffmpeg.exe").resolve(strict=True)
     ffprobe = discover_compositor_binary(WORKSPACE, "ffprobe")
     inspector = FFprobeSourceVideoInspector(ffprobe, timeout_seconds=60)
 
@@ -944,24 +1068,36 @@ async def main() -> None:
         stories: list[Story] = []
         manifests: dict[UUID, ProductionManifest] = {}
         for index, spec in enumerate(DEMO_STORIES):
-            story, manifest = build_story(
+            story, _fixture_manifest = build_story(
                 spec=spec,
                 speaker_id=role.speaker_id,
                 source_audio=source_audio,
                 index=index,
                 content_instance_id=run_id,
             )
-            stories.append(story)
-            manifests[story.story_id] = manifest
-        for story in stories:
-            await container.repository.create(story)
+            created = await container.repository.create(story)
+            approved = await approve_story_visuals(
+                container=container,
+                story=created,
+                image_path=image_path,
+                screenshot_path=story_screenshots[index],
+                # Only the library story has an editor-selected photograph.
+                # The other stories use their own reviewed source-page capture.
+                include_editor_image=index == 0,
+            )
+            stories.append(approved)
+            manifests[approved.story_id] = await container.workflow.production_manifest(
+                approved.story_id
+            )
 
         source_assets = await build_source_assets(
             ffmpeg=ffmpeg,
             inspector=inspector,
             source_root=source_root,
-            stories=stories,
+            stories=stories[:1],
             duration_seconds=args.source_duration_seconds,
+            image_path=image_path,
+            screenshot_path=screenshot_path,
         )
         if not isinstance(container.generator, OpenAICompatibleTextGenerator):
             raise RuntimeError("A configured OpenAI-compatible LLM is required.")
@@ -985,9 +1121,19 @@ async def main() -> None:
             package_dir=settings.video_remotion_package_dir,
             output_dir=render_root,
             node_command=settings.video_node_command,
+            quality_ffmpeg_command=ffmpeg,
             timeout_seconds=args.render_timeout_seconds,
             max_parallel_batches=1,
             concurrency=args.render_concurrency,
+        )
+        visual_repository = SqlAlchemyVisualAssetRepository(
+            container.database.sessions,
+            storage_root=settings.visual_asset_root,
+        )
+        visual_store = LocalVisualAssetStore(
+            settings.visual_asset_root,
+            max_upload_bytes=settings.visual_asset_max_upload_bytes,
+            max_pixels=settings.visual_asset_max_pixels,
         )
         service = VideoBatchService(
             story_pool=FixtureStoryPool(stories, manifests),
@@ -998,13 +1144,17 @@ async def main() -> None:
             video_renderer=renderer,
             bgm_catalog=LocalBgmCatalog(run_root / "bgm"),
             source_video_library=FixtureSourceVideoLibrary(source_assets),
+            visual_asset_library=ApprovedVisualAssetLibrary(
+                repository=visual_repository,
+                store=visual_store,
+            ),
             audio_root=settings.output_dir,
         )
 
         batch = await service.create(
             CreateVideoBatch(
                 title=args.title,
-                subtitle="日语本地口播 · 中文字幕 · 自制原视频素材",
+                subtitle="日语本地口播 · 中文字幕 · 已审核项目自有视觉素材",
                 story_ids=[story.story_id for story in stories],
                 max_stories=len(stories),
             )
@@ -1039,10 +1189,10 @@ async def main() -> None:
                 else len(batch.remotion_props.episode_plan.scenes) - 1
             )
         )
-        if not 285_000 <= expected_duration_ms <= 315_000:
+        if not 45_000 <= expected_duration_ms <= 180_000:
             raise RuntimeError(
                 f"Compiled E2E duration {expected_duration_ms / 1000:.2f}s "
-                "is outside the required five-minute acceptance window."
+                "is outside the evidence-backed complete-program acceptance window."
             )
         batch = await service.submit_timeline_review(
             batch.batch_id,
@@ -1088,8 +1238,9 @@ async def main() -> None:
                 raise RuntimeError(
                     f"Rendered profile failed media verification: {output.profile_id.value}"
                 )
-        frames = await extract_representative_frames(
+        frames = await extract_visual_review_evidence(
             ffmpeg=ffmpeg,
+            batch=batch,
             artifact=batch.artifact,
             frame_root=frame_root,
         )

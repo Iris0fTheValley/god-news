@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -21,6 +22,7 @@ from god_news.domain.video import (
     VideoOutputProfile,
     VideoRenderArtifact,
     VideoRenderOutput,
+    VideoVisualQualityDiagnostics,
 )
 from god_news.infrastructure.processes import (
     attach_kill_on_close_job,
@@ -48,6 +50,7 @@ class LocalRemotionBatchVideoRenderer:
         package_dir: Path,
         output_dir: Path,
         node_command: str,
+        quality_ffmpeg_command: str | Path | None = None,
         timeout_seconds: float,
         max_parallel_batches: int,
         concurrency: int,
@@ -58,6 +61,10 @@ class LocalRemotionBatchVideoRenderer:
         self._tsx_cli = self._package_dir / "node_modules" / "tsx" / "dist" / "cli.mjs"
         self._render_script = self._package_dir / "scripts" / "render.ts"
         self._ffprobe = self._discover_ffprobe(self._package_dir.parent)
+        self._ffmpeg = self._resolve_optional_command(
+            quality_ffmpeg_command,
+            default="ffmpeg",
+        )
         self._timeout_seconds = timeout_seconds
         self._batch_slots = asyncio.Semaphore(max_parallel_batches)
         self._concurrency = concurrency
@@ -76,6 +83,8 @@ class LocalRemotionBatchVideoRenderer:
             return f"Remotion package files are missing: {', '.join(missing)}"
         if self._ffprobe is None:
             return "Remotion's bundled ffprobe executable was not found."
+        if self._ffmpeg is None:
+            return "Remotion's bundled ffmpeg executable was not found."
         return None
 
     async def cleanup_interrupted(self, batch_ids: Sequence[UUID]) -> int:
@@ -119,6 +128,7 @@ class LocalRemotionBatchVideoRenderer:
         readiness_error = self.readiness_error()
         if readiness_error is not None:
             raise VideoRendererUnavailableError(readiness_error)
+        self._validate_release_snapshot(props, input_assets)
 
         batch_root = self._trusted_batch_root(batch_id)
         if batch_root is None or (batch_root.exists() and not batch_root.is_dir()):
@@ -227,6 +237,10 @@ class LocalRemotionBatchVideoRenderer:
             asset.model_copy(update={"local_path": staged_path(asset.local_path)})
             for asset in props.source_videos
         ]
+        visual_assets = [
+            asset.model_copy(update={"local_path": staged_path(asset.local_path)})
+            for asset in props.visual_assets
+        ]
         visual_reservations = props.visual_reservations.model_copy(
             update={
                 "host_videos": [
@@ -240,9 +254,43 @@ class LocalRemotionBatchVideoRenderer:
                 "manifest": manifest,
                 "bgm": bgm,
                 "source_videos": source_videos,
+                "visual_assets": visual_assets,
                 "visual_reservations": visual_reservations,
             }
         )
+
+    @staticmethod
+    def _validate_release_snapshot(
+        props: RemotionVideoProps,
+        input_assets: Sequence[VideoInputAsset],
+    ) -> None:
+        if props.template is None:
+            return
+        serialized = props.model_dump_json().casefold()
+        banned_markers = (
+            "image goes here",
+            "evidence placeholder",
+            "reviewed evidence slot",
+            "swappable asset renderer",
+            "host slot / swappable",
+            "test pattern",
+            "test-pattern",
+            "color bars",
+            "stream_loop",
+        )
+        if any(marker in serialized for marker in banned_markers):
+            raise VideoRenderingError(
+                "Versioned production render contains a prohibited placeholder marker.",
+                retryable=False,
+            )
+        prohibited_parts = {"tests", "fixtures", "__fixtures__"}
+        for asset in input_assets:
+            parts = {part.casefold() for part in Path(asset.local_path).parts}
+            if parts.intersection(prohibited_parts):
+                raise VideoRenderingError(
+                    "Versioned production render references a test or fixture directory.",
+                    retryable=False,
+                )
 
     @staticmethod
     def _copy_verified_input(
@@ -323,7 +371,33 @@ class LocalRemotionBatchVideoRenderer:
         probed_fps = self._parse_fps(video.get("r_frame_rate"))
         if probed_fps != profile.fps:
             raise VideoRenderingError("Rendered frame rate does not match the output profile.")
+        expected_duration = duration_in_frames / profile.fps
+        actual_duration = self._parse_duration(probe["format"].get("duration"))
+        if abs(actual_duration - expected_duration) > max(0.15, 2 / profile.fps):
+            raise VideoRenderingError(
+                "Rendered container duration does not match the compiled timeline.",
+                retryable=False,
+            )
+        audio_duration = self._parse_duration(audio.get("duration"))
+        if abs(audio_duration - actual_duration) > 0.35:
+            raise VideoRenderingError(
+                "Rendered audio duration does not match the video container.",
+                retryable=False,
+            )
 
+        visual_quality = await self._inspect_visual_quality(
+            output_path,
+            duration_seconds=actual_duration,
+        )
+        visual_quality = visual_quality.model_copy(
+            update={
+                "expected_duration_seconds": expected_duration,
+                "container_duration_seconds": actual_duration,
+                "audio_duration_seconds": audio_duration,
+                "duration_delta_seconds": abs(actual_duration - expected_duration),
+                "gate_version": "1.1",
+            }
+        )
         size_bytes, digest = await asyncio.to_thread(self._file_evidence, output_path)
         return VideoRenderOutput(
             profile_id=profile.profile_id,
@@ -336,6 +410,76 @@ class LocalRemotionBatchVideoRenderer:
             duration_in_frames=duration_in_frames,
             video_codec=str(video["codec_name"]),
             audio_codec=str(audio["codec_name"]),
+            visual_quality=visual_quality,
+        )
+
+    async def _inspect_visual_quality(
+        self,
+        output_path: Path,
+        *,
+        duration_seconds: float,
+    ) -> VideoVisualQualityDiagnostics:
+        assert self._ffmpeg is not None
+        diagnostic = await self._run_diagnostic(
+            [
+                str(self._ffmpeg),
+                "-hide_banner",
+                "-nostats",
+                "-i",
+                str(output_path),
+                "-vf",
+                "blackdetect=d=0.75:pix_th=0.03,freezedetect=n=-50dB:d=1.5",
+                "-an",
+                "-f",
+                "null",
+                os.devnull,
+            ],
+            cwd=self._package_dir,
+        )
+        black_durations = [
+            float(match)
+            for match in re.findall(
+                r"black_duration:([0-9]+(?:\.[0-9]+)?)",
+                diagnostic,
+            )
+        ]
+        freeze_starts = [
+            float(match)
+            for match in re.findall(
+                r"freeze_start: ([0-9]+(?:\.[0-9]+)?)",
+                diagnostic,
+            )
+        ]
+        freeze_ends = [
+            float(match)
+            for match in re.findall(
+                r"freeze_end: ([0-9]+(?:\.[0-9]+)?)",
+                diagnostic,
+            )
+        ]
+        freeze_durations = [
+            max(0.0, end - start)
+            for start, end in zip(freeze_starts, freeze_ends, strict=False)
+        ]
+        if len(freeze_starts) > len(freeze_ends):
+            freeze_durations.append(max(0.0, duration_seconds - freeze_starts[-1]))
+        longest_black = max(black_durations, default=0.0)
+        longest_freeze = max(freeze_durations, default=0.0)
+        if longest_black > 1.25:
+            raise VideoRenderingError(
+                "Rendered output failed the black-frame quality gate.",
+                retryable=False,
+            )
+        if longest_freeze > 4.0:
+            raise VideoRenderingError(
+                "Rendered output failed the long-freeze quality gate.",
+                retryable=False,
+            )
+        return VideoVisualQualityDiagnostics(
+            black_segment_count=len(black_durations),
+            longest_black_duration_seconds=longest_black,
+            freeze_segment_count=len(freeze_durations),
+            longest_freeze_duration_seconds=longest_freeze,
         )
 
     async def _probe(self, output_path: Path) -> dict[str, dict[str, Any]]:
@@ -346,7 +490,10 @@ class LocalRemotionBatchVideoRenderer:
                 "-v",
                 "error",
                 "-show_entries",
-                "stream=codec_type,codec_name,width,height,r_frame_rate",
+                (
+                    "format=duration:"
+                    "stream=codec_type,codec_name,width,height,r_frame_rate,duration"
+                ),
                 "-of",
                 "json",
                 str(output_path),
@@ -356,6 +503,7 @@ class LocalRemotionBatchVideoRenderer:
         try:
             payload = json.loads(stdout)
             streams = payload["streams"]
+            format_payload = payload["format"]
             video = next(stream for stream in streams if stream.get("codec_type") == "video")
             audio = next(stream for stream in streams if stream.get("codec_type") == "audio")
         except (json.JSONDecodeError, KeyError, StopIteration, TypeError) as exc:
@@ -363,7 +511,23 @@ class LocalRemotionBatchVideoRenderer:
                 "Rendered MP4 is missing a decodable video or audio stream.",
                 retryable=False,
             ) from exc
-        return {"video": video, "audio": audio}
+        return {"video": video, "audio": audio, "format": format_payload}
+
+    @staticmethod
+    def _parse_duration(value: Any) -> float:
+        try:
+            duration = float(value)
+        except (TypeError, ValueError) as exc:
+            raise VideoRenderingError(
+                "Rendered media is missing a finite duration.",
+                retryable=False,
+            ) from exc
+        if not math.isfinite(duration) or duration <= 0:
+            raise VideoRenderingError(
+                "Rendered media has an invalid duration.",
+                retryable=False,
+            )
+        return duration
 
     async def _run(self, command: list[str], *, cwd: Path) -> str:
         creationflags = 0
@@ -403,6 +567,32 @@ class LocalRemotionBatchVideoRenderer:
                 f"Local media worker exited with code {process.returncode}."
             )
         return stdout.decode("utf-8", errors="strict")
+
+    async def _run_diagnostic(self, command: list[str], *, cwd: Path) -> str:
+        creationflags = 0x08000000 | 0x00000200 if os.name == "nt" else 0
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(cwd),
+            env=sanitized_subprocess_env(),
+            creationflags=creationflags,
+        )
+        job_handle = await asyncio.to_thread(attach_kill_on_close_job, process.pid)
+        try:
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=self._timeout_seconds,
+                )
+            except (TimeoutError, asyncio.CancelledError):
+                await asyncio.shield(terminate_process_tree(process))
+                raise
+        finally:
+            await asyncio.to_thread(close_kill_on_close_job, job_handle)
+        if process.returncode != 0:
+            raise VideoRenderingError("Video visual quality inspection failed.")
+        return (stdout + b"\n" + stderr).decode("utf-8", errors="replace")
 
     def _sanitized_worker_diagnostic(self, stderr: bytes) -> str:
         text = stderr.decode("utf-8", errors="replace")
@@ -492,3 +682,17 @@ class LocalRemotionBatchVideoRenderer:
             if path.is_file()
         )
         return matches[-1] if matches else None
+
+    @staticmethod
+    def _resolve_optional_command(
+        command: str | Path | None,
+        *,
+        default: str,
+    ) -> Path | None:
+        candidate = command if command is not None else default
+        path = Path(candidate).expanduser()
+        if path.is_absolute():
+            resolved = path.resolve(strict=False)
+            return resolved if resolved.is_file() else None
+        discovered = shutil.which(str(candidate))
+        return Path(discovered).resolve() if discovered is not None else None

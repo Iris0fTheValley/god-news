@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "project-owned-source.mp4",
+  "creator": "god-news project",
+  "created_at": "2026-07-16",
+  "sha256": "ca018f09ca47e76658309a0f10d1a34161419f857408097721c00af473673a80",
+  "duration_seconds": 18.0,
+  "width": 1280,
+  "height": 720,
+  "frame_rate": 30,
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "rights_status": "project_owned_ai_generated_demo_derivative",
+  "publishable": true,
+  "attribution_required": false,
+  "source_assets": [
+    "assets/demo-owned/library-volunteers.png",
+    "assets/demo-owned/community-library-source.png"
+  ],
+  "representation": "Finite project-owned demonstration clip; not footage of a real reported event.",
+  "looped": false
+}

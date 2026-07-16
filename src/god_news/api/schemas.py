@@ -13,15 +13,19 @@ from god_news.domain.video import (
     BatchNarrationFailure,
     BatchNarrationSourceEvidence,
     EpisodePlan,
+    Live2DRenderDiagnostics,
     NarrationReview,
     ProgramDirectorPlan,
     SourceVideoAudioMode,
+    TemplateDefinition,
     TimelineReview,
     VideoBatchStatus,
     VideoOutputProfile,
     VideoOutputProfileId,
     VideoRenderFailure,
     VideoTheme,
+    VideoVisualQualityDiagnostics,
+    VisualAssetType,
 )
 
 
@@ -51,6 +55,7 @@ class PublicVideoRenderOutput(ApiModel):
     duration_in_frames: int
     video_codec: str
     audio_codec: str
+    visual_quality: VideoVisualQualityDiagnostics | None = None
 
 
 class PublicVideoRenderArtifact(ApiModel):
@@ -163,6 +168,7 @@ class PublicRenderedHostVideo(ApiModel):
     height: int
     fps: int
     video_codec: str
+    diagnostics: Live2DRenderDiagnostics | None = None
 
 
 class PublicHostVisualReservations(ApiModel):
@@ -202,6 +208,22 @@ class PublicSourceVideoRenderAsset(ApiModel):
     captions: list[TimedCaptionCue]
 
 
+class PublicVisualRenderAsset(ApiModel):
+    asset_id: UUID
+    story_id: UUID
+    segment_id: UUID | None = None
+    asset_type: VisualAssetType
+    content_type: str
+    filename: str
+    local_path: str = Field(exclude=True)
+    sha256: str
+    size_bytes: int
+    width: int
+    height: int
+    source_label: str
+    source_url: str | None = None
+
+
 class PublicRemotionVideoProps(ApiModel):
     manifest: PublicProductionManifest
     title: str
@@ -214,6 +236,8 @@ class PublicRemotionVideoProps(ApiModel):
     visual_reservations: PublicHostVisualReservations
     episode_plan: EpisodePlan | None = None
     source_videos: list[PublicSourceVideoRenderAsset]
+    visual_assets: list[PublicVisualRenderAsset]
+    template: TemplateDefinition | None = None
     output_profiles: list[VideoOutputProfile]
 
 
@@ -227,6 +251,7 @@ class PublicVideoBatchStory(ApiModel):
     script_sha256: str
     source_manifest: PublicProductionManifest
     source_manifest_sha256: str
+    visual_assets: list[PublicVisualRenderAsset]
     reserved_at: datetime
     used_at: datetime | None = None
 
@@ -236,6 +261,7 @@ class PublicVideoBatch(ApiModel):
     status: VideoBatchStatus
     title: str
     subtitle: str | None = None
+    template: TemplateDefinition | None = None
     stories: list[PublicVideoBatchStory]
     narration: PublicBatchNarrationArtifact
     bgm: PublicBgmSelection | None = None

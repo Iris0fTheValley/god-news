@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "library-volunteers-low-res.png",
+  "canonical_project_asset": "assets/demo-owned/library-volunteers-low-res.png",
+  "sha256": "ec02cf09cabfb33c4356f42679f49abad1fd8c85ebca7e8399ebc103b55df051",
+  "width": 320,
+  "height": 180,
+  "rights_status": "project_owned_ai_generated_demo_derivative",
+  "publishable": true,
+  "attribution_required": false
+}

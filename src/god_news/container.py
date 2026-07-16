@@ -71,6 +71,7 @@ from god_news.infrastructure.video_live2d import LocalLive2DHostRenderer
 from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
 from god_news.infrastructure.video_source_assets import ApprovedSourceVideoAssetLibrary
+from god_news.infrastructure.video_visual_assets import ApprovedVisualAssetLibrary
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
 from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
 from god_news.operations.retention import (
@@ -427,14 +428,15 @@ async def build_container(settings: Settings) -> AppContainer:
         source_normalizer=source_normalizers,
         voice_resolver=role_profiles,
     )
+    visual_asset_store = LocalVisualAssetStore(
+        settings.visual_asset_root,
+        max_upload_bytes=settings.visual_asset_max_upload_bytes,
+        max_pixels=settings.visual_asset_max_pixels,
+    )
     visual_assets = VisualAssetService(
         stories=repository,
         repository=visual_asset_repository,
-        store=LocalVisualAssetStore(
-            settings.visual_asset_root,
-            max_upload_bytes=settings.visual_asset_max_upload_bytes,
-            max_pixels=settings.visual_asset_max_pixels,
-        ),
+        store=visual_asset_store,
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
     ffprobe = FFprobeSourceVideoInspector.discover(settings.video_remotion_package_dir.parent)
@@ -511,6 +513,7 @@ async def build_container(settings: Settings) -> AppContainer:
             package_dir=settings.video_remotion_package_dir,
             output_dir=settings.video_render_root,
             node_command=settings.video_node_command,
+            quality_ffmpeg_command=settings.video_quality_ffmpeg_command,
             timeout_seconds=settings.video_render_timeout_seconds,
             max_parallel_batches=settings.video_render_max_parallel_batches,
             concurrency=settings.video_render_concurrency,
@@ -539,6 +542,10 @@ async def build_container(settings: Settings) -> AppContainer:
             width=settings.video_live2d_width,
             height=settings.video_live2d_height,
             fps=settings.video_live2d_fps,
+            motion_intensity=settings.video_live2d_motion_intensity,
+            mouth_attack_ms=settings.video_live2d_mouth_attack_ms,
+            mouth_release_ms=settings.video_live2d_mouth_release_ms,
+            max_exact_duplicate_ratio=settings.video_live2d_max_exact_duplicate_ratio,
         )
     else:
         host_renderer = PlaceholderHostRenderer()
@@ -554,6 +561,10 @@ async def build_container(settings: Settings) -> AppContainer:
             media_repository=source_media_repository,
             transcription_repository=source_transcription_repository,
             media_reader=source_media,
+        ),
+        visual_asset_library=ApprovedVisualAssetLibrary(
+            repository=visual_asset_repository,
+            store=visual_asset_store,
         ),
         audio_root=settings.output_dir,
         candidate_scan_limit=settings.video_candidate_scan_limit,

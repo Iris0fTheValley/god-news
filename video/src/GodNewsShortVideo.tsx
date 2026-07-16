@@ -4,13 +4,12 @@ import {sourceForBrowser} from './browser-assets';
 import {buildRenderPlan} from './render-plan';
 import type {GodNewsVideoProps} from './schema';
 import {renderEpisodeScene} from './scenes/SceneRegistry';
-import {ClosingCard} from './scenes/ClosingCard';
-import {TitleCard} from './scenes/TitleCard';
-import {TransitionScene} from './scenes/TransitionScene';
+import {resolveProgramPresentation} from './templates/presentation-registry';
 
 export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
   const {fps} = useVideoConfig();
   const plan = buildRenderPlan(props, fps);
+  const presentation = resolveProgramPresentation(props);
   const segmentCount = props.manifest.timeline.length;
   const bgmSource = sourceForBrowser(
     props.runtime_assets.bgm_src ?? props.bgm?.local_path,
@@ -27,10 +26,10 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
               durationInFrames={track.durationInFrames}
               name="Program title"
             >
-              <TitleCard
+              <presentation.Intro
                 title={props.title}
-                subtitle={props.subtitle}
                 theme={props.theme}
+                {...(props.subtitle ? {subtitle: props.subtitle} : {})}
               />
             </Sequence>
           );
@@ -43,11 +42,7 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
               durationInFrames={track.durationInFrames}
               name={`${track.transition_type} transition`}
             >
-              <TransitionScene
-                type={track.transition_type}
-                theme={props.theme}
-                durationInFrames={track.durationInFrames}
-              />
+              <presentation.Transition track={track} theme={props.theme} />
             </Sequence>
           );
         }
@@ -59,7 +54,7 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
               durationInFrames={track.durationInFrames}
               name="Program closing"
             >
-              <ClosingCard
+              <presentation.Outro
                 title={props.title}
                 theme={props.theme}
               />

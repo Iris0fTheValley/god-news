@@ -1,147 +1,105 @@
 import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 
-import type {SceneTrack} from '../render-plan';
-import type {GodNewsVideoProps} from '../schema';
-
-const fontFamily =
-  'Inter, "Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC", sans-serif';
-const monoFamily = '"IBM Plex Mono", Consolas, monospace';
+import {compileSceneLayout, rectStyle} from '../layout/compile-layout';
+import {CaptionRenderer} from '../shared/CaptionRenderer';
+import {SourceAttribution} from '../shared/SourceAttribution';
+import {
+  resolveSceneVisuals,
+  VisualAssetRenderer,
+} from '../shared/VisualAssetRenderer';
+import type {EpisodeSceneRendererProps} from './types';
 
 export const EvidenceFullscreenScene = ({
   props,
   track,
-  segmentCount,
-}: {
-  props: GodNewsVideoProps;
-  track: SceneTrack;
-  segmentCount: number;
-}) => {
+}: EpisodeSceneRendererProps) => {
   if (track.kind !== 'segment') {
     throw new Error('evidence_fullscreen requires a narration segment track');
   }
   const frame = useCurrentFrame();
   const {width, height} = useVideoConfig();
   const horizontal = width > height;
-  const {segment} = track;
-  const reveal = interpolate(frame, [0, 10], [0.96, 1], {
+  const template = props.template;
+  if (!template) throw new Error('evidence_fullscreen requires a versioned template.');
+  const tokens = template.design_tokens;
+  const layout = compileSceneLayout(props, track.scene);
+  const assets = resolveSceneVisuals(props, track.scene.visual_asset_ids);
+  const primary =
+    assets.find(
+      (asset) => asset.asset_id === track.scene.primary_visual_asset_id,
+    ) ?? assets[0];
+  if (!primary) {
+    throw new Error('evidence_fullscreen requires reviewed visual evidence.');
+  }
+  const reveal = interpolate(frame, [0, 16], [0.985, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const caption =
-    segment.captions.find((item) => item.kind === 'translation')?.text ??
-    segment.spoken_text;
 
   return (
     <AbsoluteFill
+      data-scene-module="evidence_fullscreen"
+      data-scene-variant={layout.variant.variant_id}
       style={{
-        background: `radial-gradient(circle at 50% 20%, ${props.theme.accent}24, transparent 45%), ${props.theme.background}`,
-        color: props.theme.foreground,
-        fontFamily,
-        padding: horizontal ? '44px 64px 48px' : '72px 58px 94px',
+        backgroundColor: tokens.background,
+        color: tokens.foreground,
+        fontFamily: tokens.body_font_family,
+        overflow: 'hidden',
       }}
     >
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          color: props.theme.accent,
-          fontFamily: monoFamily,
-          fontSize: horizontal ? 18 : 22,
-          letterSpacing: 2,
-        }}
-      >
-        <span>GOD NEWS / SOURCE EVIDENCE</span>
-        <span>
-          {String(segment.sequence + 1).padStart(2, '0')} /{' '}
-          {String(segmentCount).padStart(2, '0')}
-        </span>
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          marginTop: horizontal ? 26 : 38,
-          border: `2px solid ${props.theme.accent}66`,
-          borderRadius: horizontal ? 34 : 30,
-          overflow: 'hidden',
-          position: 'relative',
+          position: 'absolute',
+          ...rectStyle(layout.media),
           transform: `scale(${reveal})`,
-          background:
-            'linear-gradient(145deg, rgba(133,167,125,0.16), rgba(0,0,0,0.18))',
-          boxShadow: `0 28px 90px ${props.theme.background}`,
+          transformOrigin: 'center',
         }}
       >
-        <AbsoluteFill
-          style={{
-            justifyContent: 'center',
-            padding: horizontal ? '70px 92px' : '78px 62px',
-          }}
-        >
-          <div
-            style={{
-              color: props.theme.signal,
-              fontFamily: monoFamily,
-              fontSize: horizontal ? 20 : 23,
-              letterSpacing: 3,
-            }}
-          >
-            REVIEWED EVIDENCE SLOT / SWAPPABLE ASSET RENDERER
-          </div>
-          <div
-            style={{
-              color: '#d7ded3',
-              fontSize: horizontal ? 48 : 46,
-              lineHeight: 1.35,
-              marginTop: horizontal ? 30 : 38,
-              maxWidth: horizontal ? 1500 : 870,
-            }}
-          >
-            {segment.visual_hint ?? 'Use the reviewed source evidence for this story.'}
-          </div>
-          <div
-            style={{
-              color: '#a8b4a8',
-              fontFamily: monoFamily,
-              fontSize: horizontal ? 16 : 19,
-              letterSpacing: 1.5,
-              marginTop: 34,
-            }}
-          >
-            HOST HIDDEN / SPEAKER {segment.speaker_id} / EMOTION {segment.emotion}
-          </div>
-        </AbsoluteFill>
-      </div>
-
-      <div
-        style={{
-          borderTop: `1px solid ${props.theme.accent}55`,
-          fontSize: horizontal ? 38 : 48,
-          fontWeight: 650,
-          lineHeight: 1.32,
-          marginTop: horizontal ? 26 : 36,
-          paddingTop: horizontal ? 20 : 26,
-          textAlign: 'center',
-          textWrap: 'balance',
-        }}
-      >
-        {caption}
+        <VisualAssetRenderer
+          props={props}
+          asset={primary}
+          layout={layout}
+          variant="framed"
+        />
       </div>
       <div
         style={{
-          backgroundColor: '#2d342e',
-          borderRadius: 999,
-          height: 5,
-          marginTop: horizontal ? 20 : 26,
-          overflow: 'hidden',
+          position: 'absolute',
+          ...rectStyle(layout.source),
+          alignItems: 'center',
+          display: 'flex',
+          paddingInline: tokens.spacing_unit * 2,
         }}
       >
-        <div
-          style={{
-            backgroundColor: props.theme.signal,
-            height: '100%',
-            width: `${Math.min(100, (frame / track.durationInFrames) * 100)}%`,
-          }}
+        <SourceAttribution
+          asset={primary}
+          color={tokens.accent}
+          fontFamily={tokens.mono_font_family}
+          presetId={template.source_bar_preset}
+        />
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          ...rectStyle(layout.caption),
+          alignItems: 'center',
+          display: 'flex',
+          justifyContent: 'center',
+          paddingInline: tokens.spacing_unit * 2,
+        }}
+      >
+        <CaptionRenderer
+          segment={track.segment}
+          fontSize={Math.round(
+            (horizontal ? 39 : 49) * tokens.caption_scale,
+          )}
+          maxLines={tokens.caption_max_lines}
+          color={tokens.foreground}
+          fontFamily={tokens.caption_font_family}
+          fontWeight={tokens.caption_weight}
+          lineHeight={tokens.line_height}
+          presetId={template.caption_preset}
+          charactersPerLine={horizontal ? 28 : 16}
         />
       </div>
     </AbsoluteFill>

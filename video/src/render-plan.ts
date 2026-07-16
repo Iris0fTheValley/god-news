@@ -92,6 +92,7 @@ export const buildRenderPlan = (
       host_enter: index === 0,
       host_exit: index === props.manifest.timeline.length - 1,
       transition_type: segment.scene_transition,
+      visual_asset_ids: [],
     }),
   );
 

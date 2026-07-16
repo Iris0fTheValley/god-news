@@ -12,7 +12,11 @@ from typing import Protocol
 from uuid import UUID
 
 from god_news.domain.models import AudioBundle, AudioClip, ScriptDocument, ScriptSegment
-from god_news.domain.video import HostVisualReservations, RenderedHostVideo
+from god_news.domain.video import (
+    HostVisualReservations,
+    Live2DRenderDiagnostics,
+    RenderedHostVideo,
+)
 from god_news.infrastructure.processes import (
     attach_kill_on_close_job,
     close_kill_on_close_job,
@@ -50,6 +54,10 @@ class LocalLive2DHostRenderer:
         width: int,
         height: int,
         fps: int,
+        motion_intensity: float = 0.35,
+        mouth_attack_ms: float = 45,
+        mouth_release_ms: float = 140,
+        max_exact_duplicate_ratio: float = 0.15,
     ) -> None:
         self._profiles = profiles
         self._python = self._resolve_executable(python_executable, "Live2D Python")
@@ -71,6 +79,10 @@ class LocalLive2DHostRenderer:
         self._width = width
         self._height = height
         self._fps = fps
+        self._motion_intensity = motion_intensity
+        self._mouth_attack_ms = mouth_attack_ms
+        self._mouth_release_ms = mouth_release_ms
+        self._max_exact_duplicate_ratio = max_exact_duplicate_ratio
 
     @property
     def name(self) -> str:
@@ -143,7 +155,7 @@ class LocalLive2DHostRenderer:
             temporary = output.with_name(f"{output.stem}.partial.webm")
             await asyncio.to_thread(temporary.unlink, missing_ok=True)
             try:
-                await self._run_worker(
+                diagnostics = await self._run_worker(
                     model_path=model_path,
                     audio_path=audio_path,
                     output_path=temporary,
@@ -183,6 +195,7 @@ class LocalLive2DHostRenderer:
                 height=self._height,
                 fps=self._fps,
                 video_codec="vp9",
+                diagnostics=diagnostics,
             )
 
     async def _run_worker(
@@ -193,7 +206,7 @@ class LocalLive2DHostRenderer:
         output_path: Path,
         duration_ms: int,
         emotion: str,
-    ) -> None:
+    ) -> Live2DRenderDiagnostics:
         command = [
             self._python,
             str(self._worker),
@@ -213,6 +226,12 @@ class LocalLive2DHostRenderer:
             str(self._height),
             "--fps",
             str(self._fps),
+            "--motion-intensity",
+            str(self._motion_intensity),
+            "--mouth-attack-ms",
+            str(self._mouth_attack_ms),
+            "--mouth-release-ms",
+            str(self._mouth_release_ms),
         ]
         creationflags = 0x08000000 | 0x00000200 if os.name == "nt" else 0
         process = await asyncio.create_subprocess_exec(
@@ -245,20 +264,45 @@ class LocalLive2DHostRenderer:
             raise VideoNarrationSynthesisError(
                 f"Live2D worker exited with code {process.returncode}: {detail}"
             )
+        return self._validate_worker_diagnostics(stdout, duration_ms=duration_ms)
+
+    def _validate_worker_diagnostics(
+        self,
+        stdout: bytes,
+        *,
+        duration_ms: int,
+    ) -> Live2DRenderDiagnostics:
         try:
-            diagnostic = json.loads(stdout.decode("utf-8", errors="strict").strip())
+            payload = json.loads(stdout.decode("utf-8", errors="strict").strip())
+            diagnostic = Live2DRenderDiagnostics.model_validate(payload)
             expected_frames = max(1, round(duration_ms * self._fps / 1_000))
-            if (
-                diagnostic.get("frames") != expected_frames
-                or diagnostic.get("rendered_frames") != expected_frames
-                or diagnostic.get("fps") != self._fps
-            ):
+            if diagnostic.frames != expected_frames or diagnostic.fps != self._fps:
                 raise ValueError
+            if diagnostic.exact_duplicate_pair_ratio > self._max_exact_duplicate_ratio:
+                raise VideoNarrationSynthesisError(
+                    "Live2D worker produced too many exact duplicate frames.",
+                    retryable=False,
+                )
+            if diagnostic.longest_exact_duplicate_run > max(2, self._fps // 4):
+                raise VideoNarrationSynthesisError(
+                    "Live2D worker produced a frozen frame run.",
+                    retryable=False,
+                )
+            eye_parameters = {
+                "PARAM_EYE_L_OPEN",
+                "PARAM_EYE_R_OPEN",
+            }.intersection(diagnostic.controlled_parameters)
+            if duration_ms >= 4_000 and eye_parameters and diagnostic.blink_events < 1:
+                raise VideoNarrationSynthesisError(
+                    "Live2D worker did not produce a blink during a long host segment.",
+                    retryable=False,
+                )
         except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, ValueError) as exc:
             raise VideoNarrationSynthesisError(
-                "Live2D worker returned an invalid frame-count diagnostic.",
+                "Live2D worker returned an invalid continuity diagnostic.",
                 retryable=False,
             ) from exc
+        return diagnostic
 
     def _resolve_model_path(self, reference: str) -> Path:
         candidate = Path(reference).expanduser()

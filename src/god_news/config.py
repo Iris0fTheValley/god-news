@@ -113,6 +113,7 @@ class Settings(BaseSettings):
     video_remotion_package_dir: Path = Path("./video")
     video_render_output_dir: Path | None = None
     video_node_command: str = "node"
+    video_quality_ffmpeg_command: str | None = None
     video_render_timeout_seconds: float = Field(default=3_600, gt=0, le=14_400)
     video_render_max_parallel_batches: int = Field(default=1, ge=1, le=4)
     video_render_concurrency: int = Field(default=2, ge=1, le=8)
@@ -126,6 +127,10 @@ class Settings(BaseSettings):
     video_live2d_width: int = Field(default=720, ge=256, le=2_048, multiple_of=2)
     video_live2d_height: int = Field(default=720, ge=256, le=2_048, multiple_of=2)
     video_live2d_fps: int = Field(default=30, ge=1, le=60)
+    video_live2d_motion_intensity: float = Field(default=0.35, ge=0, le=1)
+    video_live2d_mouth_attack_ms: float = Field(default=45, gt=0, le=500)
+    video_live2d_mouth_release_ms: float = Field(default=140, gt=0, le=1_000)
+    video_live2d_max_exact_duplicate_ratio: float = Field(default=0.15, ge=0, le=1)
     retention_media_days: int = Field(default=7, ge=1, le=3_650)
     retention_uploaded_mp4_days: int = Field(default=3, ge=1, le=3_650)
     retention_media_extensions: tuple[str, ...] = (

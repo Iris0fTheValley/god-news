@@ -1216,6 +1216,17 @@ export interface components {
             story_ids?: string[];
             /** Subtitle */
             subtitle?: string | null;
+            template?: components["schemas"]["TemplateDefinition"] | null;
+            /**
+             * Template Id
+             * @default world_warmth
+             */
+            template_id: string;
+            /**
+             * Template Version
+             * @default 1.0.0
+             */
+            template_version: string;
             /** Title */
             title: string;
         };
@@ -1234,6 +1245,149 @@ export interface components {
             source: "dazhong";
             /** Tags */
             tags?: string[];
+        };
+        /** DesignTokens */
+        DesignTokens: {
+            /**
+             * Accent
+             * @default #85a77d
+             */
+            accent: string;
+            /**
+             * Animation Easing
+             * @default ease-out
+             */
+            animation_easing: string;
+            /**
+             * Animation Speed
+             * @default 1
+             */
+            animation_speed: number;
+            /**
+             * Background
+             * @default #101512
+             */
+            background: string;
+            /**
+             * Body Font Family
+             * @default Inter, "Noto Sans CJK SC", sans-serif
+             */
+            body_font_family: string;
+            /**
+             * Body Scale
+             * @default 1
+             */
+            body_scale: number;
+            /**
+             * Body Weight
+             * @default 500
+             */
+            body_weight: number;
+            /**
+             * Border Width
+             * @default 2
+             */
+            border_width: number;
+            /**
+             * Caption Font Family
+             * @default Inter, "Noto Sans CJK SC", sans-serif
+             */
+            caption_font_family: string;
+            /**
+             * Caption Max Lines
+             * @default 2
+             */
+            caption_max_lines: number;
+            /**
+             * Caption Scale
+             * @default 1
+             */
+            caption_scale: number;
+            /**
+             * Caption Weight
+             * @default 650
+             */
+            caption_weight: number;
+            /**
+             * Corner Radius
+             * @default 30
+             */
+            corner_radius: number;
+            /**
+             * Font Family
+             * @default Inter, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif
+             */
+            font_family: string;
+            /**
+             * Foreground
+             * @default #f3f1e8
+             */
+            foreground: string;
+            /**
+             * Image Zoom Max
+             * @default 1.04
+             */
+            image_zoom_max: number;
+            /**
+             * Image Zoom Min
+             * @default 1
+             */
+            image_zoom_min: number;
+            /**
+             * Line Height
+             * @default 1.32
+             */
+            line_height: number;
+            /**
+             * Mono Font Family
+             * @default "IBM Plex Mono", Consolas, monospace
+             */
+            mono_font_family: string;
+            /**
+             * Muted
+             * @default #a8b4a8
+             */
+            muted: string;
+            /**
+             * Panel
+             * @default #182019
+             */
+            panel: string;
+            /**
+             * Panel Opacity
+             * @default 0.88
+             */
+            panel_opacity: number;
+            /**
+             * Shadow Blur
+             * @default 48
+             */
+            shadow_blur: number;
+            /**
+             * Signal
+             * @default #e4a853
+             */
+            signal: string;
+            /**
+             * Spacing Unit
+             * @default 8
+             */
+            spacing_unit: number;
+            /**
+             * Title Font Family
+             * @default Inter, "Noto Sans CJK SC", sans-serif
+             */
+            title_font_family: string;
+            /**
+             * Title Scale
+             * @default 1
+             */
+            title_scale: number;
+            /**
+             * Title Weight
+             * @default 760
+             */
+            title_weight: number;
         };
         /**
          * DifferentialArtAsset
@@ -1331,6 +1485,8 @@ export interface components {
             module_id: components["schemas"]["EpisodeSceneModule"];
             /** Narration Segment Id */
             narration_segment_id?: string | null;
+            /** Primary Visual Asset Id */
+            primary_visual_asset_id?: string | null;
             /**
              * Scene Id
              * Format: uuid
@@ -1344,6 +1500,10 @@ export interface components {
             speaker_id?: string | null;
             /** @default black */
             transition_type: components["schemas"]["SceneTransition"];
+            /** Variant Id */
+            variant_id?: string | null;
+            /** Visual Asset Ids */
+            visual_asset_ids?: string[];
         };
         /**
          * EpisodeSceneModule
@@ -1476,6 +1636,54 @@ export interface components {
              */
             target_language: string;
         };
+        /** LayoutPreset */
+        LayoutPreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Profiles */
+            profiles: components["schemas"]["OutputProfileLayout"][];
+        };
+        /** Live2DRenderDiagnostics */
+        Live2DRenderDiagnostics: {
+            /** Blink Events */
+            blink_events: number;
+            /** Controlled Parameters */
+            controlled_parameters?: string[];
+            /** Envelope Frames */
+            envelope_frames: number;
+            /** Exact Duplicate Pair Ratio */
+            exact_duplicate_pair_ratio: number;
+            /** Expression */
+            expression?: string | null;
+            /** Fps */
+            fps: number;
+            /** Frames */
+            frames: number;
+            /** Longest Exact Duplicate Run */
+            longest_exact_duplicate_run: number;
+            /** Motion Group */
+            motion_group?: string | null;
+            /** Motion Restarts */
+            motion_restarts: number;
+            /** Mouth Max */
+            mouth_max: number;
+            /** Mouth Max Delta */
+            mouth_max_delta: number;
+            /** Mouth Min */
+            mouth_min: number;
+            /** Mouth P50 */
+            mouth_p50: number;
+            /** Mouth P95 */
+            mouth_p95: number;
+            /** Rendered Frames */
+            rendered_frames: number;
+            /** Time Delta Ms Max */
+            time_delta_ms_max: number;
+            /** Time Delta Ms Min */
+            time_delta_ms_min: number;
+            /** Voiced Frame Ratio */
+            voiced_frame_ratio: number;
+        };
         /** Liveness */
         Liveness: {
             /**
@@ -1591,6 +1799,30 @@ export interface components {
          * @enum {string}
          */
         OperationRunStatus: "running" | "succeeded" | "failed";
+        /** OutputProfileLayout */
+        OutputProfileLayout: {
+            /** Caption Max Width */
+            caption_max_width: number;
+            /** Host Corner Width */
+            host_corner_width: number;
+            /** Host Primary Width */
+            host_primary_width: number;
+            /**
+             * Media Fit
+             * @default cover
+             * @enum {string}
+             */
+            media_fit: "contain" | "cover";
+            profile_id: components["schemas"]["VideoOutputProfileId"];
+            /** Safe Area Bottom */
+            safe_area_bottom: number;
+            /** Safe Area Left */
+            safe_area_left: number;
+            /** Safe Area Right */
+            safe_area_right: number;
+            /** Safe Area Top */
+            safe_area_top: number;
+        };
         /** PikabuImageBlock */
         PikabuImageBlock: {
             /** Alt Text */
@@ -1924,11 +2156,14 @@ export interface components {
             source_videos: components["schemas"]["PublicSourceVideoRenderAsset"][];
             /** Subtitle */
             subtitle?: string | null;
+            template?: components["schemas"]["TemplateDefinition"] | null;
             theme: components["schemas"]["VideoTheme"];
             /** Title */
             title: string;
             /** Transition Duration Ms */
             transition_duration_ms: number;
+            /** Visual Assets */
+            visual_assets: components["schemas"]["PublicVisualRenderAsset"][];
             visual_reservations: components["schemas"]["PublicHostVisualReservations"];
         };
         /** PublicRenderedHostVideo */
@@ -1940,6 +2175,7 @@ export interface components {
             asset_id: string;
             /** Audio Sha256 */
             audio_sha256: string;
+            diagnostics?: components["schemas"]["Live2DRenderDiagnostics"] | null;
             /** Duration Ms */
             duration_ms: number;
             /** Fps */
@@ -2067,6 +2303,7 @@ export interface components {
             stories: components["schemas"]["PublicVideoBatchStory"][];
             /** Subtitle */
             subtitle?: string | null;
+            template?: components["schemas"]["TemplateDefinition"] | null;
             timeline_review?: components["schemas"]["TimelineReview"] | null;
             /** Title */
             title: string;
@@ -2107,6 +2344,8 @@ export interface components {
             title: string;
             /** Used At */
             used_at?: string | null;
+            /** Visual Assets */
+            visual_assets: components["schemas"]["PublicVisualRenderAsset"][];
         };
         /** PublicVideoInputAsset */
         PublicVideoInputAsset: {
@@ -2146,6 +2385,39 @@ export interface components {
             size_bytes: number;
             /** Video Codec */
             video_codec: string;
+            visual_quality?: components["schemas"]["VideoVisualQualityDiagnostics"] | null;
+            /** Width */
+            width: number;
+        };
+        /** PublicVisualRenderAsset */
+        PublicVisualRenderAsset: {
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id: string;
+            asset_type: components["schemas"]["VisualAssetType"];
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+            /** Height */
+            height: number;
+            /** Segment Id */
+            segment_id?: string | null;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Source Label */
+            source_label: string;
+            /** Source Url */
+            source_url?: string | null;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
             /** Width */
             width: number;
         };
@@ -2951,6 +3223,30 @@ export interface components {
          * @enum {string}
          */
         SceneTransition: "black" | "crossfade" | "slide" | "wipe" | "mood_shift";
+        /** SceneVariantDefinition */
+        SceneVariantDefinition: {
+            /** Asset Requirements */
+            asset_requirements?: components["schemas"]["TemplateAssetRequirement"][];
+            /** Display Name */
+            display_name: string;
+            /**
+             * Maximum Visual Assets
+             * @default 12
+             */
+            maximum_visual_assets: number;
+            /**
+             * Minimum Visual Assets
+             * @default 0
+             */
+            minimum_visual_assets: number;
+            module_id: components["schemas"]["EpisodeSceneModule"];
+            /** Supported Host Slots */
+            supported_host_slots?: components["schemas"]["EpisodeHostSlot"][];
+            /** Supported Profiles */
+            supported_profiles: components["schemas"]["VideoOutputProfileId"][];
+            /** Variant Id */
+            variant_id: string;
+        };
         /** ScheduleSnapshot */
         ScheduleSnapshot: {
             /** Enabled */
@@ -3741,6 +4037,79 @@ export interface components {
             /** Expected Story Version */
             expected_story_version: number;
         };
+        /** TemplateAssetRequirement */
+        TemplateAssetRequirement: {
+            asset_type: components["schemas"]["VisualAssetType"];
+            /**
+             * Maximum
+             * @default 1
+             */
+            maximum: number;
+            /**
+             * Minimum
+             * @default 1
+             */
+            minimum: number;
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+        };
+        /** TemplateCapabilities */
+        TemplateCapabilities: {
+            /** Supported Modules */
+            supported_modules: components["schemas"]["EpisodeSceneModule"][];
+            /** Supported Profiles */
+            supported_profiles: components["schemas"]["VideoOutputProfileId"][];
+            /**
+             * Supports Bilingual Captions
+             * @default true
+             */
+            supports_bilingual_captions: boolean;
+            /**
+             * Supports Live2D
+             * @default true
+             */
+            supports_live2d: boolean;
+            /**
+             * Supports Source Attribution
+             * @default true
+             */
+            supports_source_attribution: boolean;
+        };
+        /** TemplateDefinition */
+        TemplateDefinition: {
+            capabilities: components["schemas"]["TemplateCapabilities"];
+            /** Caption Preset */
+            caption_preset: string;
+            /** Default Scene Variants */
+            default_scene_variants: {
+                [key: string]: string;
+            };
+            design_tokens: components["schemas"]["DesignTokens"];
+            /** Display Name */
+            display_name: string;
+            /** Host Preset */
+            host_preset: string;
+            /** Intro Variant */
+            intro_variant: string;
+            layout_preset: components["schemas"]["LayoutPreset"];
+            /** Outro Variant */
+            outro_variant: string;
+            /** Scene Variants */
+            scene_variants: components["schemas"]["SceneVariantDefinition"][];
+            /** Source Bar Preset */
+            source_bar_preset: string;
+            /** Static Asset Requirements */
+            static_asset_requirements?: string[];
+            /** Template Id */
+            template_id: string;
+            /** Template Version */
+            template_version: string;
+            /** Transition Pack */
+            transition_pack: string;
+        };
         /** TextSource */
         TextSource: {
             /**
@@ -3991,6 +4360,31 @@ export interface components {
              */
             signal: string;
         };
+        /** VideoVisualQualityDiagnostics */
+        VideoVisualQualityDiagnostics: {
+            /** Audio Duration Seconds */
+            audio_duration_seconds?: number | null;
+            /** Black Segment Count */
+            black_segment_count: number;
+            /** Container Duration Seconds */
+            container_duration_seconds?: number | null;
+            /** Duration Delta Seconds */
+            duration_delta_seconds?: number | null;
+            /** Expected Duration Seconds */
+            expected_duration_seconds?: number | null;
+            /** Freeze Segment Count */
+            freeze_segment_count: number;
+            /**
+             * Gate Version
+             * @default 1.0
+             * @enum {string}
+             */
+            gate_version: "1.0" | "1.1";
+            /** Longest Black Duration Seconds */
+            longest_black_duration_seconds: number;
+            /** Longest Freeze Duration Seconds */
+            longest_freeze_duration_seconds: number;
+        };
         /**
          * VisualAsset
          * @description Public, stable reference to a stored raster asset.
@@ -4044,6 +4438,11 @@ export interface components {
          * @enum {string}
          */
         VisualAssetOrigin: "editor_upload" | "source_page_screenshot";
+        /**
+         * VisualAssetType
+         * @enum {string}
+         */
+        VisualAssetType: "image" | "source_screenshot" | "web_evidence" | "source_video" | "map" | "chart" | "document" | "host_video" | "background_video" | "decorative_overlay";
     };
     responses: never;
     parameters: never;

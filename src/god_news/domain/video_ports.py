@@ -19,6 +19,7 @@ from god_news.domain.video import (
     VideoBatchStory,
     VideoInputAsset,
     VideoRenderArtifact,
+    VisualRenderAsset,
 )
 
 
@@ -39,8 +40,9 @@ class StoryManifestPool(Protocol):
 class HostRenderer(Protocol):
     """Replaceable visual-host preparation boundary.
 
-    The current implementation returns a placeholder plan. Future Live2D and
-    differential-art adapters can populate their typed reservations without
+    Disabled deployments may return an explicit empty reservation, while the
+    production Live2D adapter populates immutable per-segment media and
+    diagnostics. Future host renderers can use the same typed boundary without
     changing batch selection, review, persistence, or render orchestration.
     """
 
@@ -96,6 +98,15 @@ class SourceVideoAssetLibrary(Protocol):
         self,
         story_ids: Sequence[UUID],
     ) -> Sequence[SourceVideoRenderAsset]: ...
+
+
+class VisualAssetLibrary(Protocol):
+    """Resolve only current, revision-bound raster evidence for batch snapshots."""
+
+    async def approved_for_stories(
+        self,
+        stories: Sequence[Story],
+    ) -> dict[UUID, Sequence[VisualRenderAsset]]: ...
 
 
 class BatchVideoRenderer(Protocol):

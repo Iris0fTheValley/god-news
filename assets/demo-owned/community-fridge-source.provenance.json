@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "community-fridge-source.png",
+  "creator": "god-news project",
+  "created_at": "2026-07-16",
+  "sha256": "1d35218de94b7c13af121d6eeed0216a0e96897e60be46a611b571c0b5085055",
+  "width": 1280,
+  "height": 1371,
+  "rights_status": "project_owned_source_page_capture",
+  "publishable": true,
+  "attribution_required": false,
+  "canonical_source": "community-fridge-source.html",
+  "capture_method": "Playwright with locally installed Microsoft Edge, full-page screenshot",
+  "representation": "Screenshot of a self-authored demonstration article and SVG illustration; not an external publication or real reported event."
+}

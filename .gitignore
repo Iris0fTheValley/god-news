@@ -22,6 +22,8 @@ node_modules/
 frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
+frontend/public/template-lab/host-*.webm
+frontend/public/template-lab/e2e-host.webm
 video/dist/
 .pnpm-store/
 .pnpm-*.log
