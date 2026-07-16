@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "library-volunteers-low-res.png",
+  "derived_from": "library-volunteers.png",
+  "creator": "god-news project",
+  "created_at": "2026-07-16",
+  "sha256": "ec02cf09cabfb33c4356f42679f49abad1fd8c85ebca7e8399ebc103b55df051",
+  "width": 320,
+  "height": 180,
+  "rights_status": "project_owned_ai_generated_demo_derivative",
+  "publishable": true,
+  "attribution_required": false,
+  "transformation": "Lanczos-compatible FFmpeg downscale and letterbox to 320x180.",
+  "representation": "Low-resolution stress-test derivative; not a photograph of a real reported event."
+}

@@ -10,6 +10,12 @@ importers:
 
   frontend:
     dependencies:
+      '@god-news/video':
+        specifier: workspace:*
+        version: link:../video
+      '@remotion/player':
+        specifier: 4.0.487
+        version: 4.0.487(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-query':
         specifier: 5.101.2
         version: 5.101.2(react@19.2.7)

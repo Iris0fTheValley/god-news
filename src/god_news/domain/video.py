@@ -28,6 +28,12 @@ from god_news.domain.source_transcription import (
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
+TemplateId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,63}$")]
+TemplateVersion = Annotated[
+    str,
+    StringConstraints(pattern=r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$"),
+]
+SceneVariantId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,63}$")]
 
 
 def _canonical_sha256(value: object) -> str:
@@ -136,6 +142,8 @@ class VideoInputAssetKind(StrEnum):
     BGM = "bgm"
     HOST_VIDEO = "host_video"
     SOURCE_VIDEO = "source_video"
+    IMAGE = "image"
+    SOURCE_SCREENSHOT = "source_screenshot"
 
 
 class VideoInputAsset(DomainModel):
@@ -157,6 +165,50 @@ class VideoTheme(DomainModel):
     foreground: HexColor = "#f3f1e8"
     accent: HexColor = "#85a77d"
     signal: HexColor = "#e4a853"
+
+
+class VisualAssetType(StrEnum):
+    IMAGE = "image"
+    SOURCE_SCREENSHOT = "source_screenshot"
+    WEB_EVIDENCE = "web_evidence"
+    SOURCE_VIDEO = "source_video"
+    MAP = "map"
+    CHART = "chart"
+    DOCUMENT = "document"
+    HOST_VIDEO = "host_video"
+    BACKGROUND_VIDEO = "background_video"
+    DECORATIVE_OVERLAY = "decorative_overlay"
+
+
+class VisualRenderAsset(DomainModel):
+    """Immutable reviewed raster evidence consumed by semantic scenes."""
+
+    asset_id: UUID
+    story_id: UUID
+    segment_id: UUID | None = None
+    asset_type: VisualAssetType
+    content_type: NonBlankStr
+    filename: NonBlankStr
+    local_path: NonBlankStr
+    sha256: Sha256
+    size_bytes: int = Field(gt=0)
+    width: int = Field(gt=0, le=16_384)
+    height: int = Field(gt=0, le=16_384)
+    source_label: NonBlankStr
+    source_url: str | None = None
+
+    @field_validator("local_path")
+    @classmethod
+    def require_local_path(cls, value: str) -> str:
+        return _require_local_path(value)
+
+    @model_validator(mode="after")
+    def validate_binding(self) -> VisualRenderAsset:
+        if self.asset_type is VisualAssetType.IMAGE and self.segment_id is None:
+            raise ValueError("editor images must bind to a narration segment")
+        if self.asset_type is VisualAssetType.SOURCE_SCREENSHOT and self.segment_id is not None:
+            raise ValueError("source screenshots are story-level evidence")
+        return self
 
 
 class Live2DReservation(DomainModel):
@@ -191,6 +243,43 @@ class DifferentialArtReservation(DomainModel):
         return _require_local_path(value)
 
 
+class Live2DRenderDiagnostics(DomainModel):
+    frames: int = Field(gt=0)
+    envelope_frames: int = Field(gt=0)
+    rendered_frames: int = Field(gt=0)
+    fps: int = Field(ge=1, le=120)
+    time_delta_ms_min: int = Field(gt=0)
+    time_delta_ms_max: int = Field(gt=0)
+    motion_group: str | None = None
+    motion_restarts: int = Field(ge=0)
+    expression: str | None = None
+    blink_events: int = Field(ge=0)
+    mouth_min: float = Field(ge=0, le=1)
+    mouth_p50: float = Field(ge=0, le=1)
+    mouth_p95: float = Field(ge=0, le=1)
+    mouth_max: float = Field(ge=0, le=1)
+    mouth_max_delta: float = Field(ge=0, le=1)
+    voiced_frame_ratio: float = Field(ge=0, le=1)
+    exact_duplicate_pair_ratio: float = Field(ge=0, le=1)
+    longest_exact_duplicate_run: int = Field(ge=0)
+    controlled_parameters: list[NonBlankStr] = Field(default_factory=list, max_length=32)
+
+    @model_validator(mode="after")
+    def validate_consistency(self) -> Live2DRenderDiagnostics:
+        if self.frames != self.envelope_frames or self.frames != self.rendered_frames:
+            raise ValueError("Live2D diagnostic frame counts must agree")
+        if self.time_delta_ms_max - self.time_delta_ms_min > 1:
+            raise ValueError("Live2D user-time delta must remain frame-stable")
+        if not (
+            self.mouth_min
+            <= self.mouth_p50
+            <= self.mouth_p95
+            <= self.mouth_max
+        ):
+            raise ValueError("Live2D mouth percentiles are inconsistent")
+        return self
+
+
 class RenderedHostVideo(DomainModel):
     """Immutable, segment-scoped host media consumed by the video renderer.
 
@@ -214,6 +303,7 @@ class RenderedHostVideo(DomainModel):
     height: int = Field(gt=0, le=4_096)
     fps: int = Field(ge=1, le=120)
     video_codec: NonBlankStr
+    diagnostics: Live2DRenderDiagnostics | None = None
 
     @field_validator("local_path")
     @classmethod
@@ -461,6 +551,9 @@ class EpisodeScene(DomainModel):
     host_enter: bool = False
     host_exit: bool = False
     transition_type: SceneTransition = SceneTransition.BLACK
+    variant_id: SceneVariantId | None = None
+    visual_asset_ids: list[UUID] = Field(default_factory=list, max_length=12)
+    primary_visual_asset_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_module_capabilities(self) -> EpisodeScene:
@@ -491,6 +584,15 @@ class EpisodeScene(DomainModel):
             or self.speaker_id is None
         ):
             raise ValueError("narration scenes require one segment and one speaker")
+        if len(self.visual_asset_ids) != len(set(self.visual_asset_ids)):
+            raise ValueError("scene visual asset IDs must be unique")
+        if (
+            self.primary_visual_asset_id is not None
+            and self.primary_visual_asset_id not in self.visual_asset_ids
+        ):
+            raise ValueError("primary visual asset must belong to the scene visual asset set")
+        if self.module_id is EpisodeSceneModule.SOURCE_VIDEO and self.visual_asset_ids:
+            raise ValueError("source_video scenes use their typed source video asset only")
         return self
 
 
@@ -518,6 +620,167 @@ class EpisodePlan(DomainModel):
         return self
 
 
+class TemplateAssetRequirement(DomainModel):
+    asset_type: VisualAssetType
+    required: bool = True
+    minimum: int = Field(default=1, ge=0, le=12)
+    maximum: int = Field(default=1, ge=1, le=12)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> TemplateAssetRequirement:
+        if self.minimum > self.maximum:
+            raise ValueError("template asset requirement minimum cannot exceed maximum")
+        if self.required and self.minimum == 0:
+            raise ValueError("required template assets must require at least one item")
+        return self
+
+
+class SceneVariantDefinition(DomainModel):
+    variant_id: SceneVariantId
+    module_id: EpisodeSceneModule
+    display_name: NonBlankStr
+    supported_profiles: list[VideoOutputProfileId] = Field(min_length=1, max_length=8)
+    supported_host_slots: list[EpisodeHostSlot] = Field(default_factory=list, max_length=8)
+    asset_requirements: list[TemplateAssetRequirement] = Field(
+        default_factory=list,
+        max_length=12,
+    )
+    minimum_visual_assets: int = Field(default=0, ge=0, le=12)
+    maximum_visual_assets: int = Field(default=12, ge=0, le=12)
+
+    @model_validator(mode="after")
+    def validate_unique_capabilities(self) -> SceneVariantDefinition:
+        if len(self.supported_profiles) != len(set(self.supported_profiles)):
+            raise ValueError("scene variant profile IDs must be unique")
+        if len(self.supported_host_slots) != len(set(self.supported_host_slots)):
+            raise ValueError("scene variant host slots must be unique")
+        asset_types = [requirement.asset_type for requirement in self.asset_requirements]
+        if len(asset_types) != len(set(asset_types)):
+            raise ValueError("scene variant asset requirements must be unique by type")
+        if self.minimum_visual_assets > self.maximum_visual_assets:
+            raise ValueError("scene variant visual asset range is invalid")
+        return self
+
+
+class OutputProfileLayout(DomainModel):
+    profile_id: VideoOutputProfileId
+    safe_area_top: float = Field(ge=0, le=0.25)
+    safe_area_right: float = Field(ge=0, le=0.25)
+    safe_area_bottom: float = Field(ge=0, le=0.35)
+    safe_area_left: float = Field(ge=0, le=0.25)
+    host_primary_width: float = Field(gt=0, le=0.8)
+    host_corner_width: float = Field(gt=0, le=0.6)
+    caption_max_width: float = Field(gt=0, le=1)
+    media_fit: Literal["contain", "cover"] = "cover"
+
+
+class LayoutPreset(DomainModel):
+    preset_id: NonBlankStr
+    profiles: list[OutputProfileLayout] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_profiles(self) -> LayoutPreset:
+        ids = [profile.profile_id for profile in self.profiles]
+        if len(ids) != len(set(ids)):
+            raise ValueError("layout preset output profile IDs must be unique")
+        return self
+
+
+class DesignTokens(DomainModel):
+    font_family: NonBlankStr = 'Inter, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif'
+    title_font_family: NonBlankStr = 'Inter, "Noto Sans CJK SC", sans-serif'
+    body_font_family: NonBlankStr = 'Inter, "Noto Sans CJK SC", sans-serif'
+    caption_font_family: NonBlankStr = 'Inter, "Noto Sans CJK SC", sans-serif'
+    mono_font_family: NonBlankStr = '"IBM Plex Mono", Consolas, monospace'
+    background: HexColor = "#101512"
+    foreground: HexColor = "#f3f1e8"
+    accent: HexColor = "#85a77d"
+    signal: HexColor = "#e4a853"
+    panel: HexColor = "#182019"
+    muted: HexColor = "#a8b4a8"
+    title_scale: float = Field(default=1.0, ge=0.5, le=2)
+    body_scale: float = Field(default=1.0, ge=0.5, le=2)
+    caption_scale: float = Field(default=1.0, ge=0.5, le=2)
+    title_weight: int = Field(default=760, ge=100, le=900)
+    body_weight: int = Field(default=500, ge=100, le=900)
+    caption_weight: int = Field(default=650, ge=100, le=900)
+    line_height: float = Field(default=1.32, ge=0.9, le=2)
+    corner_radius: int = Field(default=30, ge=0, le=120)
+    border_width: int = Field(default=2, ge=0, le=12)
+    shadow_blur: int = Field(default=48, ge=0, le=160)
+    panel_opacity: float = Field(default=0.88, ge=0, le=1)
+    spacing_unit: int = Field(default=8, ge=2, le=32)
+    caption_max_lines: int = Field(default=2, ge=1, le=4)
+    animation_speed: float = Field(default=1.0, ge=0.25, le=3)
+    animation_easing: NonBlankStr = "ease-out"
+    image_zoom_min: float = Field(default=1.0, ge=0.5, le=2)
+    image_zoom_max: float = Field(default=1.04, ge=0.5, le=2)
+
+    @model_validator(mode="after")
+    def validate_image_zoom(self) -> DesignTokens:
+        if self.image_zoom_max < self.image_zoom_min:
+            raise ValueError("image zoom maximum cannot be below its minimum")
+        return self
+
+
+class TemplateCapabilities(DomainModel):
+    supported_profiles: list[VideoOutputProfileId] = Field(min_length=1, max_length=8)
+    supported_modules: list[EpisodeSceneModule] = Field(min_length=1, max_length=32)
+    supports_bilingual_captions: bool = True
+    supports_live2d: bool = True
+    supports_source_attribution: bool = True
+
+    @model_validator(mode="after")
+    def validate_unique_values(self) -> TemplateCapabilities:
+        if len(self.supported_profiles) != len(set(self.supported_profiles)):
+            raise ValueError("template capability profile IDs must be unique")
+        if len(self.supported_modules) != len(set(self.supported_modules)):
+            raise ValueError("template capability module IDs must be unique")
+        return self
+
+
+class TemplateDefinition(DomainModel):
+    template_id: TemplateId
+    template_version: TemplateVersion
+    display_name: NonBlankStr
+    capabilities: TemplateCapabilities
+    scene_variants: list[SceneVariantDefinition] = Field(min_length=1, max_length=64)
+    default_scene_variants: dict[EpisodeSceneModule, SceneVariantId]
+    layout_preset: LayoutPreset
+    design_tokens: DesignTokens
+    intro_variant: NonBlankStr
+    outro_variant: NonBlankStr
+    transition_pack: NonBlankStr
+    caption_preset: NonBlankStr
+    source_bar_preset: NonBlankStr
+    host_preset: NonBlankStr
+    static_asset_requirements: list[NonBlankStr] = Field(default_factory=list, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_template_references(self) -> TemplateDefinition:
+        variant_ids = [variant.variant_id for variant in self.scene_variants]
+        if len(variant_ids) != len(set(variant_ids)):
+            raise ValueError("template scene variant IDs must be unique")
+        variants = {variant.variant_id: variant for variant in self.scene_variants}
+        if set(self.default_scene_variants) != set(self.capabilities.supported_modules):
+            raise ValueError("template defaults must cover every supported scene module")
+        for module_id, variant_id in self.default_scene_variants.items():
+            variant = variants.get(variant_id)
+            if variant is None or variant.module_id is not module_id:
+                raise ValueError("template default scene variant reference is invalid")
+        layout_profiles = {profile.profile_id for profile in self.layout_preset.profiles}
+        if layout_profiles != set(self.capabilities.supported_profiles):
+            raise ValueError("template layout profiles must match template capabilities")
+        for variant in self.scene_variants:
+            if variant.module_id not in self.capabilities.supported_modules:
+                raise ValueError("template scene variant uses an unsupported module")
+            if not set(variant.supported_profiles).issubset(
+                self.capabilities.supported_profiles
+            ):
+                raise ValueError("template scene variant uses an unsupported output profile")
+        return self
+
+
 class RemotionVideoProps(DomainModel):
     """Backend-owned subset of ``video/src/schema.ts``.
 
@@ -539,6 +802,8 @@ class RemotionVideoProps(DomainModel):
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
     episode_plan: EpisodePlan | None = None
     source_videos: list[SourceVideoRenderAsset] = Field(default_factory=list, max_length=100)
+    visual_assets: list[VisualRenderAsset] = Field(default_factory=list, max_length=1_200)
+    template: TemplateDefinition | None = None
     output_profiles: list[VideoOutputProfile] = Field(
         default_factory=default_video_output_profiles,
         min_length=2,
@@ -594,8 +859,53 @@ class RemotionVideoProps(DomainModel):
             }
             if referenced_asset_ids != set(asset_ids):
                 raise ValueError("episode source video scenes must match the approved asset set")
+            visual_asset_ids = [asset.asset_id for asset in self.visual_assets]
+            if len(visual_asset_ids) != len(set(visual_asset_ids)):
+                raise ValueError("render visual asset IDs must be unique")
+            referenced_visual_ids = {
+                visual_id
+                for scene in self.episode_plan.scenes
+                for visual_id in scene.visual_asset_ids
+            }
+            if not referenced_visual_ids.issubset(visual_asset_ids):
+                raise ValueError("episode scenes reference unknown visual assets")
+            if self.template is not None:
+                if not {
+                    profile.profile_id for profile in self.output_profiles
+                }.issubset(self.template.capabilities.supported_profiles):
+                    raise ValueError("output profiles exceed the selected template capabilities")
+                variants = {
+                    variant.variant_id: variant for variant in self.template.scene_variants
+                }
+                visual_by_id = {asset.asset_id: asset for asset in self.visual_assets}
+                for scene in self.episode_plan.scenes:
+                    if scene.module_id not in self.template.capabilities.supported_modules:
+                        raise ValueError("episode scene is unsupported by the selected template")
+                    variant_id = (
+                        scene.variant_id
+                        or self.template.default_scene_variants[scene.module_id]
+                    )
+                    variant = variants.get(variant_id)
+                    if variant is None or variant.module_id is not scene.module_id:
+                        raise ValueError("episode scene references an invalid template variant")
+                    if not (
+                        variant.minimum_visual_assets
+                        <= len(scene.visual_asset_ids)
+                        <= variant.maximum_visual_assets
+                    ):
+                        raise ValueError("episode scene violates template visual asset count")
+                    counts: dict[VisualAssetType, int] = {}
+                    for visual_id in scene.visual_asset_ids:
+                        asset = visual_by_id[visual_id]
+                        counts[asset.asset_type] = counts.get(asset.asset_type, 0) + 1
+                    for requirement in variant.asset_requirements:
+                        count = counts.get(requirement.asset_type, 0)
+                        if count < requirement.minimum or count > requirement.maximum:
+                            raise ValueError("episode scene violates template asset requirements")
         elif self.source_videos:
             raise ValueError("source video assets require a typed episode plan")
+        elif self.visual_assets:
+            raise ValueError("visual assets require a typed episode plan")
         if self.visual_reservations.renderer == "live2d_prerender":
             hosts_by_segment = {
                 asset.segment_id: asset
@@ -634,6 +944,7 @@ class VideoBatchStory(DomainModel):
     script_sha256: Sha256
     source_manifest: ProductionManifest
     source_manifest_sha256: Sha256
+    visual_assets: list[VisualRenderAsset] = Field(default_factory=list, max_length=120)
     reserved_at: datetime = Field(default_factory=utc_now)
     used_at: datetime | None = None
 
@@ -656,6 +967,13 @@ class VideoBatchStory(DomainModel):
             raise ValueError("script_sha256 does not match source script")
         if self.source_manifest_sha256 != model_sha256(self.source_manifest):
             raise ValueError("source_manifest_sha256 does not match source manifest")
+        for asset in self.visual_assets:
+            if asset.story_id != self.story_id:
+                raise ValueError("visual asset snapshot belongs to another story")
+            if asset.segment_id is not None and asset.segment_id not in {
+                segment.segment_id for segment in self.script.segments
+            }:
+                raise ValueError("visual asset snapshot references an unknown script segment")
 
         source_segments = self.source_manifest.timeline
         script_segments = self.script.segments
@@ -780,6 +1098,18 @@ class TimelineReview(DomainModel):
         return self
 
 
+class VideoVisualQualityDiagnostics(DomainModel):
+    black_segment_count: int = Field(ge=0)
+    longest_black_duration_seconds: float = Field(ge=0)
+    freeze_segment_count: int = Field(ge=0)
+    longest_freeze_duration_seconds: float = Field(ge=0)
+    expected_duration_seconds: float | None = Field(default=None, gt=0)
+    container_duration_seconds: float | None = Field(default=None, gt=0)
+    audio_duration_seconds: float | None = Field(default=None, gt=0)
+    duration_delta_seconds: float | None = Field(default=None, ge=0)
+    gate_version: Literal["1.0", "1.1"] = "1.0"
+
+
 class VideoRenderOutput(DomainModel):
     profile_id: VideoOutputProfileId
     local_path: NonBlankStr
@@ -791,6 +1121,7 @@ class VideoRenderOutput(DomainModel):
     duration_in_frames: int = Field(gt=0)
     video_codec: NonBlankStr
     audio_codec: NonBlankStr
+    visual_quality: VideoVisualQualityDiagnostics | None = None
 
     @field_validator("local_path")
     @classmethod
@@ -884,12 +1215,13 @@ class VideoBatch(DomainModel):
     status: VideoBatchStatus = VideoBatchStatus.PENDING_NARRATION_REVIEW
     title: NonBlankStr
     subtitle: str | None = None
+    template: TemplateDefinition | None = None
     stories: list[VideoBatchStory] = Field(min_length=1, max_length=15)
     narration: BatchNarrationArtifact
     bgm: BgmSelection | None = None
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
     remotion_props: RemotionVideoProps | None = None
-    input_assets: list[VideoInputAsset] = Field(default_factory=list, max_length=101)
+    input_assets: list[VideoInputAsset] = Field(default_factory=list, max_length=1_301)
     render_input_sha256: Sha256 | None = None
     narration_reviews: list[NarrationReview] = Field(default_factory=list, max_length=100)
     timeline_review: TimelineReview | None = None
@@ -1178,11 +1510,14 @@ class VideoBatch(DomainModel):
 class CreateVideoBatch(DomainModel):
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)]
     subtitle: Annotated[str, StringConstraints(strip_whitespace=True, max_length=320)] | None = None
+    template: TemplateDefinition | None = None
     story_ids: list[UUID] = Field(default_factory=list, max_length=15)
     max_stories: int = Field(default=15, ge=1, le=15)
     bgm_track_id: Sha256 | None = None
     bgm_volume: float = Field(default=0.12, ge=0, le=1)
     bgm_loop: bool = True
+    template_id: TemplateId = "world_warmth"
+    template_version: TemplateVersion = "1.0.0"
 
     @model_validator(mode="after")
     def validate_story_selection(self) -> CreateVideoBatch:
@@ -1294,6 +1629,23 @@ def render_input_sha256(
         # This field did not exist in legacy render snapshots. Omitting its
         # compatibility value keeps their immutable review hash verifiable.
         props_payload.pop("outro_duration_ms", None)
+    if props.template is None:
+        props_payload.pop("template", None)
+    if not props.visual_assets:
+        props_payload.pop("visual_assets", None)
+    episode_plan = props_payload.get("episode_plan")
+    if isinstance(episode_plan, dict):
+        scenes = episode_plan.get("scenes")
+        if isinstance(scenes, list):
+            for scene in scenes:
+                if not isinstance(scene, dict):
+                    continue
+                if scene.get("variant_id") is None:
+                    scene.pop("variant_id", None)
+                if not scene.get("visual_asset_ids"):
+                    scene.pop("visual_asset_ids", None)
+                if scene.get("primary_visual_asset_id") is None:
+                    scene.pop("primary_visual_asset_id", None)
     return _canonical_sha256(
         {
             "props": props_payload,

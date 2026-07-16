@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib.util
 import json
+import math
 import sys
+import wave
 from pathlib import Path
+from types import ModuleType
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from god_news.domain.enums import SceneTransition, SpeechEmotion
 from god_news.domain.models import (
@@ -18,11 +23,21 @@ from god_news.domain.models import (
     SynthesisMetadata,
 )
 from god_news.domain.source_media import SourceVideoProbe
+from god_news.domain.video import Live2DRenderDiagnostics
 from god_news.infrastructure.video_live2d import LocalLive2DHostRenderer
 from god_news.operations.models import RoleKind, RoleProfile, RoleVisualAssets
 from god_news.video_errors import VideoNarrationSynthesisError
 
 SHA = "0" * 64
+
+
+def _load_worker_module() -> ModuleType:
+    path = Path("scripts/render_live2d_host.py").resolve(strict=True)
+    spec = importlib.util.spec_from_file_location("render_live2d_host_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class _Profiles:
@@ -207,3 +222,109 @@ def test_live2d_renderer_rejects_model_outside_trusted_root(tmp_path: Path) -> N
 
     with pytest.raises(VideoNarrationSynthesisError, match="trusted root"):
         renderer._resolve_model_path(str(outside))
+
+
+def test_pcm_envelope_normalizes_unsigned_8_bit_silence(tmp_path: Path) -> None:
+    worker = _load_worker_module()
+    audio_path = tmp_path / "silence-8bit.wav"
+    with wave.open(str(audio_path), "wb") as target:
+        target.setnchannels(1)
+        target.setsampwidth(1)
+        target.setframerate(8_000)
+        target.writeframes(bytes([128]) * 8_000)
+
+    envelope = worker._read_pcm_envelope(audio_path, fps=20, frame_count=20)
+
+    assert envelope == [0.0] * 20
+
+
+def test_mouth_envelope_uses_attack_and_slower_release() -> None:
+    worker = _load_worker_module()
+
+    envelope = worker._smooth_envelope(
+        [0.0, 1.0, 1.0, 0.0, 0.0],
+        fps=30,
+        attack_ms=40,
+        release_ms=160,
+    )
+
+    assert 0 < envelope[1] < envelope[2] < 1
+    assert envelope[3] > 0
+    assert envelope[3] - envelope[4] < envelope[2] - envelope[1]
+
+
+def test_deterministic_blink_and_idle_pose_are_bounded() -> None:
+    worker = _load_worker_module()
+
+    blink_track = [worker._blink_openness(index, fps=30) for index in range(150)]
+    assert min(blink_track) == 0
+    assert max(blink_track) == 1
+    assert blink_track == [
+        worker._blink_openness(index, fps=30) for index in range(150)
+    ]
+
+    poses = [worker._idle_pose(index, fps=30, intensity=0.35) for index in range(150)]
+    assert all(abs(pose["PARAM_ANGLE_X"]) <= 3.4 * 0.35 for pose in poses)
+    assert any(
+        not math.isclose(
+            poses[index]["PARAM_EYE_BALL_X"],
+            poses[index + 1]["PARAM_EYE_BALL_X"],
+        )
+        for index in range(len(poses) - 1)
+    )
+
+
+def _diagnostic_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "frames": 36,
+        "envelope_frames": 36,
+        "rendered_frames": 36,
+        "fps": 30,
+        "time_delta_ms_min": 33,
+        "time_delta_ms_max": 34,
+        "motion_group": "happiness",
+        "motion_restarts": 1,
+        "expression": "happiness",
+        "blink_events": 0,
+        "mouth_min": 0.0,
+        "mouth_p50": 0.2,
+        "mouth_p95": 0.8,
+        "mouth_max": 0.9,
+        "mouth_max_delta": 0.2,
+        "voiced_frame_ratio": 0.8,
+        "exact_duplicate_pair_ratio": 0.02,
+        "longest_exact_duplicate_run": 1,
+        "controlled_parameters": ["PARAM_MOUTH_OPEN_Y"],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_live2d_diagnostic_rejects_inconsistent_percentiles() -> None:
+    with pytest.raises(ValidationError, match="mouth percentiles"):
+        Live2DRenderDiagnostics.model_validate(
+            _diagnostic_payload(mouth_p50=0.9, mouth_p95=0.4)
+        )
+
+
+def test_live2d_renderer_rejects_frozen_worker_diagnostic(tmp_path: Path) -> None:
+    model_root = tmp_path / "models"
+    model_path = _model(model_root)
+    profile = RoleProfile(
+        slug="main-anchor",
+        display_name="Main anchor",
+        kind=RoleKind.HOST,
+        speaker_id="anchor",
+        visual_assets=RoleVisualAssets(live2d_asset_ref=str(model_path)),
+    )
+    renderer = _renderer(tmp_path=tmp_path, model_root=model_root, profile=profile)
+    payload = _diagnostic_payload(
+        exact_duplicate_pair_ratio=0.75,
+        longest_exact_duplicate_run=15,
+    )
+
+    with pytest.raises(VideoNarrationSynthesisError, match="duplicate frames"):
+        renderer._validate_worker_diagnostics(
+            json.dumps(payload).encode(),
+            duration_ms=1_200,
+        )

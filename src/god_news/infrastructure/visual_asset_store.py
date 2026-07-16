@@ -128,6 +128,14 @@ class LocalVisualAssetStore:
         return candidate
 
 
+async def inspect_raster_dimensions(
+    path: Path,
+    content_type: ImageContentType,
+) -> tuple[int, int]:
+    payload = await asyncio.to_thread(path.read_bytes)
+    return _parse_image_dimensions(content_type, payload)
+
+
 def _parse_image_dimensions(content_type: ImageContentType, payload: bytes) -> tuple[int, int]:
     if content_type is ImageContentType.PNG:
         return _parse_png_dimensions(payload)

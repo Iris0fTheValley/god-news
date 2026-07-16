@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "turtle-release-source.png",
+  "creator": "god-news project",
+  "created_at": "2026-07-16",
+  "sha256": "51ae6148eeab4494adb9ba1fa32102e5443475ce9ff8105d900d4b18d1150688",
+  "width": 1280,
+  "height": 1371,
+  "rights_status": "project_owned_source_page_capture",
+  "publishable": true,
+  "attribution_required": false,
+  "canonical_source": "turtle-release-source.html",
+  "capture_method": "Playwright with locally installed Microsoft Edge, full-page screenshot",
+  "representation": "Screenshot of a self-authored demonstration article and SVG illustration; not an external publication or real reported event."
+}

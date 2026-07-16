@@ -790,6 +790,28 @@
             ],
             "title": "Subtitle"
           },
+          "template": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template_id": {
+            "default": "world_warmth",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "title": "Template Id",
+            "type": "string"
+          },
+          "template_version": {
+            "default": "1.0.0",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+            "title": "Template Version",
+            "type": "string"
+          },
           "title": {
             "maxLength": 240,
             "minLength": 1,
@@ -853,6 +875,197 @@
           "article_id"
         ],
         "title": "DazhongSourceFields",
+        "type": "object"
+      },
+      "DesignTokens": {
+        "additionalProperties": false,
+        "properties": {
+          "accent": {
+            "default": "#85a77d",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Accent",
+            "type": "string"
+          },
+          "animation_easing": {
+            "default": "ease-out",
+            "minLength": 1,
+            "title": "Animation Easing",
+            "type": "string"
+          },
+          "animation_speed": {
+            "default": 1.0,
+            "maximum": 3.0,
+            "minimum": 0.25,
+            "title": "Animation Speed",
+            "type": "number"
+          },
+          "background": {
+            "default": "#101512",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Background",
+            "type": "string"
+          },
+          "body_font_family": {
+            "default": "Inter, \"Noto Sans CJK SC\", sans-serif",
+            "minLength": 1,
+            "title": "Body Font Family",
+            "type": "string"
+          },
+          "body_scale": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Body Scale",
+            "type": "number"
+          },
+          "body_weight": {
+            "default": 500,
+            "maximum": 900.0,
+            "minimum": 100.0,
+            "title": "Body Weight",
+            "type": "integer"
+          },
+          "border_width": {
+            "default": 2,
+            "maximum": 12.0,
+            "minimum": 0.0,
+            "title": "Border Width",
+            "type": "integer"
+          },
+          "caption_font_family": {
+            "default": "Inter, \"Noto Sans CJK SC\", sans-serif",
+            "minLength": 1,
+            "title": "Caption Font Family",
+            "type": "string"
+          },
+          "caption_max_lines": {
+            "default": 2,
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Caption Max Lines",
+            "type": "integer"
+          },
+          "caption_scale": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Caption Scale",
+            "type": "number"
+          },
+          "caption_weight": {
+            "default": 650,
+            "maximum": 900.0,
+            "minimum": 100.0,
+            "title": "Caption Weight",
+            "type": "integer"
+          },
+          "corner_radius": {
+            "default": 30,
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "Corner Radius",
+            "type": "integer"
+          },
+          "font_family": {
+            "default": "Inter, \"Noto Sans CJK SC\", \"Microsoft YaHei\", sans-serif",
+            "minLength": 1,
+            "title": "Font Family",
+            "type": "string"
+          },
+          "foreground": {
+            "default": "#f3f1e8",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Foreground",
+            "type": "string"
+          },
+          "image_zoom_max": {
+            "default": 1.04,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Image Zoom Max",
+            "type": "number"
+          },
+          "image_zoom_min": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Image Zoom Min",
+            "type": "number"
+          },
+          "line_height": {
+            "default": 1.32,
+            "maximum": 2.0,
+            "minimum": 0.9,
+            "title": "Line Height",
+            "type": "number"
+          },
+          "mono_font_family": {
+            "default": "\"IBM Plex Mono\", Consolas, monospace",
+            "minLength": 1,
+            "title": "Mono Font Family",
+            "type": "string"
+          },
+          "muted": {
+            "default": "#a8b4a8",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Muted",
+            "type": "string"
+          },
+          "panel": {
+            "default": "#182019",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Panel",
+            "type": "string"
+          },
+          "panel_opacity": {
+            "default": 0.88,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Panel Opacity",
+            "type": "number"
+          },
+          "shadow_blur": {
+            "default": 48,
+            "maximum": 160.0,
+            "minimum": 0.0,
+            "title": "Shadow Blur",
+            "type": "integer"
+          },
+          "signal": {
+            "default": "#e4a853",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Signal",
+            "type": "string"
+          },
+          "spacing_unit": {
+            "default": 8,
+            "maximum": 32.0,
+            "minimum": 2.0,
+            "title": "Spacing Unit",
+            "type": "integer"
+          },
+          "title_font_family": {
+            "default": "Inter, \"Noto Sans CJK SC\", sans-serif",
+            "minLength": 1,
+            "title": "Title Font Family",
+            "type": "string"
+          },
+          "title_scale": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Title Scale",
+            "type": "number"
+          },
+          "title_weight": {
+            "default": 760,
+            "maximum": 900.0,
+            "minimum": 100.0,
+            "title": "Title Weight",
+            "type": "integer"
+          }
+        },
+        "title": "DesignTokens",
         "type": "object"
       },
       "DifferentialArtAsset": {
@@ -1060,6 +1273,18 @@
             ],
             "title": "Narration Segment Id"
           },
+          "primary_visual_asset_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Visual Asset Id"
+          },
           "scene_id": {
             "format": "uuid",
             "title": "Scene Id",
@@ -1098,6 +1323,27 @@
           "transition_type": {
             "$ref": "#/components/schemas/SceneTransition",
             "default": "black"
+          },
+          "variant_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Id"
+          },
+          "visual_asset_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Visual Asset Ids",
+            "type": "array"
           }
         },
         "required": [
@@ -1486,6 +1732,175 @@
         "title": "IngestRequest",
         "type": "object"
       },
+      "LayoutPreset": {
+        "additionalProperties": false,
+        "properties": {
+          "preset_id": {
+            "minLength": 1,
+            "title": "Preset Id",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/OutputProfileLayout"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Profiles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "preset_id",
+          "profiles"
+        ],
+        "title": "LayoutPreset",
+        "type": "object"
+      },
+      "Live2DRenderDiagnostics": {
+        "additionalProperties": false,
+        "properties": {
+          "blink_events": {
+            "minimum": 0.0,
+            "title": "Blink Events",
+            "type": "integer"
+          },
+          "controlled_parameters": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Controlled Parameters",
+            "type": "array"
+          },
+          "envelope_frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Envelope Frames",
+            "type": "integer"
+          },
+          "exact_duplicate_pair_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Exact Duplicate Pair Ratio",
+            "type": "number"
+          },
+          "expression": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expression"
+          },
+          "fps": {
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Frames",
+            "type": "integer"
+          },
+          "longest_exact_duplicate_run": {
+            "minimum": 0.0,
+            "title": "Longest Exact Duplicate Run",
+            "type": "integer"
+          },
+          "motion_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motion Group"
+          },
+          "motion_restarts": {
+            "minimum": 0.0,
+            "title": "Motion Restarts",
+            "type": "integer"
+          },
+          "mouth_max": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mouth Max",
+            "type": "number"
+          },
+          "mouth_max_delta": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mouth Max Delta",
+            "type": "number"
+          },
+          "mouth_min": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mouth Min",
+            "type": "number"
+          },
+          "mouth_p50": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mouth P50",
+            "type": "number"
+          },
+          "mouth_p95": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mouth P95",
+            "type": "number"
+          },
+          "rendered_frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Rendered Frames",
+            "type": "integer"
+          },
+          "time_delta_ms_max": {
+            "exclusiveMinimum": 0.0,
+            "title": "Time Delta Ms Max",
+            "type": "integer"
+          },
+          "time_delta_ms_min": {
+            "exclusiveMinimum": 0.0,
+            "title": "Time Delta Ms Min",
+            "type": "integer"
+          },
+          "voiced_frame_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Voiced Frame Ratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "frames",
+          "envelope_frames",
+          "rendered_frames",
+          "fps",
+          "time_delta_ms_min",
+          "time_delta_ms_max",
+          "motion_restarts",
+          "blink_events",
+          "mouth_min",
+          "mouth_p50",
+          "mouth_p95",
+          "mouth_max",
+          "mouth_max_delta",
+          "voiced_frame_ratio",
+          "exact_duplicate_pair_ratio",
+          "longest_exact_duplicate_run"
+        ],
+        "title": "Live2DRenderDiagnostics",
+        "type": "object"
+      },
       "Liveness": {
         "additionalProperties": false,
         "properties": {
@@ -1809,6 +2224,77 @@
         ],
         "title": "OperationRunStatus",
         "type": "string"
+      },
+      "OutputProfileLayout": {
+        "additionalProperties": false,
+        "properties": {
+          "caption_max_width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Caption Max Width",
+            "type": "number"
+          },
+          "host_corner_width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 0.6,
+            "title": "Host Corner Width",
+            "type": "number"
+          },
+          "host_primary_width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 0.8,
+            "title": "Host Primary Width",
+            "type": "number"
+          },
+          "media_fit": {
+            "default": "cover",
+            "enum": [
+              "contain",
+              "cover"
+            ],
+            "title": "Media Fit",
+            "type": "string"
+          },
+          "profile_id": {
+            "$ref": "#/components/schemas/VideoOutputProfileId"
+          },
+          "safe_area_bottom": {
+            "maximum": 0.35,
+            "minimum": 0.0,
+            "title": "Safe Area Bottom",
+            "type": "number"
+          },
+          "safe_area_left": {
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Safe Area Left",
+            "type": "number"
+          },
+          "safe_area_right": {
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Safe Area Right",
+            "type": "number"
+          },
+          "safe_area_top": {
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Safe Area Top",
+            "type": "number"
+          }
+        },
+        "required": [
+          "profile_id",
+          "safe_area_top",
+          "safe_area_right",
+          "safe_area_bottom",
+          "safe_area_left",
+          "host_primary_width",
+          "host_corner_width",
+          "caption_max_width"
+        ],
+        "title": "OutputProfileLayout",
+        "type": "object"
       },
       "PikabuImageBlock": {
         "additionalProperties": false,
@@ -2682,6 +3168,16 @@
             ],
             "title": "Subtitle"
           },
+          "template": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "theme": {
             "$ref": "#/components/schemas/VideoTheme"
           },
@@ -2692,6 +3188,13 @@
           "transition_duration_ms": {
             "title": "Transition Duration Ms",
             "type": "integer"
+          },
+          "visual_assets": {
+            "items": {
+              "$ref": "#/components/schemas/PublicVisualRenderAsset"
+            },
+            "title": "Visual Assets",
+            "type": "array"
           },
           "visual_reservations": {
             "$ref": "#/components/schemas/PublicHostVisualReservations"
@@ -2706,6 +3209,7 @@
           "theme",
           "visual_reservations",
           "source_videos",
+          "visual_assets",
           "output_profiles"
         ],
         "title": "PublicRemotionVideoProps",
@@ -2722,6 +3226,16 @@
           "audio_sha256": {
             "title": "Audio Sha256",
             "type": "string"
+          },
+          "diagnostics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Live2DRenderDiagnostics"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "duration_ms": {
             "title": "Duration Ms",
@@ -3069,6 +3583,16 @@
             ],
             "title": "Subtitle"
           },
+          "template": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "timeline_review": {
             "anyOf": [
               {
@@ -3166,6 +3690,13 @@
               }
             ],
             "title": "Used At"
+          },
+          "visual_assets": {
+            "items": {
+              "$ref": "#/components/schemas/PublicVisualRenderAsset"
+            },
+            "title": "Visual Assets",
+            "type": "array"
           }
         },
         "required": [
@@ -3178,6 +3709,7 @@
           "script_sha256",
           "source_manifest",
           "source_manifest_sha256",
+          "visual_assets",
           "reserved_at"
         ],
         "title": "PublicVideoBatchStory",
@@ -3269,6 +3801,16 @@
             "title": "Video Codec",
             "type": "string"
           },
+          "visual_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VideoVisualQualityDiagnostics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "width": {
             "title": "Width",
             "type": "integer"
@@ -3286,6 +3828,89 @@
           "audio_codec"
         ],
         "title": "PublicVideoRenderOutput",
+        "type": "object"
+      },
+      "PublicVisualRenderAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "format": "uuid",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "asset_type": {
+            "$ref": "#/components/schemas/VisualAssetType"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "segment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Id"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asset_id",
+          "story_id",
+          "asset_type",
+          "content_type",
+          "filename",
+          "sha256",
+          "size_bytes",
+          "width",
+          "height",
+          "source_label"
+        ],
+        "title": "PublicVisualRenderAsset",
         "type": "object"
       },
       "RawDazhongImage": {
@@ -5395,6 +6020,71 @@
         "title": "SceneTransition",
         "type": "string"
       },
+      "SceneVariantDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateAssetRequirement"
+            },
+            "maxItems": 12,
+            "title": "Asset Requirements",
+            "type": "array"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "maximum_visual_assets": {
+            "default": 12,
+            "maximum": 12.0,
+            "minimum": 0.0,
+            "title": "Maximum Visual Assets",
+            "type": "integer"
+          },
+          "minimum_visual_assets": {
+            "default": 0,
+            "maximum": 12.0,
+            "minimum": 0.0,
+            "title": "Minimum Visual Assets",
+            "type": "integer"
+          },
+          "module_id": {
+            "$ref": "#/components/schemas/EpisodeSceneModule"
+          },
+          "supported_host_slots": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodeHostSlot"
+            },
+            "maxItems": 8,
+            "title": "Supported Host Slots",
+            "type": "array"
+          },
+          "supported_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/VideoOutputProfileId"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Supported Profiles",
+            "type": "array"
+          },
+          "variant_id": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "title": "Variant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "variant_id",
+          "module_id",
+          "display_name",
+          "supported_profiles"
+        ],
+        "title": "SceneVariantDefinition",
+        "type": "object"
+      },
       "ScheduleSnapshot": {
         "additionalProperties": false,
         "properties": {
@@ -7451,6 +8141,188 @@
         "title": "SynthesizeStoryRequest",
         "type": "object"
       },
+      "TemplateAssetRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_type": {
+            "$ref": "#/components/schemas/VisualAssetType"
+          },
+          "maximum": {
+            "default": 1,
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Maximum",
+            "type": "integer"
+          },
+          "minimum": {
+            "default": 1,
+            "maximum": 12.0,
+            "minimum": 0.0,
+            "title": "Minimum",
+            "type": "integer"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "asset_type"
+        ],
+        "title": "TemplateAssetRequirement",
+        "type": "object"
+      },
+      "TemplateCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "supported_modules": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodeSceneModule"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Supported Modules",
+            "type": "array"
+          },
+          "supported_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/VideoOutputProfileId"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Supported Profiles",
+            "type": "array"
+          },
+          "supports_bilingual_captions": {
+            "default": true,
+            "title": "Supports Bilingual Captions",
+            "type": "boolean"
+          },
+          "supports_live2d": {
+            "default": true,
+            "title": "Supports Live2D",
+            "type": "boolean"
+          },
+          "supports_source_attribution": {
+            "default": true,
+            "title": "Supports Source Attribution",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "supported_profiles",
+          "supported_modules"
+        ],
+        "title": "TemplateCapabilities",
+        "type": "object"
+      },
+      "TemplateDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/TemplateCapabilities"
+          },
+          "caption_preset": {
+            "minLength": 1,
+            "title": "Caption Preset",
+            "type": "string"
+          },
+          "default_scene_variants": {
+            "additionalProperties": {
+              "pattern": "^[a-z][a-z0-9_]{1,63}$",
+              "type": "string"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/EpisodeSceneModule"
+            },
+            "title": "Default Scene Variants",
+            "type": "object"
+          },
+          "design_tokens": {
+            "$ref": "#/components/schemas/DesignTokens"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "host_preset": {
+            "minLength": 1,
+            "title": "Host Preset",
+            "type": "string"
+          },
+          "intro_variant": {
+            "minLength": 1,
+            "title": "Intro Variant",
+            "type": "string"
+          },
+          "layout_preset": {
+            "$ref": "#/components/schemas/LayoutPreset"
+          },
+          "outro_variant": {
+            "minLength": 1,
+            "title": "Outro Variant",
+            "type": "string"
+          },
+          "scene_variants": {
+            "items": {
+              "$ref": "#/components/schemas/SceneVariantDefinition"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Scene Variants",
+            "type": "array"
+          },
+          "source_bar_preset": {
+            "minLength": 1,
+            "title": "Source Bar Preset",
+            "type": "string"
+          },
+          "static_asset_requirements": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Static Asset Requirements",
+            "type": "array"
+          },
+          "template_id": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "title": "Template Id",
+            "type": "string"
+          },
+          "template_version": {
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+            "title": "Template Version",
+            "type": "string"
+          },
+          "transition_pack": {
+            "minLength": 1,
+            "title": "Transition Pack",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "template_version",
+          "display_name",
+          "capabilities",
+          "scene_variants",
+          "default_scene_variants",
+          "layout_preset",
+          "design_tokens",
+          "intro_variant",
+          "outro_variant",
+          "transition_pack",
+          "caption_preset",
+          "source_bar_preset",
+          "host_preset"
+        ],
+        "title": "TemplateDefinition",
+        "type": "object"
+      },
       "TextSource": {
         "additionalProperties": false,
         "properties": {
@@ -8075,6 +8947,96 @@
         "title": "VideoTheme",
         "type": "object"
       },
+      "VideoVisualQualityDiagnostics": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Duration Seconds"
+          },
+          "black_segment_count": {
+            "minimum": 0.0,
+            "title": "Black Segment Count",
+            "type": "integer"
+          },
+          "container_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container Duration Seconds"
+          },
+          "duration_delta_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Delta Seconds"
+          },
+          "expected_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Duration Seconds"
+          },
+          "freeze_segment_count": {
+            "minimum": 0.0,
+            "title": "Freeze Segment Count",
+            "type": "integer"
+          },
+          "gate_version": {
+            "default": "1.0",
+            "enum": [
+              "1.0",
+              "1.1"
+            ],
+            "title": "Gate Version",
+            "type": "string"
+          },
+          "longest_black_duration_seconds": {
+            "minimum": 0.0,
+            "title": "Longest Black Duration Seconds",
+            "type": "number"
+          },
+          "longest_freeze_duration_seconds": {
+            "minimum": 0.0,
+            "title": "Longest Freeze Duration Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "black_segment_count",
+          "longest_black_duration_seconds",
+          "freeze_segment_count",
+          "longest_freeze_duration_seconds"
+        ],
+        "title": "VideoVisualQualityDiagnostics",
+        "type": "object"
+      },
       "VisualAsset": {
         "additionalProperties": false,
         "description": "Public, stable reference to a stored raster asset.\n\n``storage_key`` deliberately does not appear here.  Clients render this\nreference only through the scoped media endpoint, which keeps local paths\nout of API responses and makes the eventual video-renderer storage adapter\nreplaceable.",
@@ -8179,6 +9141,22 @@
           "source_page_screenshot"
         ],
         "title": "VisualAssetOrigin",
+        "type": "string"
+      },
+      "VisualAssetType": {
+        "enum": [
+          "image",
+          "source_screenshot",
+          "web_evidence",
+          "source_video",
+          "map",
+          "chart",
+          "document",
+          "host_video",
+          "background_video",
+          "decorative_overlay"
+        ],
+        "title": "VisualAssetType",
         "type": "string"
       }
     }

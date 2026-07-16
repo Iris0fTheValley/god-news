@@ -123,6 +123,13 @@ def test_zero_outro_preserves_pre_outro_render_hash_shape(tmp_path: Path) -> Non
     assets = _input_assets(audio)
     payload = props.model_dump(mode="json")
     assert payload.pop("outro_duration_ms") == 0
+    assert payload.pop("template") is None
+    assert payload.pop("visual_assets") == []
+    if payload["episode_plan"] is not None:
+        for scene in payload["episode_plan"]["scenes"]:
+            assert scene.pop("variant_id") is None
+            assert scene.pop("visual_asset_ids") == []
+            assert scene.pop("primary_visual_asset_id") is None
     expected = hashlib.sha256(
         json.dumps(
             {
@@ -259,6 +266,7 @@ async def test_local_remotion_renderer_returns_both_verified_profiles(
         concurrency=1,
     )
     renderer._ffprobe = tmp_path / "ffprobe"  # type: ignore[assignment]
+    renderer._ffmpeg = tmp_path / "ffmpeg"  # type: ignore[assignment]
 
     async def fake_run(command: list[str], *, cwd: Path) -> str:
         assert cwd == package_dir
@@ -292,13 +300,21 @@ async def test_local_remotion_renderer_returns_both_verified_profiles(
                         "width": profile.width,
                         "height": profile.height,
                         "r_frame_rate": "30/1",
+                        "duration": "1.0",
                     },
-                    {"codec_type": "audio", "codec_name": "aac"},
-                ]
+                    {"codec_type": "audio", "codec_name": "aac", "duration": "1.0"},
+                ],
+                "format": {"duration": "1.0"},
             }
         )
 
     monkeypatch.setattr(renderer, "_run", fake_run)
+    async def no_quality_findings(command: list[str], *, cwd: Path) -> str:
+        del command
+        assert cwd == package_dir
+        return ""
+
+    monkeypatch.setattr(renderer, "_run_diagnostic", no_quality_findings)
     props = _props(audio)
     artifact = await renderer.render(
         props.manifest.story_id,
@@ -340,6 +356,7 @@ async def test_local_remotion_renderer_removes_partial_attempt_on_failure(
         concurrency=1,
     )
     renderer._ffprobe = tmp_path / "ffprobe"  # type: ignore[assignment]
+    renderer._ffmpeg = tmp_path / "ffmpeg"  # type: ignore[assignment]
 
     props = _props(audio)
     completed_profiles: list[str] = []
@@ -378,13 +395,21 @@ async def test_local_remotion_renderer_removes_partial_attempt_on_failure(
                         "width": profile.width,
                         "height": profile.height,
                         "r_frame_rate": f"{profile.fps}/1",
+                        "duration": "1.0",
                     },
-                    {"codec_type": "audio", "codec_name": "aac"},
-                ]
+                    {"codec_type": "audio", "codec_name": "aac", "duration": "1.0"},
+                ],
+                "format": {"duration": "1.0"},
             }
         )
 
     monkeypatch.setattr(renderer, "_run", fail_second_profile)
+    async def no_quality_findings(command: list[str], *, cwd: Path) -> str:
+        del command
+        assert cwd == package_dir
+        return ""
+
+    monkeypatch.setattr(renderer, "_run_diagnostic", no_quality_findings)
     with pytest.raises(VideoRenderingError, match="second-profile"):
         await renderer.render(
             props.manifest.story_id,
@@ -395,6 +420,34 @@ async def test_local_remotion_renderer_removes_partial_attempt_on_failure(
     assert completed_profiles == [VideoOutputProfileId.DOUYIN_VERTICAL.value]
     batch_root = tmp_path / "renders" / str(props.manifest.story_id)
     assert not list(batch_root.glob("attempt-*"))
+
+
+@pytest.mark.asyncio
+async def test_local_remotion_renderer_rejects_long_visual_freeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    renderer = LocalRemotionBatchVideoRenderer(
+        package_dir=tmp_path / "video",
+        output_dir=tmp_path / "renders",
+        node_command="node",
+        timeout_seconds=30,
+        max_parallel_batches=1,
+        concurrency=1,
+    )
+    renderer._ffmpeg = tmp_path / "ffmpeg"  # type: ignore[assignment]
+
+    async def frozen_diagnostic(command: list[str], *, cwd: Path) -> str:
+        del command, cwd
+        return "freeze_start: 1.000\nfreeze_end: 7.500"
+
+    monkeypatch.setattr(renderer, "_run_diagnostic", frozen_diagnostic)
+
+    with pytest.raises(VideoRenderingError, match="long-freeze"):
+        await renderer._inspect_visual_quality(
+            tmp_path / "output.mp4",
+            duration_seconds=10,
+        )
 
 
 @pytest.mark.asyncio
@@ -419,6 +472,7 @@ async def test_local_remotion_renderer_rejects_changed_approved_input(
         concurrency=1,
     )
     renderer._ffprobe = tmp_path / "ffprobe"  # type: ignore[assignment]
+    renderer._ffmpeg = tmp_path / "ffmpeg"  # type: ignore[assignment]
     props = _props(audio)
 
     with pytest.raises(VideoRenderingError, match="changed while its snapshot"):
@@ -532,6 +586,7 @@ async def test_local_remotion_rejects_linked_batch_root_without_deleting_target(
         concurrency=1,
     )
     renderer._ffprobe = tmp_path / "ffprobe"  # type: ignore[assignment]
+    renderer._ffmpeg = tmp_path / "ffmpeg"  # type: ignore[assignment]
 
     assert await renderer.cleanup_interrupted([batch_id]) == 0
     assert marker.read_text(encoding="utf-8") == "retained"

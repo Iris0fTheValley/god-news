@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "asset_file": "lost-dog-reunion-source.png",
+  "creator": "god-news project",
+  "created_at": "2026-07-16",
+  "sha256": "e60edfe7e6c3f2f644a073370a29809c7db187aebb0d4a21b5169e97eb46b9a9",
+  "width": 1280,
+  "height": 1407,
+  "rights_status": "project_owned_source_page_capture",
+  "publishable": true,
+  "attribution_required": false,
+  "canonical_source": "lost-dog-reunion-source.html",
+  "capture_method": "Playwright with locally installed Microsoft Edge, full-page screenshot",
+  "representation": "Screenshot of a self-authored demonstration article and SVG illustration; not an external publication or real reported event."
+}

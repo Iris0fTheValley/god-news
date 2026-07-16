@@ -65,6 +65,7 @@ export const validProps: GodNewsVideoProps = {
         host_enter: true,
         host_exit: true,
         transition_type: 'crossfade',
+        visual_asset_ids: [],
       },
       {
         scene_id: 'b0f2b527-c6f9-4784-99fe-7a1cc72fc70c',
@@ -77,10 +78,12 @@ export const validProps: GodNewsVideoProps = {
         host_enter: false,
         host_exit: false,
         transition_type: 'black',
+        visual_asset_ids: [],
       },
     ],
   },
   source_videos: [],
+  visual_assets: [],
   output_profiles: [
     {
       profile_id: 'douyin_vertical',
@@ -100,6 +103,7 @@ export const validProps: GodNewsVideoProps = {
   runtime_assets: {
     audio_by_segment_id: {},
     host_video_by_segment_id: {},
+    visual_by_asset_id: {},
     output_profile_id: 'douyin_vertical',
   },
 };

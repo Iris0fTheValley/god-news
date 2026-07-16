@@ -56,7 +56,17 @@ function statusTone(status: VideoBatchStatus): string {
 }
 
 function newBatchForm(): CreateVideoBatch {
-  return {title: '', subtitle: null, story_ids: [], max_stories: 5, bgm_track_id: null, bgm_volume: 0.12, bgm_loop: true};
+  return {
+    title: '',
+    subtitle: null,
+    story_ids: [],
+    max_stories: 5,
+    bgm_track_id: null,
+    bgm_volume: 0.12,
+    bgm_loop: true,
+    template_id: 'world_warmth',
+    template_version: '1.0.0',
+  };
 }
 
 function batchCanBeCancelled(status: VideoBatchStatus): boolean {

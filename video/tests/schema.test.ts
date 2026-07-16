@@ -176,6 +176,7 @@ describe('GodNewsVideoPropsSchema', () => {
       host_enter: false,
       host_exit: false,
       transition_type: 'black',
+      visual_asset_ids: [],
     });
 
     expect(() => parseGodNewsVideoProps(invalid)).toThrow(

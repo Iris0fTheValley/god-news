@@ -11,10 +11,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "capture:template-lab": "node scripts/capture-template-lab.mjs",
     "build": "pnpm generate:openapi && tsc --noEmit && vite build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@god-news/video": "workspace:*",
+    "@remotion/player": "4.0.487",
     "@tanstack/react-query": "5.101.2",
     "lucide-react": "1.24.0",
     "openapi-fetch": "0.17.0",

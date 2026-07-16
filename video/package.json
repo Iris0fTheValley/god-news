@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./player": "./src/player.ts"
+  },
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "tsx scripts/render.ts",
