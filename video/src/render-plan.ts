@@ -11,6 +11,12 @@ export type IntroTrack = Readonly<{
   durationInFrames: number;
 }>;
 
+export type OutroTrack = Readonly<{
+  kind: 'outro';
+  from: number;
+  durationInFrames: number;
+}>;
+
 export type SegmentTrack = Readonly<{
   kind: 'segment';
   from: number;
@@ -36,7 +42,7 @@ export type TransitionTrack = Readonly<{
 }>;
 
 export type SceneTrack = SegmentTrack | SourceVideoTrack;
-export type RenderTrack = IntroTrack | SceneTrack | TransitionTrack;
+export type RenderTrack = IntroTrack | OutroTrack | SceneTrack | TransitionTrack;
 
 export type RenderPlan = Readonly<{
   fps: number;
@@ -63,6 +69,7 @@ export const buildRenderPlan = (
   const tracks: RenderTrack[] = [];
   let cursor = 0;
   const introFrames = millisecondsToFrames(props.intro_duration_ms, fps);
+  const outroFrames = millisecondsToFrames(props.outro_duration_ms, fps);
   const transitionFrames = millisecondsToFrames(
     props.transition_duration_ms,
     fps,
@@ -125,7 +132,7 @@ export const buildRenderPlan = (
     }
 
     const isLast = index === scenes.length - 1;
-    if (!isLast && transitionFrames > 0) {
+    if ((!isLast || outroFrames > 0) && transitionFrames > 0) {
       tracks.push({
         kind: 'transition',
         from: cursor,
@@ -136,6 +143,11 @@ export const buildRenderPlan = (
       cursor += transitionFrames;
     }
   });
+
+  if (outroFrames > 0) {
+    tracks.push({kind: 'outro', from: cursor, durationInFrames: outroFrames});
+    cursor += outroFrames;
+  }
 
   return {fps, durationInFrames: cursor, tracks};
 };

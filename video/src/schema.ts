@@ -492,6 +492,7 @@ export const GodNewsVideoPropsSchema = z
     title: nonBlank.max(240),
     subtitle: z.string().trim().max(320).nullable().optional(),
     intro_duration_ms: z.number().int().min(0).max(5000).default(700),
+    outro_duration_ms: z.number().int().min(0).max(10000).default(3000),
     transition_duration_ms: z.number().int().min(0).max(2000).default(180),
     theme: ThemeSchema.default({
       background: '#101512',

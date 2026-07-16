@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 from collections.abc import Sequence
@@ -390,15 +391,41 @@ class LocalRemotionBatchVideoRenderer:
             await asyncio.to_thread(close_kill_on_close_job, job_handle)
         if process.returncode != 0:
             stderr_digest = hashlib.sha256(stderr).hexdigest()
+            diagnostic_tail = self._sanitized_worker_diagnostic(stderr)
             logger.error(
-                "Local media worker failed (exit_code=%s, stderr_sha256=%s).",
+                "Local media worker failed (exit_code=%s, stderr_sha256=%s, "
+                "diagnostic_tail=%s).",
                 process.returncode,
                 stderr_digest,
+                diagnostic_tail,
             )
             raise VideoRenderingError(
                 f"Local media worker exited with code {process.returncode}."
             )
         return stdout.decode("utf-8", errors="strict")
+
+    def _sanitized_worker_diagnostic(self, stderr: bytes) -> str:
+        text = stderr.decode("utf-8", errors="replace")
+        for path, replacement in (
+            (self._package_dir, "<video-package>"),
+            (self._output_dir, "<render-output>"),
+        ):
+            raw = str(path)
+            text = text.replace(raw, replacement)
+            text = text.replace(raw.replace("\\", "/"), replacement)
+        text = re.sub(
+            r"(?i)(?:[a-z]:[\\/]|\\\\)[^\r\n\"']+",
+            "<local-path>",
+            text,
+        )
+        text = re.sub(
+            r"(?i)(?<![A-Za-z0-9:])/(?:home|Users|tmp|var/tmp|mnt|opt|private|workspace)/"
+            r"[^\r\n\"']+",
+            "<local-path>",
+            text,
+        )
+        lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+        return " | ".join(lines[-12:])[-2_000:] or "<empty>"
 
     @staticmethod
     def _last_json_object(output: str) -> dict[str, Any]:

@@ -1918,6 +1918,8 @@ export interface components {
             manifest: components["schemas"]["PublicProductionManifest"];
             /** Output Profiles */
             output_profiles: components["schemas"]["VideoOutputProfile"][];
+            /** Outro Duration Ms */
+            outro_duration_ms: number;
             /** Source Videos */
             source_videos: components["schemas"]["PublicSourceVideoRenderAsset"][];
             /** Subtitle */

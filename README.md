@@ -101,6 +101,24 @@ pnpm --filter @god-news/video test
 
 前端接口契约、已实现能力与诚实的运行边界见 `docs/frontend-api-mapping.md`。
 
+## 真实双比例端到端演示
+
+以下命令使用当前配置的 DeepSeek、GPT-SoVITS、DSakiko Cubism 2 角色和真实 Remotion 渲染器，生成一套约五分钟的 9:16 / 16:9 技术演示。演示新闻与五段原视频均由脚本本地生成并标记为自制素材，不会把权利未知的互联网内容伪装成可发布新闻：
+
+```powershell
+$env:GOD_NEWS_E2E_DSAKIKO_ROOT = "J:\path\to\DSakiko"
+python scripts/run_e2e_video.py
+```
+
+脚本通过正式的故事持久化、节目导演、口播审核、批次 TTS、时间轴审核和渲染状态流运行；生产审核门不会被删除。每次运行输出：
+
+- 1080×1920 抖音 MP4；
+- 1920×1080 Bilibili MP4；
+- 开头、中段、片尾代表帧；
+- `artifact-report.json`，包含导演计划、口播/字幕、TTS 与 Live2D 哈希、源视频权利状态和双输出媒体信息。
+
+角色路径、模型、参考音频和密钥不会进入 Git。渲染子进程若以明确的 `FAILED` 状态结束，E2E 驱动最多执行一次有界重试；所有上游审核快照保持不变。
+
 ## 当前运行边界
 
 - 四个真实内容源只有在对应凭据、用途授权和站点条款均确认后才会启用；离线演示不访问真实网络。

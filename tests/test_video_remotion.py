@@ -28,6 +28,7 @@ from god_news.domain.video import (
     VideoInputAsset,
     VideoInputAssetKind,
     VideoOutputProfileId,
+    render_input_sha256,
 )
 from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.video_errors import VideoRenderingError
@@ -82,6 +83,65 @@ def test_episode_scene_contract_rejects_invalid_renderer_capabilities() -> None:
             speaker_id="narrator",
             host_visibility=EpisodeHostVisibility.HIDDEN,
         )
+
+
+def test_media_worker_diagnostic_redacts_local_paths_and_keeps_error_tail(
+    tmp_path: Path,
+) -> None:
+    package_dir = tmp_path / "video"
+    (package_dir / "node_modules" / "tsx" / "dist").mkdir(parents=True)
+    (package_dir / "node_modules" / "tsx" / "dist" / "cli.mjs").touch()
+    (package_dir / "scripts").mkdir()
+    (package_dir / "scripts" / "render.ts").touch()
+    renderer = LocalRemotionBatchVideoRenderer(
+        package_dir=package_dir,
+        output_dir=tmp_path / "renders",
+        node_command="node",
+        timeout_seconds=30,
+        max_parallel_batches=1,
+        concurrency=1,
+    )
+
+    diagnostic = renderer._sanitized_worker_diagnostic(
+        (
+            f"Error in {package_dir / 'src' / 'scene.tsx'}\n"
+            f"Output {tmp_path / 'renders' / 'batch' / 'video.mp4'}\n"
+            "Linux cache /home/runner/.cache/remotion/browser\n"
+            "Closing card failed to render"
+        ).encode()
+    )
+
+    assert str(tmp_path) not in diagnostic
+    assert "/home/runner" not in diagnostic
+    assert "Closing card failed to render" in diagnostic
+
+
+def test_zero_outro_preserves_pre_outro_render_hash_shape(tmp_path: Path) -> None:
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"RIFF-fixture")
+    props = _props(audio)
+    assets = _input_assets(audio)
+    payload = props.model_dump(mode="json")
+    assert payload.pop("outro_duration_ms") == 0
+    expected = hashlib.sha256(
+        json.dumps(
+            {
+                "props": payload,
+                "assets": [
+                    asset.model_dump(mode="json")
+                    for asset in sorted(
+                        assets,
+                        key=lambda item: (item.kind.value, item.local_path),
+                    )
+                ],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+    assert render_input_sha256(props, assets) == expected
 
 
 def test_remotion_props_reject_episode_plan_identity_drift(tmp_path: Path) -> None:

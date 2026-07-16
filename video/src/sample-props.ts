@@ -53,6 +53,7 @@ export const sampleProps: GodNewsVideoProps = {
   title: '今天，善意被看见',
   subtitle: 'GOD NEWS · HUMAN KINDNESS',
   intro_duration_ms: 700,
+  outro_duration_ms: 3000,
   transition_duration_ms: 180,
   theme: {
     background: '#101512',

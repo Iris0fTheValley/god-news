@@ -4,6 +4,7 @@ import {sourceForBrowser} from './browser-assets';
 import {buildRenderPlan} from './render-plan';
 import type {GodNewsVideoProps} from './schema';
 import {renderEpisodeScene} from './scenes/SceneRegistry';
+import {ClosingCard} from './scenes/ClosingCard';
 import {TitleCard} from './scenes/TitleCard';
 import {TransitionScene} from './scenes/TransitionScene';
 
@@ -46,6 +47,21 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
                 type={track.transition_type}
                 theme={props.theme}
                 durationInFrames={track.durationInFrames}
+              />
+            </Sequence>
+          );
+        }
+        if (track.kind === 'outro') {
+          return (
+            <Sequence
+              key="outro"
+              from={track.from}
+              durationInFrames={track.durationInFrames}
+              name="Program closing"
+            >
+              <ClosingCard
+                title={props.title}
+                theme={props.theme}
               />
             </Sequence>
           );

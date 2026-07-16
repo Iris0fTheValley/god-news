@@ -39,9 +39,30 @@ describe('buildRenderPlan', () => {
     ];
     props.episode_plan = undefined;
     props.intro_duration_ms = 0;
+    props.outro_duration_ms = 0;
     props.transition_duration_ms = 0;
 
     expect(buildRenderPlan(props, 30).durationInFrames).toBe(1);
+  });
+
+  it('adds a final transition and deterministic closing track', () => {
+    const props = structuredClone(validProps);
+    props.outro_duration_ms = 1000;
+
+    const plan = buildRenderPlan(props, 30);
+    const tail = plan.tracks.slice(-2);
+
+    expect(tail).toEqual([
+      {
+        kind: 'transition',
+        from: 96,
+        durationInFrames: 6,
+        afterSceneId: props.episode_plan!.scenes[1]!.scene_id,
+        transition_type: props.episode_plan!.scenes[1]!.transition_type,
+      },
+      {kind: 'outro', from: 102, durationInFrames: 30},
+    ]);
+    expect(plan.durationInFrames).toBe(132);
   });
 
   it('rejects invalid frame rates', () => {

@@ -863,6 +863,29 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
         assert not await guard.has_live_script_reference(
             rendered.narration.script.segments[0].speaker_id
         )
+        legacy_id = uuid4()
+        now = datetime.now(UTC)
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "INSERT INTO video_batches "
+                    "(batch_id, status, batch_json, version, created_at, updated_at) "
+                    "VALUES (:batch_id, :status, :batch_json, :version, :created_at, :updated_at)"
+                ),
+                {
+                    "batch_id": str(legacy_id),
+                    "status": VideoBatchStatus.RENDERED.value,
+                    "batch_json": json.dumps({"batch_id": str(legacy_id)}),
+                    "version": 1,
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+        assert [item.batch_id for item in await repository.list(limit=10)] == [
+            rendered.batch_id
+        ]
+        with pytest.raises(VideoBatchConflictError, match="current narration-review schema"):
+            await repository.get(legacy_id)
 
         assert rendered.artifact is not None
         current_output = rendered.artifact.outputs[0]

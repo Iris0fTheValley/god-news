@@ -2660,6 +2660,10 @@
             "title": "Output Profiles",
             "type": "array"
           },
+          "outro_duration_ms": {
+            "title": "Outro Duration Ms",
+            "type": "integer"
+          },
           "source_videos": {
             "items": {
               "$ref": "#/components/schemas/PublicSourceVideoRenderAsset"
@@ -2697,6 +2701,7 @@
           "manifest",
           "title",
           "intro_duration_ms",
+          "outro_duration_ms",
           "transition_duration_ms",
           "theme",
           "visual_reservations",

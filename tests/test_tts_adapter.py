@@ -386,6 +386,33 @@ class _MockTTSClient:
         return _MockTTSResponse(self._payload)
 
 
+class _MockErrorTTSResponse(_MockTTSResponse):
+    def __init__(self, payload: bytes) -> None:
+        super().__init__(payload)
+        self.status_code = 400
+        self.headers = {}
+
+    async def aread(self) -> bytes:
+        return self._payload
+
+
+class _MockErrorTTSClient:
+    def stream(
+        self,
+        method: str,
+        url: str,
+        *,
+        json: dict[str, Any],
+    ) -> _MockErrorTTSResponse:
+        del json
+        assert method == "POST"
+        assert url.endswith("/tts")
+        return _MockErrorTTSResponse(
+            b'{"message":"text_lang is required; model=C:\\\\private\\\\voice.wav; '
+            b'token=secret-value","Exception":"C:\\\\private\\\\trace.txt"}'
+        )
+
+
 def _response_wav_bytes() -> bytes:
     stream = io.BytesIO()
     with wave.open(stream, "wb") as handle:
@@ -394,6 +421,31 @@ def _response_wav_bytes() -> bytes:
         handle.setframerate(16_000)
         handle.writeframes(b"\0\0" * 1_600)
     return stream.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_tts_rejection_reports_bounded_vendor_message_without_internal_exception(
+    tmp_path: Path,
+) -> None:
+    synthesizer = _make_synthesizer(tmp_path)
+    story_dir = synthesizer._output_dir / "story"
+    story_dir.mkdir(parents=True)
+    segment = _script().segments[0]
+
+    with pytest.raises(TTSGenerationError) as caught:
+        await synthesizer._generate_clip(
+            client=cast(Any, _MockErrorTTSClient()),
+            server=cast(Any, SimpleNamespace(port=18_001, force_shutdown=False)),
+            segment=segment,
+            story_dir=story_dir,
+            reference_audio_path=synthesizer._reference_audio,
+            reference_text="safe reference",
+            prompt_language="en",
+        )
+
+    assert "Vendor message: text_lang is required" in str(caught.value)
+    assert "private" not in str(caught.value)
+    assert "secret-value" not in str(caught.value)
 
 
 @pytest.mark.asyncio

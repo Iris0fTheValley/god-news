@@ -754,6 +754,7 @@ class VideoBatchService:
             manifest=manifest,
             title=title,
             subtitle=subtitle,
+            outro_duration_ms=3_000,
             bgm=bgm,
             visual_reservations=host,
             episode_plan=episode_plan,

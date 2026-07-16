@@ -207,6 +207,7 @@ class PublicRemotionVideoProps(ApiModel):
     title: str
     subtitle: str | None = None
     intro_duration_ms: int
+    outro_duration_ms: int
     transition_duration_ms: int
     theme: VideoTheme
     bgm: PublicBgmRenderSpec | None = None

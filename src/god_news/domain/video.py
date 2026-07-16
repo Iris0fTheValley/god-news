@@ -530,6 +530,9 @@ class RemotionVideoProps(DomainModel):
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)]
     subtitle: Annotated[str, StringConstraints(strip_whitespace=True, max_length=320)] | None = None
     intro_duration_ms: int = Field(default=700, ge=0, le=5_000)
+    # Zero preserves the exact hash semantics of pre-outro persisted snapshots.
+    # New application-created batches explicitly opt into the current default.
+    outro_duration_ms: int = Field(default=0, ge=0, le=10_000)
     transition_duration_ms: int = Field(default=180, ge=0, le=2_000)
     theme: VideoTheme = Field(default_factory=VideoTheme)
     bgm: BgmRenderSpec | None = None
@@ -1286,9 +1289,14 @@ def render_input_sha256(
 ) -> str:
     """Hash rendered semantics plus content snapshots in a stable order."""
 
+    props_payload = props.model_dump(mode="json")
+    if props.outro_duration_ms == 0:
+        # This field did not exist in legacy render snapshots. Omitting its
+        # compatibility value keeps their immutable review hash verifiable.
+        props_payload.pop("outro_duration_ms", None)
     return _canonical_sha256(
         {
-            "props": props.model_dump(mode="json"),
+            "props": props_payload,
             "assets": [
                 asset.model_dump(mode="json")
                 for asset in sorted(assets, key=lambda item: (item.kind.value, item.local_path))

@@ -41,6 +41,7 @@ export const validProps: GodNewsVideoProps = {
   title: 'Deterministic fixture',
   subtitle: null,
   intro_duration_ms: 500,
+  outro_duration_ms: 0,
   transition_duration_ms: 200,
   theme: {
     background: '#101512',

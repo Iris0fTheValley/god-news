@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
 import os
+import re
 import shutil
 import socket
 import tempfile
@@ -1064,9 +1066,19 @@ class GPTSoVITSSpeechSynthesizer:
                 json=request.model_dump(),
             ) as response:
                 if response.status_code != 200:
+                    body = await response.aread()
+                    vendor_message = ""
+                    try:
+                        payload = json.loads(body[:4_096].decode("utf-8", errors="strict"))
+                        candidate = payload.get("message") if isinstance(payload, dict) else None
+                        if isinstance(candidate, str):
+                            vendor_message = self._sanitize_vendor_message(candidate)
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        pass
+                    detail = f" Vendor message: {vendor_message}." if vendor_message else ""
                     raise TTSGenerationError(
                         f"GPT-SoVITS rejected segment {segment.sequence} with "
-                        f"HTTP {response.status_code}."
+                        f"HTTP {response.status_code}.{detail}"
                     )
                 content_length = response.headers.get("content-length")
                 if content_length and int(content_length) > self._max_audio_bytes:
@@ -1112,6 +1124,32 @@ class GPTSoVITSSpeechSynthesizer:
             channels=info.channels,
             sha256=digest.hexdigest(),
         )
+
+    @staticmethod
+    def _sanitize_vendor_message(message: str) -> str:
+        sanitized = " ".join(message.split())
+        sanitized = re.sub(
+            r"(?i)(?:[a-z]:[\\/]|\\\\)[^\s,;\"']+",
+            "<local-path>",
+            sanitized,
+        )
+        sanitized = re.sub(
+            r"(?i)(?<![A-Za-z0-9:])/(?:home|Users|tmp|var/tmp|mnt|opt|private)/"
+            r"[^\s,;\"']+",
+            "<local-path>",
+            sanitized,
+        )
+        sanitized = re.sub(
+            r"(?i)\b(?:bearer\s+|sk-)[A-Za-z0-9._-]{8,}\b",
+            "<secret>",
+            sanitized,
+        )
+        sanitized = re.sub(
+            r"(?i)\b(?:api[_-]?key|token|secret)=[^\s,;]+",
+            "<secret>",
+            sanitized,
+        )
+        return sanitized[:200]
 
     async def _stop_server(self, server: _ServerProcess) -> None:
         async with server.stop_lock:

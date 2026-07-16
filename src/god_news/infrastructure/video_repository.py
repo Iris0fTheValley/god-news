@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +23,8 @@ from god_news.video_errors import (
     VideoBatchNotFoundError,
     VideoStoryUnavailableError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class VideoBatchRow(Base):
@@ -145,17 +148,43 @@ class SqlAlchemyVideoBatchRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> Sequence[VideoBatch]:
-        statement = (
-            select(VideoBatchRow)
-            .order_by(VideoBatchRow.created_at.desc(), VideoBatchRow.batch_id.desc())
-            .limit(limit)
-            .offset(offset)
-        )
-        if status is not None:
-            statement = statement.where(VideoBatchRow.status == status.value)
-        async with self._sessions() as session:
-            rows = (await session.scalars(statement)).all()
-        return [_to_batch(row) for row in rows]
+        batches: list[VideoBatch] = []
+        compatible_seen = 0
+        raw_offset = 0
+        chunk_size = max(100, limit * 2)
+        while len(batches) < limit:
+            statement = (
+                select(VideoBatchRow)
+                .order_by(VideoBatchRow.created_at.desc(), VideoBatchRow.batch_id.desc())
+                .limit(chunk_size)
+                .offset(raw_offset)
+            )
+            if status is not None:
+                statement = statement.where(VideoBatchRow.status == status.value)
+            async with self._sessions() as session:
+                rows = (await session.scalars(statement)).all()
+            if not rows:
+                break
+            raw_offset += len(rows)
+            for row in rows:
+                try:
+                    batch = _to_batch(row)
+                except VideoBatchConflictError:
+                    logger.warning(
+                        "Skipped incompatible stored video batch %s while listing.",
+                        row.batch_id,
+                    )
+                    continue
+                if compatible_seen < offset:
+                    compatible_seen += 1
+                    continue
+                batches.append(batch)
+                compatible_seen += 1
+                if len(batches) >= limit:
+                    break
+            if len(rows) < chunk_size:
+                break
+        return batches
 
     async def unavailable_story_ids(self, story_ids: Sequence[UUID]) -> frozenset[UUID]:
         if not story_ids:
