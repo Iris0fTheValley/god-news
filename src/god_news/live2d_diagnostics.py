@@ -414,6 +414,7 @@ def evaluate_image_tracks(
         "signed_delta_high_frequency_min_reversals": 10.0,
         "signed_delta_alternating_energy_ratio": 0.45,
         "geometry_alternating_energy_ratio": 0.45,
+        "geometry_period_two_min_p95_step": 0.002,
     }
     if quality_profile == "fixed_background":
         # A fixed-background review transcodes the alpha host once to opaque
@@ -432,6 +433,11 @@ def evaluate_image_tracks(
         limits["alpha_delta_p99_direct"] = 0.035
         limits["alpha_delta_max_direct"] = 0.060
         limits["outline_centroid_step"] = 0.070 * frame_scale
+        # At the final downscaled H.264 stage, extremely small silhouette-area
+        # steps can have a high normalized period-two ratio despite being
+        # sub-visible codec quantization. Require a bounded absolute amplitude;
+        # raw and fixed-background profiles keep the stricter 0.002 floor.
+        limits["geometry_period_two_min_p95_step"] = 0.005
     checks: dict[str, tuple[float, float]] = {
         "centroid_x_step": (
             metrics["centroid_x"].maximum_absolute_step,
@@ -629,7 +635,8 @@ def evaluate_image_tracks(
     for name in ("alpha_area_ratio", "alpha_spread_x", "alpha_spread_y"):
         item = metrics[name]
         if (
-            item.p95_absolute_step > 0.002
+            item.p95_absolute_step
+            > limits["geometry_period_two_min_p95_step"]
             and item.alternating_energy_ratio
             > limits["geometry_alternating_energy_ratio"]
         ):

@@ -134,6 +134,44 @@ def test_image_gate_rejects_every_frame_alternating_flicker() -> None:
     assert "image_alpha_area_ratio_period_two_exceeded" in codes
 
 
+def test_final_composite_period_two_gate_requires_visible_amplitude() -> None:
+    timestamps = [index / 30 for index in range(60)]
+    tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+    for name in (
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+    ):
+        tracks[name] = [0.5] * 60
+    tracks["alpha_area_ratio"] = [
+        0.3 + (0.002 if index % 2 else -0.002) for index in range(60)
+    ]
+
+    _, source_limits, source_findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=616, frame_height=676
+    )
+    _, final_limits, final_findings = evaluate_image_tracks(
+        tracks,
+        timestamps,
+        fps=30,
+        frame_width=616,
+        frame_height=676,
+        quality_profile="final_composite",
+    )
+
+    assert source_limits["geometry_period_two_min_p95_step"] == 0.002
+    assert final_limits["geometry_period_two_min_p95_step"] == 0.005
+    assert "image_alpha_area_ratio_period_two_exceeded" in {
+        finding.code for finding in source_findings
+    }
+    assert "image_alpha_area_ratio_period_two_exceeded" not in {
+        finding.code for finding in final_findings
+    }
+
+
 def test_image_signed_delta_high_frequency_requires_sustained_reversals() -> None:
     timestamps = [index / 30 for index in range(60)]
     tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
