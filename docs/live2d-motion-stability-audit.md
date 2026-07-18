@@ -175,9 +175,13 @@ the corrected production path and owns those parameters explicitly.
 
 Template Lab production visual tests no longer skip host cases. A missing real
 host WebM fails the suite. The test plays the horizontal and vertical
-compositions, verifies at least two seconds of frame advancement, hashes
-multiple decoded frames, pauses, advances one frame, resumes, and rejects
-console/media errors.
+compositions, verifies at least two seconds of frame advancement, compares
+multiple user-visible host snapshots, pauses behind an explicit media seek
+barrier, advances one frame, resumes, and rejects console/media errors. The
+pause gate separately freezes the Remotion frame and native media time. Its
+32x32 grayscale signature tolerance is derived from repeated same-frame Edge
+captures (at most 0.0098 mean levels) and remains well below the smallest
+observed real-motion delta (0.846 mean levels).
 
 The complete E2E command is:
 

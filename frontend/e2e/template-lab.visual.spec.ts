@@ -28,25 +28,49 @@ const currentFrame = async (page: Page): Promise<number> => {
   return Number(match[1]);
 };
 
-const hostFrameHash = async (
+const renderedHostSignature = async (
+  page: Page,
   video: Locator,
-): Promise<string> =>
-  video.evaluate((element) => {
-    const source = element as HTMLVideoElement;
+  outputPath?: string,
+): Promise<number[]> => {
+  const screenshot = await video.screenshot({
+    ...(outputPath ? {path: outputPath} : {}),
+    type: 'jpeg',
+    quality: 70,
+  });
+  return page.evaluate(async (dataUrl) => {
+    const response = await fetch(dataUrl);
+    const bitmap = await createImageBitmap(await response.blob());
     const canvas = document.createElement('canvas');
-    canvas.width = source.videoWidth;
-    canvas.height = source.videoHeight;
+    canvas.width = 32;
+    canvas.height = 32;
     const context = canvas.getContext('2d', {willReadFrequently: true});
     if (!context) throw new Error('Canvas 2D context is unavailable.');
-    context.drawImage(source, 0, 0);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let hash = 2166136261;
-    for (let index = 0; index < pixels.length; index += 32) {
-      hash ^= pixels[index] ?? 0;
-      hash = Math.imul(hash, 16777619);
+    const signature: number[] = [];
+    for (let index = 0; index < pixels.length; index += 4) {
+      signature.push(
+        Math.round(
+          (299 * (pixels[index] ?? 0) +
+            587 * (pixels[index + 1] ?? 0) +
+            114 * (pixels[index + 2] ?? 0)) /
+            1_000,
+        ),
+      );
     }
-    return (hash >>> 0).toString(16);
-  });
+    return signature;
+  }, `data:image/jpeg;base64,${screenshot.toString('base64')}`);
+};
+
+const signatureDelta = (left: number[], right: number[]): number => {
+  expect(left).toHaveLength(right.length);
+  return left.reduce(
+    (total, value, index) => total + Math.abs(value - (right[index] ?? 0)),
+    0,
+  ) / left.length;
+};
 
 const cases = [
   {
@@ -140,36 +164,93 @@ for (const fixture of cases) {
         (element) => (element as HTMLVideoElement).currentTime,
       );
       await page.getByTestId('template-lab-play-pause').click();
+      const playerFrame = page.getByTestId('template-lab-player-frame');
+      await expect(playerFrame).toHaveAttribute('data-playback-state', 'playing');
       await expect
         .poll(() => currentFrame(page), {timeout: 5_000})
         .toBeGreaterThanOrEqual(initialFrame + 50);
 
-      const hashes: string[] = [];
+      const signatures: number[][] = [];
+      let sampledTime = await host.evaluate(
+        (element) => (element as HTMLVideoElement).currentTime,
+      );
       for (let index = 0; index < 4; index += 1) {
-        hashes.push(await hostFrameHash(host));
-        await page.getByTestId('template-lab-player-frame').screenshot({
+        await expect
+          .poll(
+            () =>
+              host.evaluate(
+                (element) => (element as HTMLVideoElement).currentTime,
+              ),
+            {timeout: 3_000},
+          )
+          .toBeGreaterThan(sampledTime + 0.2);
+        sampledTime = await host.evaluate(
+          (element) => (element as HTMLVideoElement).currentTime,
+        );
+        signatures.push(
+          await renderedHostSignature(
+            page,
+            host,
+            testInfo.outputPath(`${fixture.name}-host-dynamic-${index}.jpg`),
+          ),
+        );
+        await playerFrame.screenshot({
           path: testInfo.outputPath(`${fixture.name}-dynamic-${index}.png`),
         });
-        await page.waitForTimeout(350);
       }
       const advancedTime = await host.evaluate(
         (element) => (element as HTMLVideoElement).currentTime,
       );
       expect(advancedTime - initialTime).toBeGreaterThan(2);
-      expect(new Set(hashes).size).toBeGreaterThanOrEqual(3);
+      const dynamicDeltas = signatures.slice(1).map((signature, index) =>
+        signatureDelta(signatures[index] ?? [], signature),
+      );
+      expect(dynamicDeltas.filter((delta) => delta >= 0.25)).toHaveLength(3);
 
       await page.getByTestId('template-lab-play-pause').click();
-      const pausedPixelHash = await hostFrameHash(host);
-      await page.waitForTimeout(350);
-      expect(await hostFrameHash(host)).toBe(pausedPixelHash);
+      await expect(playerFrame).toHaveAttribute('data-playback-state', 'paused');
+      await expect
+        .poll(() =>
+          host.evaluate((element) => (element as HTMLVideoElement).paused),
+        )
+        .toBe(true);
+      const pausedTime = await host.evaluate(
+        (element) => (element as HTMLVideoElement).currentTime,
+      );
       const pausedFrame = await currentFrame(page);
+      const pausedSignature = await renderedHostSignature(
+        page,
+        host,
+        testInfo.outputPath(`${fixture.name}-paused-before.jpg`),
+      );
+      await page.waitForTimeout(350);
+      expect(
+        await host.evaluate(
+          (element) => (element as HTMLVideoElement).currentTime,
+        ),
+      ).toBe(pausedTime);
+      expect(await currentFrame(page)).toBe(pausedFrame);
+      const pausedAfterSignature = await renderedHostSignature(
+        page,
+        host,
+        testInfo.outputPath(`${fixture.name}-paused-after.jpg`),
+      );
+      // Repeated same-frame Edge captures varied by at most 0.0098 mean
+      // grayscale levels, while the smallest observed real-motion delta was
+      // 0.846. This keeps a wide separation between compositor rounding and
+      // visible motion without treating exact PNG bytes as a playback clock.
+      expect(signatureDelta(pausedSignature, pausedAfterSignature)).toBeLessThanOrEqual(
+        0.05,
+      );
       await page.getByTestId('template-lab-next-frame').click();
       await expect.poll(() => currentFrame(page)).toBe(pausedFrame + 1);
       await page.getByTestId('template-lab-play-pause').click();
+      await expect(playerFrame).toHaveAttribute('data-playback-state', 'playing');
       await expect
         .poll(() => currentFrame(page), {timeout: 3_000})
         .toBeGreaterThan(pausedFrame + 10);
       await page.getByTestId('template-lab-play-pause').click();
+      await expect(playerFrame).toHaveAttribute('data-playback-state', 'paused');
     }
     for (const caption of await page.locator('[data-caption-region]').all()) {
       const overflow = await caption.evaluate(
