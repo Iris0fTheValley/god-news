@@ -3,6 +3,46 @@ import {describe, expect, it} from 'vitest';
 import {parseGodNewsVideoProps} from '../src/schema';
 import {validProps} from './fixtures';
 
+const validLive2DDiagnostics = {
+  schema_version: '2.0' as const,
+  control_mode: 'final' as const,
+  frames: 36,
+  envelope_frames: 36,
+  rendered_frames: 36,
+  fps: 30,
+  time_delta_ms_min: 33,
+  time_delta_ms_max: 34,
+  motion_group: 'happiness',
+  motion_restarts: 0,
+  motion_state_counts: {playing_motion: 36},
+  motion_switch_max_delta: 0.08,
+  motion_source_switch_max_delta: 1.2,
+  expression: 'happiness',
+  blink_events: 1,
+  mouth_min: 0,
+  mouth_p50: 0.2,
+  mouth_p95: 0.7,
+  mouth_max: 0.8,
+  mouth_max_delta: 0.1,
+  voiced_frame_ratio: 0.7,
+  exact_duplicate_pair_ratio: 0,
+  longest_exact_duplicate_run: 0,
+  capture_retry_frames: 1,
+  capture_retries_total: 1,
+  capture_max_attempts: 3,
+  controlled_parameters: [],
+  parameter_owners: {},
+  parameter_metrics: {},
+  image_metrics: {},
+  image_thresholds: {},
+  gate_findings: [],
+  quality_gate_passed: true,
+  audio_calibration: {noise_floor: 0.001, normalization_peak: 0.5},
+  trace_path: 'hosts/trace.jsonl',
+  trace_sha256: 'd'.repeat(64),
+  trace_size_bytes: 1024,
+};
+
 describe('GodNewsVideoPropsSchema', () => {
   it('accepts the backend structured ProductionManifest 2.0 shape', () => {
     expect(parseGodNewsVideoProps(validProps)).toEqual(validProps);
@@ -69,11 +109,53 @@ describe('GodNewsVideoPropsSchema', () => {
         height: 720,
         fps: 30,
         video_codec: 'vp9',
+        diagnostics: structuredClone(validLive2DDiagnostics),
       })),
     };
 
-    expect(parseGodNewsVideoProps(input).visual_reservations.renderer).toBe(
-      'live2d_prerender',
+    const parsed = parseGodNewsVideoProps(input);
+    expect(parsed.visual_reservations.renderer).toBe('live2d_prerender');
+    expect(parsed.visual_reservations.host_videos[0]!.diagnostics).toMatchObject({
+      capture_retry_frames: 1,
+      capture_retries_total: 1,
+      capture_max_attempts: 3,
+    });
+  });
+
+  it('rejects inconsistent Live2D capture retry diagnostics', () => {
+    const input = structuredClone(validProps);
+    input.visual_reservations = {
+      renderer: 'live2d_prerender',
+      host_videos: input.manifest.timeline.map((segment, index) => ({
+        asset_id: index === 0
+          ? '4aebecf9-4092-4816-84d1-1ce05c1600dc'
+          : '247b4a03-533f-44f7-bbd4-3fd3f462e169',
+        segment_id: segment.segment_id,
+        speaker_id: segment.speaker_id,
+        role_profile_id: index === 0
+          ? '6b5eeefc-c4c2-4263-8764-6a8596938308'
+          : 'ec0a064d-265e-40d6-8cbb-300e02561c58',
+        role_profile_version: 2,
+        model_sha256: 'a'.repeat(64),
+        audio_sha256: 'b'.repeat(64),
+        local_path: `hosts/${segment.segment_id}.webm`,
+        sha256: 'c'.repeat(64),
+        size_bytes: 2048,
+        duration_ms: segment.end_ms - segment.start_ms,
+        width: 720,
+        height: 720,
+        fps: 30,
+        video_codec: 'vp9',
+        diagnostics: {
+          ...structuredClone(validLive2DDiagnostics),
+          capture_retry_frames: 2,
+          capture_retries_total: 1,
+        },
+      })),
+    };
+
+    expect(() => parseGodNewsVideoProps(input)).toThrow(
+      /capture retry total cannot be smaller/u,
     );
   });
 

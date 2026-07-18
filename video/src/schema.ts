@@ -820,6 +820,9 @@ const RenderedHostVideoSchema = z
         voiced_frame_ratio: z.number().min(0).max(1),
         exact_duplicate_pair_ratio: z.number().min(0).max(1),
         longest_exact_duplicate_run: z.number().int().nonnegative(),
+        capture_retry_frames: z.number().int().nonnegative().default(0),
+        capture_retries_total: z.number().int().nonnegative().default(0),
+        capture_max_attempts: z.number().int().min(1).max(10).default(3),
         controlled_parameters: z.array(nonBlank).max(32),
         parameter_owners: z.record(nonBlank, nonBlank),
         parameter_metrics: z.record(nonBlank, Live2DParameterDiagnosticsSchema),
@@ -838,6 +841,22 @@ const RenderedHostVideoSchema = z
         trace_size_bytes: z.number().int().positive(),
       })
       .strict()
+      .superRefine((diagnostics, context) => {
+        if (diagnostics.capture_retry_frames > diagnostics.frames) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'capture retry frames cannot exceed rendered frames',
+            path: ['capture_retry_frames'],
+          });
+        }
+        if (diagnostics.capture_retries_total < diagnostics.capture_retry_frames) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'capture retry total cannot be smaller than retry frames',
+            path: ['capture_retries_total'],
+          });
+        }
+      })
       .nullable()
       .optional(),
   })
