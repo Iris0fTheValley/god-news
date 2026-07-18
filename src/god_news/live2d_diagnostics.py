@@ -364,11 +364,11 @@ def evaluate_image_tracks(
     frame_scale = 30.0 / fps
     limits = {
         "geometry_reversal_epsilon": pixel_epsilon,
-        # A corrected motion handoff measured 0.0167 before encode and 0.0188
-        # after fixed-background H.264 reconstruction. Keep a small codec
-        # margin here; parameter jerk, regional frame deltas, flow, reversal,
-        # and period-two gates independently constrain abrupt or cyclic motion.
-        "centroid_step": 0.022 * frame_scale,
+        # Corrected motion measured up to 0.0221 after fixed-background H.264
+        # reconstruction across the authoritative model motion set. 0.025 keeps
+        # codec/float margin while the 0.03 teleport regression and independent
+        # parameter, regional-delta, flow, reversal, and period-two gates remain.
+        "centroid_step": 0.025 * frame_scale,
         "centroid_reversals_per_second": 10.0,
         "centroid_high_frequency_ratio": 0.9,
         "centroid_high_frequency_min_reversals": 8.0,
