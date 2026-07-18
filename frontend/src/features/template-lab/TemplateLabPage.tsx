@@ -178,6 +178,19 @@ export function TemplateLabPage() {
     updateState({frame: clamped});
   };
 
+  const pauseAtCurrentFrame = () => {
+    const player = playerRef.current;
+    if (!player) return;
+    player.pause();
+    const frozenFrame = player.getCurrentFrame();
+    // Remotion's pause event can race the underlying HTMLVideoElement by one
+    // decoded frame. Seeking to the committed frame makes pause a true media
+    // barrier for frame-accurate review instead of only stopping the clock.
+    player.seekTo(frozenFrame);
+    setCurrentFrame(frozenFrame);
+    updateState({frame: frozenFrame});
+  };
+
   const changeScene = (nextScene: TemplateLabState['scene']) => {
     const nextFixture = TEMPLATE_LAB_FIXTURES.find(
       (fixture) => fixture.moduleId === nextScene,
@@ -383,7 +396,7 @@ export function TemplateLabPage() {
                 disabled={!fixtureResult.available}
                 aria-label={playing ? '暂停' : '播放'}
                 onClick={() => {
-                  if (playing) playerRef.current?.pause();
+                  if (playing) pauseAtCurrentFrame();
                   else playerRef.current?.play();
                 }}
               >
