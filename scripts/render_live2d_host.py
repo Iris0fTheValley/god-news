@@ -8,7 +8,7 @@ import os
 import sys
 import wave
 from array import array
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import suppress
 from fractions import Fraction
 from pathlib import Path
@@ -613,6 +613,56 @@ def _frame_image_metrics(
     return metrics
 
 
+def _capture_alpha_area_ratio(pixels: bytes, *, width: int, height: int) -> float:
+    """Return the visible-alpha coverage for one raw OpenGL RGBA readback."""
+    import numpy as np
+
+    expected_bytes = width * height * 4
+    if len(pixels) != expected_bytes:
+        raise RuntimeError(
+            f"OpenGL returned {len(pixels)} bytes; expected {expected_bytes}"
+        )
+    rgba = np.frombuffer(pixels, dtype=np.uint8).reshape(height, width, 4)
+    return float(np.mean(rgba[:, :, 3] > round(255 * 0.03)))
+
+
+def _capture_frame_with_retries(
+    capture: Callable[[], bytes],
+    *,
+    width: int,
+    height: int,
+    previous_alpha_area: float | None,
+    max_attempts: int = 3,
+) -> tuple[bytes, int]:
+    """Capture a valid frame, retrying transient native blank draw/readbacks.
+
+    The same already-committed model state is redrawn for every attempt. We do
+    not advance time and never duplicate the previous image, so recovery stays
+    deterministic and a persistent renderer failure remains explicit.
+    """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least one")
+    minimum_area = 0.01
+    for attempt in range(1, max_attempts + 1):
+        pixels = capture()
+        alpha_area = _capture_alpha_area_ratio(
+            pixels,
+            width=width,
+            height=height,
+        )
+        collapsed = (
+            previous_alpha_area is not None
+            and previous_alpha_area >= minimum_area
+            and alpha_area < previous_alpha_area * 0.25
+        )
+        if alpha_area >= minimum_area and not collapsed:
+            return pixels, attempt
+    raise RuntimeError(
+        "Live2D native renderer produced a blank or collapsed frame "
+        f"for {max_attempts} consecutive same-state draw attempts"
+    )
+
+
 def _percentile(values: list[float], fraction: float) -> float:
     if not values:
         return 0.0
@@ -861,6 +911,10 @@ def render(args: argparse.Namespace) -> None:
             )
         }
         previous_rgba = None
+        previous_alpha_area: float | None = None
+        capture_retry_frames = 0
+        capture_retries_total = 0
+        capture_max_attempts = 3
         trace_handle = trace_path.open("w", encoding="utf-8", newline="\n")
         for frame_index, raw_audio in enumerate(raw_envelope):
             timestamp_seconds = frame_index / args.fps
@@ -1019,27 +1073,32 @@ def render(args: argparse.Namespace) -> None:
             motion_state_counts[motion_state] = motion_state_counts.get(motion_state, 0) + 1
             mouth_deltas.append(abs(applied_mouth - previous_mouth))
             previous_mouth = applied_mouth
-            model.Draw()
-            glFinish()
-            pixels = bytes(
-                glReadPixels(
-                    0,
-                    0,
-                    args.width,
-                    args.height,
-                    GL_RGBA,
-                    GL_UNSIGNED_BYTE,
+            def capture_current_state() -> bytes:
+                glClear(GL_COLOR_BUFFER_BIT)
+                model.Draw()
+                glFinish()
+                return bytes(
+                    glReadPixels(
+                        0,
+                        0,
+                        args.width,
+                        args.height,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                    )
                 )
+
+            pixels, capture_attempts = _capture_frame_with_retries(
+                capture_current_state,
+                width=args.width,
+                height=args.height,
+                previous_alpha_area=previous_alpha_area,
+                max_attempts=capture_max_attempts,
             )
-            expected_bytes = args.width * args.height * 4
-            if len(pixels) != expected_bytes:
-                raise RuntimeError(
-                    f"OpenGL returned {len(pixels)} bytes; expected {expected_bytes}"
-                )
-            if frame_index == 0:
-                alpha = pixels[3::4]
-                if not alpha or min(alpha) == max(alpha):
-                    raise RuntimeError("OpenGL capture did not preserve a varying alpha channel")
+            capture_retries = capture_attempts - 1
+            if capture_retries:
+                capture_retry_frames += 1
+                capture_retries_total += capture_retries
             frame_hashes.append(hashlib.sha256(pixels).hexdigest())
             rgba = np.frombuffer(pixels, dtype=np.uint8).reshape(
                 args.height,
@@ -1049,6 +1108,7 @@ def render(args: argparse.Namespace) -> None:
             display_rgba = rgba[::-1].copy()
             image_metrics = _frame_image_metrics(display_rgba, previous_rgba)
             previous_rgba = display_rgba
+            previous_alpha_area = image_metrics["alpha_area_ratio"]
             for key, value in image_metrics.items():
                 image_tracks[key].append(value)
             timestamps.append(timestamp_seconds)
@@ -1070,6 +1130,8 @@ def render(args: argparse.Namespace) -> None:
                         "gated_audio_envelope": gated_envelope,
                         "smoothed_mouth_target": smoothed_mouth_target,
                         "final_mouth_value": applied_mouth,
+                        "capture_attempts": capture_attempts,
+                        "capture_retries": capture_retries,
                         "parameters": {
                             parameter: _serialize_contribution(contribution)
                             for parameter, contribution in contributions.items()
@@ -1197,6 +1259,9 @@ def render(args: argparse.Namespace) -> None:
                         duplicate_pairs / max(1, len(frame_hashes) - 1)
                     ),
                     "longest_exact_duplicate_run": longest_duplicate_run,
+                    "capture_retry_frames": capture_retry_frames,
+                    "capture_retries_total": capture_retries_total,
+                    "capture_max_attempts": capture_max_attempts,
                     "controlled_parameters": sorted(parameter_ranges),
                     "parameter_owners": {
                         parameter: contribution.owner.value

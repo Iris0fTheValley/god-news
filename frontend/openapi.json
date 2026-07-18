@@ -1988,6 +1988,25 @@
             "title": "Blink Events",
             "type": "integer"
           },
+          "capture_max_attempts": {
+            "default": 3,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Capture Max Attempts",
+            "type": "integer"
+          },
+          "capture_retries_total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Capture Retries Total",
+            "type": "integer"
+          },
+          "capture_retry_frames": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Capture Retry Frames",
+            "type": "integer"
+          },
           "control_mode": {
             "enum": [
               "legacy_conflict",

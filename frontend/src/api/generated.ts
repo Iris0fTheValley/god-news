@@ -1712,6 +1712,21 @@ export interface components {
             /** Blink Events */
             blink_events: number;
             /**
+             * Capture Max Attempts
+             * @default 3
+             */
+            capture_max_attempts: number;
+            /**
+             * Capture Retries Total
+             * @default 0
+             */
+            capture_retries_total: number;
+            /**
+             * Capture Retry Frames
+             * @default 0
+             */
+            capture_retry_frames: number;
+            /**
              * Control Mode
              * @enum {string}
              */

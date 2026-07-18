@@ -291,6 +291,48 @@ def test_deterministic_blink_and_idle_pose_are_bounded() -> None:
     )
 
 
+def test_capture_retries_transient_blank_without_advancing_state() -> None:
+    worker = _load_worker_module()
+    blank = bytes(4 * 4 * 4)
+    visible = bytearray(blank)
+    for offset in range(3, len(visible), 4):
+        visible[offset] = 255
+    attempts = iter((blank, bytes(visible)))
+
+    pixels, capture_attempts = worker._capture_frame_with_retries(
+        lambda: next(attempts),
+        width=4,
+        height=4,
+        previous_alpha_area=1.0,
+        max_attempts=3,
+    )
+
+    assert pixels == bytes(visible)
+    assert capture_attempts == 2
+
+
+def test_capture_fails_closed_after_persistent_blank_frames() -> None:
+    worker = _load_worker_module()
+    blank = bytes(4 * 4 * 4)
+    captures = 0
+
+    def capture() -> bytes:
+        nonlocal captures
+        captures += 1
+        return blank
+
+    with pytest.raises(RuntimeError, match=r"three consecutive|3 consecutive"):
+        worker._capture_frame_with_retries(
+            capture,
+            width=4,
+            height=4,
+            previous_alpha_area=1.0,
+            max_attempts=3,
+        )
+
+    assert captures == 3
+
+
 def _diagnostic_payload(**overrides: object) -> dict[str, object]:
     metric = {
         "samples": 36,

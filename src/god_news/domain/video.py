@@ -346,6 +346,9 @@ class Live2DRenderDiagnostics(DomainModel):
     voiced_frame_ratio: float = Field(ge=0, le=1)
     exact_duplicate_pair_ratio: float = Field(ge=0, le=1)
     longest_exact_duplicate_run: int = Field(ge=0)
+    capture_retry_frames: int = Field(default=0, ge=0)
+    capture_retries_total: int = Field(default=0, ge=0)
+    capture_max_attempts: int = Field(default=3, ge=1, le=10)
     controlled_parameters: list[NonBlankStr] = Field(default_factory=list, max_length=32)
     parameter_owners: dict[NonBlankStr, NonBlankStr] = Field(
         default_factory=dict,
@@ -399,6 +402,10 @@ class Live2DRenderDiagnostics(DomainModel):
             raise ValueError("Live2D quality gate state and findings disagree")
         if sum(self.motion_state_counts.values()) != self.frames:
             raise ValueError("Live2D motion state counts must cover every rendered frame")
+        if self.capture_retry_frames > self.frames:
+            raise ValueError("Live2D retry frame count cannot exceed rendered frames")
+        if self.capture_retries_total < self.capture_retry_frames:
+            raise ValueError("Live2D retry total cannot be smaller than retry frames")
         return self
 
 
