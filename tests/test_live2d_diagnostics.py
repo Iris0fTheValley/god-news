@@ -223,6 +223,32 @@ def test_geometry_reversal_epsilon_scales_with_analyzed_roi_resolution() -> None
     assert large_metrics["outline_centroid_y"].direction_reversals_per_second > 20
 
 
+def test_outline_gate_rejects_strong_period_two_boundary_jitter() -> None:
+    timestamps = [index / 30 for index in range(60)]
+    tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+    for name in (
+        "alpha_area_ratio",
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+    ):
+        tracks[name] = [0.5] * 60
+    tracks["outline_centroid_y"] = [
+        0.5 + (0.005 if index % 2 else -0.005) for index in range(60)
+    ]
+
+    _, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
+
+    codes = {finding.code for finding in findings}
+    assert "image_outline_centroid_y_reversals_exceeded" in codes
+    assert "image_outline_centroid_y_high_frequency_exceeded" in codes
+
+
 def test_image_geometry_gate_rejects_large_single_frame_centroid_jump() -> None:
     timestamps = [index / 30 for index in range(60)]
     tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}

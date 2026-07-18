@@ -413,14 +413,6 @@ def evaluate_image_tracks(
             metrics["outline_centroid_y"].maximum_absolute_step,
             limits["outline_centroid_step"],
         ),
-        "outline_centroid_x_reversals": (
-            metrics["outline_centroid_x"].direction_reversals_per_second,
-            limits["outline_reversals_per_second"],
-        ),
-        "outline_centroid_y_reversals": (
-            metrics["outline_centroid_y"].direction_reversals_per_second,
-            limits["outline_reversals_per_second"],
-        ),
         "alpha_area_step": (
             metrics["alpha_area_ratio"].maximum_absolute_step,
             limits["alpha_area_step"],
@@ -488,30 +480,34 @@ def evaluate_image_tracks(
     # Treat it as high-frequency jitter only when it is also reversing often;
     # sustained alternating motion therefore fails while one bounded transient
     # does not.
-    for name, frequency_limit, reversal_floor, step_floor in (
+    for name, frequency_limit, reversal_floor, step_floor, alternating_floor in (
         (
             "centroid_x",
             limits["centroid_high_frequency_ratio"],
             limits["centroid_high_frequency_min_reversals"],
             limits["centroid_high_frequency_min_p95_step"],
+            0.0,
         ),
         (
             "centroid_y",
             limits["centroid_high_frequency_ratio"],
             limits["centroid_high_frequency_min_reversals"],
             limits["centroid_high_frequency_min_p95_step"],
+            0.0,
         ),
         (
             "outline_centroid_x",
             limits["outline_high_frequency_ratio"],
             limits["outline_high_frequency_min_reversals"],
             limits["outline_high_frequency_min_p95_step"],
+            limits["geometry_alternating_energy_ratio"],
         ),
         (
             "outline_centroid_y",
             limits["outline_high_frequency_ratio"],
             limits["outline_high_frequency_min_reversals"],
             limits["outline_high_frequency_min_p95_step"],
+            limits["geometry_alternating_energy_ratio"],
         ),
     ):
         item = metrics[name]
@@ -519,6 +515,7 @@ def evaluate_image_tracks(
             item.high_frequency_energy_ratio > frequency_limit
             and item.direction_reversals_per_second > reversal_floor
             and item.p95_absolute_step > step_floor
+            and item.alternating_energy_ratio > alternating_floor
         ):
             findings.append(
                 GateFinding(
@@ -526,6 +523,24 @@ def evaluate_image_tracks(
                     metric=f"{name}_high_frequency",
                     observed=item.high_frequency_energy_ratio,
                     threshold=frequency_limit,
+                )
+            )
+    for name in ("outline_centroid_x", "outline_centroid_y"):
+        item = metrics[name]
+        if (
+            item.direction_reversals_per_second
+            > limits["outline_reversals_per_second"]
+            and item.p95_absolute_step
+            > limits["outline_high_frequency_min_p95_step"]
+            and item.alternating_energy_ratio
+            > limits["geometry_alternating_energy_ratio"]
+        ):
+            findings.append(
+                GateFinding(
+                    code=f"image_{name}_reversals_exceeded",
+                    metric=f"{name}_reversals",
+                    observed=item.direction_reversals_per_second,
+                    threshold=limits["outline_reversals_per_second"],
                 )
             )
     amplitude_floor = limits["signed_delta_amplitude_floor"]
