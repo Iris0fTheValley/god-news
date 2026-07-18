@@ -425,10 +425,13 @@ def evaluate_image_tracks(
         limits["alpha_delta_max_direct"] = 0.055
     elif quality_profile == "final_composite":
         # The final profile is measured after host scaling plus a second lossy
-        # H.264 encode. Regional RGB/flow gates remain unchanged; only alpha
-        # reconstructed from the opaque composition receives codec margin.
+        # H.264 encode. Downscaling a moving silhouette makes the reconstructed
+        # outline centroid more sensitive to legitimate arm/hand pose changes;
+        # preserve a bounded margin while subject centroid, regional RGB/flow,
+        # reversal, and period-two gates remain unchanged.
         limits["alpha_delta_p99_direct"] = 0.035
         limits["alpha_delta_max_direct"] = 0.060
+        limits["outline_centroid_step"] = 0.070 * frame_scale
     checks: dict[str, tuple[float, float]] = {
         "centroid_x_step": (
             metrics["centroid_x"].maximum_absolute_step,

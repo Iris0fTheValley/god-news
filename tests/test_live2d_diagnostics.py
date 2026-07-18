@@ -263,6 +263,7 @@ def test_encoded_profiles_only_add_bounded_alpha_reconstruction_margin() -> None
     ):
         tracks[name] = [0.5] * 60
     tracks["alpha_delta"] = [0.0] + [0.03] * 59
+    tracks["outline_centroid_y"] = [0.5] * 30 + [0.56] * 30
 
     _, source_limits, source_findings = evaluate_image_tracks(
         tracks, timestamps, fps=30, frame_width=616, frame_height=676
@@ -287,6 +288,9 @@ def test_encoded_profiles_only_add_bounded_alpha_reconstruction_margin() -> None
     assert source_limits["alpha_delta_p99_direct"] == 0.025
     assert background_limits["alpha_delta_p99_direct"] == 0.032
     assert final_limits["alpha_delta_p99_direct"] == 0.035
+    assert source_limits["outline_centroid_step"] == 0.05
+    assert background_limits["outline_centroid_step"] == 0.05
+    assert final_limits["outline_centroid_step"] == 0.07
     assert "image_alpha_delta_p99_direct_exceeded" in {
         finding.code for finding in source_findings
     }
@@ -294,6 +298,15 @@ def test_encoded_profiles_only_add_bounded_alpha_reconstruction_margin() -> None
         finding.code for finding in background_findings
     }
     assert "image_alpha_delta_p99_direct_exceeded" not in {
+        finding.code for finding in final_findings
+    }
+    assert "image_outline_centroid_y_step_exceeded" in {
+        finding.code for finding in source_findings
+    }
+    assert "image_outline_centroid_y_step_exceeded" in {
+        finding.code for finding in background_findings
+    }
+    assert "image_outline_centroid_y_step_exceeded" not in {
         finding.code for finding in final_findings
     }
 
