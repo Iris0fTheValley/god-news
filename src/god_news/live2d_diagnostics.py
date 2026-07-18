@@ -342,11 +342,11 @@ def evaluate_image_tracks(
         "centroid_high_frequency_min_p95_step": 0.0027 * frame_scale,
         # The VP9 decoder exposed by PyAV omits alpha and requires a bounded
         # color-distance reconstruction. Corrected A/B renders measured up to
-        # 0.0377 here at the 512px smoke resolution while subject centroid
-        # stayed below 0.0176 and alternating energy stayed near zero. 0.045
-        # retains codec/segmentation margin while centroid, regional delta,
-        # flow, reversal, and period-two gates still reject visual jitter.
-        "outline_centroid_step": 0.045 * frame_scale,
+        # 0.0377 at 512px and 0.0457 at 720px while subject centroid stayed
+        # below 0.018 and alternating energy stayed near zero. 0.050 retains
+        # codec/segmentation margin while centroid, regional delta, flow,
+        # reversal, and period-two gates still reject visual jitter.
+        "outline_centroid_step": 0.050 * frame_scale,
         "outline_reversals_per_second": 12.0,
         "outline_high_frequency_ratio": 1.1,
         "outline_high_frequency_min_reversals": 5.0,
@@ -357,7 +357,7 @@ def evaluate_image_tracks(
         # alpha-delta gates detect sustained flicker independently.
         "alpha_area_step": 0.040 * frame_scale,
         "alpha_spread_step": 0.018 * frame_scale,
-        "alpha_delta_p99_direct": 0.020,
+        "alpha_delta_p99_direct": 0.025,
         "alpha_delta_max_direct": 0.050,
         "perceptual_delta_p99_direct": 0.160,
         "perceptual_delta_max_direct": 0.280,

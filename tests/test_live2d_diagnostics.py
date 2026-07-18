@@ -195,7 +195,7 @@ def test_image_geometry_gate_rejects_large_single_frame_outline_jump() -> None:
         "outline_centroid_y",
     ):
         tracks[name] = [0.5] * 60
-    tracks["outline_centroid_y"][30] = 0.55
+    tracks["outline_centroid_y"][30] = 0.56
 
     _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
 
