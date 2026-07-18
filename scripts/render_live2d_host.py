@@ -1141,6 +1141,8 @@ def render(args: argparse.Namespace) -> None:
             image_tracks,
             timestamps,
             fps=args.fps,
+            frame_width=args.width,
+            frame_height=args.height,
         )
         image_metrics_summary = {
             name: metrics.as_dict()

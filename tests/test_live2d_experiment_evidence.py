@@ -12,7 +12,10 @@ import pytest
 WORKSPACE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(WORKSPACE / "scripts"))
 
-from analyze_live2d_video import _preencoded_alpha_evidence  # noqa: E402
+from analyze_live2d_video import (  # noqa: E402
+    _normalized_crop_bounds,
+    _preencoded_alpha_evidence,
+)
 from run_live2d_ab_experiments import (  # noqa: E402
     _prepare_diagnostic_wav,
     _select_audio_windows,
@@ -144,6 +147,26 @@ def test_transition_window_accepts_observed_motion_index_change(tmp_path: Path) 
     assert selected["changes"] == [
         {"track": "motion_index", "before": "0", "after": "1"}
     ]
+
+
+def test_normalized_crop_bounds_are_auditable_and_clamped_to_pixels() -> None:
+    assert _normalized_crop_bounds(1920, 1080, (0.05, 0.1, 0.32, 0.6)) == (
+        96,
+        108,
+        711,
+        756,
+    )
+
+
+@pytest.mark.parametrize(
+    "crop",
+    [(-0.1, 0.0, 0.5, 0.5), (0.0, 0.0, 0.0, 0.5), (0.8, 0.0, 0.3, 0.5)],
+)
+def test_normalized_crop_bounds_reject_invalid_regions(
+    crop: tuple[float, float, float, float],
+) -> None:
+    with pytest.raises(ValueError, match="normalized crop"):
+        _normalized_crop_bounds(1920, 1080, crop)
 
 
 def test_preencoded_alpha_evidence_is_fail_closed(tmp_path: Path) -> None:

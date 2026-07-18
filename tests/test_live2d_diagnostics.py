@@ -121,7 +121,9 @@ def test_image_gate_rejects_every_frame_alternating_flicker() -> None:
         0.5 + (0.05 if index % 2 else -0.05) for index in range(60)
     ]
 
-    _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+    _, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
 
     codes = {finding.code for finding in findings}
     assert "image_perceptual_delta_p99_direct_exceeded" in codes
@@ -148,7 +150,9 @@ def test_image_signed_delta_high_frequency_requires_sustained_reversals() -> Non
     for start in (8, 28, 48):
         tracks["face_signed_delta"][start : start + 2] = [0.03, -0.03]
 
-    metrics, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+    metrics, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
 
     assert metrics["face_signed_delta"].high_frequency_energy_ratio > 1.7
     assert metrics["face_signed_delta"].direction_reversals_per_second < 10
@@ -181,10 +185,42 @@ def test_image_geometry_frequency_gate_requires_meaningful_displacement(
         0.5 + (amplitude if index % 2 else -amplitude) for index in range(120)
     ]
 
-    _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+    _, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
 
     codes = {finding.code for finding in findings}
     assert ("image_centroid_x_high_frequency_exceeded" in codes) is should_fail
+
+
+def test_geometry_reversal_epsilon_scales_with_analyzed_roi_resolution() -> None:
+    timestamps = [index / 30 for index in range(60)]
+    tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+    for name in (
+        "alpha_area_ratio",
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+    ):
+        tracks[name] = [0.5] * 60
+    tracks["outline_centroid_y"] = [
+        0.5 + (0.0005 if index % 2 else -0.0005) for index in range(60)
+    ]
+
+    small_metrics, small_limits, _ = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=960, frame_height=400
+    )
+    large_metrics, large_limits, _ = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=3840, frame_height=2000
+    )
+
+    assert small_limits["geometry_reversal_epsilon"] == pytest.approx(0.5 / 400)
+    assert large_limits["geometry_reversal_epsilon"] == pytest.approx(0.5 / 2000)
+    assert small_metrics["outline_centroid_y"].direction_reversals_per_second == 0
+    assert large_metrics["outline_centroid_y"].direction_reversals_per_second > 20
 
 
 def test_image_geometry_gate_rejects_large_single_frame_centroid_jump() -> None:
@@ -202,7 +238,9 @@ def test_image_geometry_gate_rejects_large_single_frame_centroid_jump() -> None:
         tracks[name] = [0.5] * 60
     tracks["centroid_y"][30] = 0.53
 
-    _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+    _, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
 
     assert "image_centroid_y_step_exceeded" in {
         finding.code for finding in findings
@@ -224,7 +262,9 @@ def test_image_geometry_gate_rejects_large_single_frame_outline_jump() -> None:
         tracks[name] = [0.5] * 60
     tracks["outline_centroid_y"][30] = 0.56
 
-    _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+    _, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
 
     assert "image_outline_centroid_y_step_exceeded" in {
         finding.code for finding in findings
@@ -246,7 +286,9 @@ def test_image_geometry_gate_rejects_large_single_frame_alpha_area_jump() -> Non
         tracks[name] = [0.5] * 60
     tracks["alpha_area_ratio"][30] = 0.55
 
-    _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+    _, _, findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=720, frame_height=720
+    )
 
     assert "image_alpha_area_step_exceeded" in {
         finding.code for finding in findings

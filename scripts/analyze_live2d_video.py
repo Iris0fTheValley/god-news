@@ -36,8 +36,39 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--browser-channel", default="msedge")
     parser.add_argument("--start-seconds", type=float, default=0.0)
     parser.add_argument("--duration-seconds", type=float)
+    parser.add_argument(
+        "--crop-normalized",
+        type=float,
+        nargs=4,
+        metavar=("X", "Y", "WIDTH", "HEIGHT"),
+        help="Analyze only this normalized input-frame rectangle.",
+    )
     parser.add_argument("--require-dynamic-quality", action="store_true")
     return parser
+
+
+def _normalized_crop_bounds(
+    frame_width: int,
+    frame_height: int,
+    crop: tuple[float, float, float, float] | None,
+) -> tuple[int, int, int, int]:
+    if crop is None:
+        return 0, 0, frame_width, frame_height
+    x, y, width, height = crop
+    if (
+        x < 0
+        or y < 0
+        or width <= 0
+        or height <= 0
+        or x + width > 1
+        or y + height > 1
+    ):
+        raise ValueError("normalized crop must be positive and stay inside the frame")
+    left = max(0, min(frame_width - 1, math.floor(x * frame_width)))
+    top = max(0, min(frame_height - 1, math.floor(y * frame_height)))
+    right = max(left + 1, min(frame_width, math.ceil((x + width) * frame_width)))
+    bottom = max(top + 1, min(frame_height, math.ceil((y + height) * frame_height)))
+    return left, top, right, bottom
 
 
 def _sha256(path: Path) -> str:
@@ -302,6 +333,7 @@ def analyze(
     browser_channel: str = "msedge",
     start_seconds: float = 0.0,
     duration_seconds: float | None = None,
+    crop_normalized: tuple[float, float, float, float] | None = None,
 ) -> dict[str, object]:
     import av
     import numpy as np
@@ -316,6 +348,7 @@ def analyze(
     frame_hashes: list[str] = []
     previous = None
     alpha_source = "decoded"
+    crop_pixels: tuple[int, int, int, int] | None = None
     with av.open(str(resolved)) as container:
         stream = container.streams.video[0]
         for index, frame in enumerate(container.decode(stream)):
@@ -332,6 +365,12 @@ def analyze(
             ):
                 break
             rgba = frame.to_ndarray(format="rgba")
+            if crop_pixels is None:
+                crop_pixels = _normalized_crop_bounds(
+                    rgba.shape[1], rgba.shape[0], crop_normalized
+                )
+            left, top, right, bottom = crop_pixels
+            rgba = rgba[top:bottom, left:right]
             alpha = rgba[:, :, 3]
             if int(alpha.max()) - int(alpha.min()) <= 1:
                 alpha_source = "recovered_from_background"
@@ -388,6 +427,8 @@ def analyze(
         tracks,
         timestamps,
         fps=expected_fps,
+        frame_width=crop_pixels[2] - crop_pixels[0],
+        frame_height=crop_pixels[3] - crop_pixels[1],
     )
     metric_summary = {
         name: metrics.as_dict()
@@ -423,6 +464,15 @@ def analyze(
         "analysis_window": {
             "start_seconds": start_seconds,
             "duration_seconds": duration_seconds,
+        },
+        "analysis_region": {
+            "normalized": list(crop_normalized) if crop_normalized is not None else None,
+            "pixels": {
+                "left": crop_pixels[0],
+                "top": crop_pixels[1],
+                "right": crop_pixels[2],
+                "bottom": crop_pixels[3],
+            },
         },
     }
     if preencode_trace is not None or require_transparency:
@@ -485,6 +535,9 @@ def main() -> int:
         browser_channel=args.browser_channel,
         start_seconds=args.start_seconds,
         duration_seconds=args.duration_seconds,
+        crop_normalized=(
+            tuple(args.crop_normalized) if args.crop_normalized is not None else None
+        ),
     )
     output.write_text(
         json.dumps(report, ensure_ascii=False, indent=2),

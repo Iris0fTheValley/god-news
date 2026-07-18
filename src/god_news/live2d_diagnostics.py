@@ -302,6 +302,8 @@ def evaluate_image_tracks(
     timestamps: list[float],
     *,
     fps: int,
+    frame_width: int,
+    frame_height: int,
 ) -> tuple[dict[str, SignalMetrics], dict[str, float], list[GateFinding]]:
     """Evaluate normalized image-space motion without re-differencing deltas.
 
@@ -312,11 +314,20 @@ def evaluate_image_tracks(
     that a whole-frame centroid alone can miss.
     """
 
-    if fps < 1:
-        raise ValueError("fps must be positive")
+    if fps < 1 or frame_width < 1 or frame_height < 1:
+        raise ValueError("fps and analyzed frame dimensions must be positive")
     missing = IMAGE_REQUIRED_TRACKS.difference(tracks)
     if missing:
         raise ValueError(f"missing image diagnostic tracks: {sorted(missing)}")
+    pixel_epsilon = 0.5 / min(frame_width, frame_height)
+    geometry_tracks = {
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+        "alpha_spread_x",
+        "alpha_spread_y",
+    }
     metrics = {
         name: compute_signal_metrics(
             values,
@@ -324,6 +335,8 @@ def evaluate_image_tracks(
             reversal_epsilon=(
                 0.002
                 if name.endswith("signed_delta") or name.startswith("local_flow")
+                else pixel_epsilon
+                if name in geometry_tracks
                 else 0.0001
             ),
         )
@@ -331,6 +344,7 @@ def evaluate_image_tracks(
     }
     frame_scale = 30.0 / fps
     limits = {
+        "geometry_reversal_epsilon": pixel_epsilon,
         # A corrected motion handoff measured 0.0167 before encode and 0.0188
         # after fixed-background H.264 reconstruction. Keep a small codec
         # margin here; parameter jerk, regional frame deltas, flow, reversal,

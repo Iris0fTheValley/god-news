@@ -51,6 +51,7 @@ from god_news.domain.source_transcription import (
 from god_news.domain.video import (
     CreateVideoBatch,
     DirectedProgramDraft,
+    EpisodeHostSlot,
     EpisodeSceneModule,
     NarrationReviewDecision,
     ProgramDirectorPlan,
@@ -63,6 +64,8 @@ from god_news.domain.video import (
     TimelineReviewDecision,
     VideoBatch,
     VideoBatchStory,
+    VideoLayout,
+    VideoOutputProfileId,
     VideoRenderArtifact,
 )
 from god_news.domain.video_ports import ProgramDirector
@@ -885,6 +888,7 @@ def host_dynamic_review_windows(batch: VideoBatch) -> list[dict[str, object]]:
             candidates.append(
                 {
                     "label": f"scene-{scene.sequence:02d}",
+                    "scene_sequence": scene.sequence,
                     "segment_id": str(scene.narration_segment_id),
                     "segment_offset_seconds": segment_offset_ms / 1_000,
                     "output_start_seconds": (cursor_ms + segment_offset_ms) / 1_000,
@@ -895,6 +899,50 @@ def host_dynamic_review_windows(batch: VideoBatch) -> list[dict[str, object]]:
         raise RuntimeError("Final video review requires at least three visible host windows.")
     indexes = (0, len(candidates) // 2, len(candidates) - 1)
     return [candidates[index] for index in indexes]
+
+
+def host_analysis_crop(
+    batch: VideoBatch,
+    *,
+    scene_sequence: int,
+    profile_id: VideoOutputProfileId,
+) -> tuple[float, float, float, float]:
+    props = batch.remotion_props
+    if props is None or props.episode_plan is None or props.template is None:
+        raise RuntimeError("Host crop compilation requires template-backed Remotion props.")
+    scene = props.episode_plan.scenes[scene_sequence]
+    if scene.sequence != scene_sequence or scene.host_slot is None:
+        raise RuntimeError("Host crop compilation requires a visible host scene.")
+    profile = next(
+        item for item in props.output_profiles if item.profile_id is profile_id
+    )
+    layout = next(
+        item
+        for item in props.template.layout_preset.profiles
+        if item.profile_id is profile_id
+    )
+    safe_x = layout.safe_area_left
+    safe_y = layout.safe_area_top
+    safe_width = 1 - layout.safe_area_left - layout.safe_area_right
+    safe_height = 1 - layout.safe_area_top - layout.safe_area_bottom
+    horizontal = profile.layout is VideoLayout.HORIZONTAL
+    caption_height = 0.2 if horizontal else 0.23
+    source_height = 0.055 if horizontal else 0.045
+    content_height = safe_height - caption_height - source_height
+    corner = scene.host_slot is EpisodeHostSlot.CORNER
+    host_width = (
+        layout.host_corner_width if corner else layout.host_primary_width
+    )
+    if corner:
+        return (
+            safe_x + safe_width - host_width,
+            safe_y + content_height * 0.08,
+            host_width,
+            content_height * (0.72 if horizontal else 0.48),
+        )
+    if horizontal:
+        return safe_x, safe_y, host_width, content_height
+    return safe_x, safe_y + content_height * 0.62, safe_width, content_height * 0.38
 
 
 async def extract_continuous_sequence(
@@ -1176,6 +1224,11 @@ async def extract_layer_comparison_evidence(
                     "-analysis.json"
                 )
             )
+            crop = host_analysis_crop(
+                batch,
+                scene_sequence=cast(int, window["scene_sequence"]),
+                profile_id=render_output.profile_id,
+            )
             await run_process(
                 str(live2d_python),
                 str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
@@ -1189,6 +1242,8 @@ async def extract_layer_comparison_evidence(
                 f"{cast(float, window['output_start_seconds']):.6f}",
                 "--duration-seconds",
                 "2",
+                "--crop-normalized",
+                *(f"{value:.9f}" for value in crop),
                 "--require-dynamic-quality",
                 cwd=WORKSPACE,
                 timeout_seconds=300,
@@ -1196,6 +1251,7 @@ async def extract_layer_comparison_evidence(
             profile_reports.append(
                 {
                     "window": window,
+                    "host_crop_normalized": list(crop),
                     "analysis": str(analysis_path.resolve()),
                 }
             )
