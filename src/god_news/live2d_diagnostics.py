@@ -351,7 +351,11 @@ def evaluate_image_tracks(
         "outline_high_frequency_ratio": 1.1,
         "outline_high_frequency_min_reversals": 5.0,
         "outline_high_frequency_min_p95_step": 0.0052 * frame_scale,
-        "alpha_area_step": 0.025 * frame_scale,
+        # Smooth arm motion can change silhouette self-overlap by ~0.022
+        # pre-encode and ~0.028 after fixed-background segmentation in one
+        # frame. Preserve a hard teleport bound while period-two and direct
+        # alpha-delta gates detect sustained flicker independently.
+        "alpha_area_step": 0.040 * frame_scale,
         "alpha_spread_step": 0.018 * frame_scale,
         "alpha_delta_p99_direct": 0.020,
         "alpha_delta_max_direct": 0.050,
@@ -538,7 +542,7 @@ def evaluate_image_tracks(
             for metric_name, (observed, threshold) in conditional_checks.items()
             if observed > threshold
         )
-    for name in ("alpha_spread_x", "alpha_spread_y"):
+    for name in ("alpha_area_ratio", "alpha_spread_x", "alpha_spread_y"):
         item = metrics[name]
         if (
             item.p95_absolute_step > 0.002

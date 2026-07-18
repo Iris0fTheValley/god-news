@@ -117,6 +117,9 @@ def test_image_gate_rejects_every_frame_alternating_flicker() -> None:
     alternating = [0.0] + [0.3137255 if index % 2 else -0.3137255 for index in range(1, 60)]
     tracks["face_signed_delta"] = alternating
     tracks["eye_signed_delta"] = alternating
+    tracks["alpha_area_ratio"] = [
+        0.5 + (0.05 if index % 2 else -0.05) for index in range(60)
+    ]
 
     _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
 
@@ -124,6 +127,7 @@ def test_image_gate_rejects_every_frame_alternating_flicker() -> None:
     assert "image_perceptual_delta_p99_direct_exceeded" in codes
     assert "image_face_signed_delta_period_two_exceeded" in codes
     assert "image_eye_signed_delta_period_two_exceeded" in codes
+    assert "image_alpha_area_ratio_period_two_exceeded" in codes
 
 
 @pytest.mark.parametrize(
@@ -196,5 +200,27 @@ def test_image_geometry_gate_rejects_large_single_frame_outline_jump() -> None:
     _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
 
     assert "image_outline_centroid_y_step_exceeded" in {
+        finding.code for finding in findings
+    }
+
+
+def test_image_geometry_gate_rejects_large_single_frame_alpha_area_jump() -> None:
+    timestamps = [index / 30 for index in range(60)]
+    tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+    for name in (
+        "alpha_area_ratio",
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+    ):
+        tracks[name] = [0.5] * 60
+    tracks["alpha_area_ratio"][30] = 0.55
+
+    _, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+
+    assert "image_alpha_area_step_exceeded" in {
         finding.code for finding in findings
     }
