@@ -127,7 +127,34 @@ def test_image_gate_rejects_every_frame_alternating_flicker() -> None:
     assert "image_perceptual_delta_p99_direct_exceeded" in codes
     assert "image_face_signed_delta_period_two_exceeded" in codes
     assert "image_eye_signed_delta_period_two_exceeded" in codes
+    assert "image_face_signed_delta_high_frequency_exceeded" in codes
+    assert "image_eye_signed_delta_high_frequency_exceeded" in codes
     assert "image_alpha_area_ratio_period_two_exceeded" in codes
+
+
+def test_image_signed_delta_high_frequency_requires_sustained_reversals() -> None:
+    timestamps = [index / 30 for index in range(60)]
+    tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+    for name in (
+        "alpha_area_ratio",
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+    ):
+        tracks[name] = [0.5] * 60
+    for start in (8, 28, 48):
+        tracks["face_signed_delta"][start : start + 2] = [0.03, -0.03]
+
+    metrics, _, findings = evaluate_image_tracks(tracks, timestamps, fps=30)
+
+    assert metrics["face_signed_delta"].high_frequency_energy_ratio > 1.7
+    assert metrics["face_signed_delta"].direction_reversals_per_second < 10
+    assert "image_face_signed_delta_high_frequency_exceeded" not in {
+        finding.code for finding in findings
+    }
 
 
 @pytest.mark.parametrize(

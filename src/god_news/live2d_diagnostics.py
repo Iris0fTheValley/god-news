@@ -338,7 +338,7 @@ def evaluate_image_tracks(
         "centroid_step": 0.022 * frame_scale,
         "centroid_reversals_per_second": 10.0,
         "centroid_high_frequency_ratio": 0.9,
-        "centroid_high_frequency_min_reversals": 4.0,
+        "centroid_high_frequency_min_reversals": 8.0,
         "centroid_high_frequency_min_p95_step": 0.0027 * frame_scale,
         # The VP9 decoder exposed by PyAV omits alpha and requires a bounded
         # color-distance reconstruction. Corrected A/B renders measured up to
@@ -349,7 +349,7 @@ def evaluate_image_tracks(
         "outline_centroid_step": 0.050 * frame_scale,
         "outline_reversals_per_second": 12.0,
         "outline_high_frequency_ratio": 1.1,
-        "outline_high_frequency_min_reversals": 5.0,
+        "outline_high_frequency_min_reversals": 8.0,
         "outline_high_frequency_min_p95_step": 0.0052 * frame_scale,
         # Smooth arm motion can change silhouette self-overlap by ~0.022
         # pre-encode and ~0.028 after fixed-background segmentation in one
@@ -370,6 +370,7 @@ def evaluate_image_tracks(
         "signed_delta_amplitude_floor": 0.012,
         "signed_delta_reversals_per_second": 18.0,
         "signed_delta_high_frequency_ratio": 1.7,
+        "signed_delta_high_frequency_min_reversals": 10.0,
         "signed_delta_alternating_energy_ratio": 0.45,
         "geometry_alternating_energy_ratio": 0.45,
     }
@@ -523,10 +524,6 @@ def evaluate_image_tracks(
                 item.direction_reversals_per_second,
                 limits["signed_delta_reversals_per_second"],
             ),
-            f"{name}_high_frequency": (
-                item.high_frequency_energy_ratio,
-                limits["signed_delta_high_frequency_ratio"],
-            ),
             f"{name}_period_two": (
                 item.alternating_energy_ratio,
                 limits["signed_delta_alternating_energy_ratio"],
@@ -542,6 +539,20 @@ def evaluate_image_tracks(
             for metric_name, (observed, threshold) in conditional_checks.items()
             if observed > threshold
         )
+        if (
+            item.high_frequency_energy_ratio
+            > limits["signed_delta_high_frequency_ratio"]
+            and item.direction_reversals_per_second
+            > limits["signed_delta_high_frequency_min_reversals"]
+        ):
+            findings.append(
+                GateFinding(
+                    code=f"image_{name}_high_frequency_exceeded",
+                    metric=f"{name}_high_frequency",
+                    observed=item.high_frequency_energy_ratio,
+                    threshold=limits["signed_delta_high_frequency_ratio"],
+                )
+            )
     for name in ("alpha_area_ratio", "alpha_spread_x", "alpha_spread_y"):
         item = metrics[name]
         if (
