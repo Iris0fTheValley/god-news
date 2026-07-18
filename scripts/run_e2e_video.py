@@ -1244,6 +1244,8 @@ async def extract_layer_comparison_evidence(
                 "2",
                 "--crop-normalized",
                 *(f"{value:.9f}" for value in crop),
+                "--quality-profile",
+                "final_composite",
                 "--require-dynamic-quality",
                 cwd=WORKSPACE,
                 timeout_seconds=300,

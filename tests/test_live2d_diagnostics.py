@@ -249,6 +249,43 @@ def test_outline_gate_rejects_strong_period_two_boundary_jitter() -> None:
     assert "image_outline_centroid_y_high_frequency_exceeded" in codes
 
 
+def test_final_composite_profile_only_adds_alpha_reconstruction_margin() -> None:
+    timestamps = [index / 30 for index in range(60)]
+    tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+    for name in (
+        "alpha_area_ratio",
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+    ):
+        tracks[name] = [0.5] * 60
+    tracks["alpha_delta"] = [0.0] + [0.03] * 59
+
+    _, source_limits, source_findings = evaluate_image_tracks(
+        tracks, timestamps, fps=30, frame_width=616, frame_height=676
+    )
+    _, final_limits, final_findings = evaluate_image_tracks(
+        tracks,
+        timestamps,
+        fps=30,
+        frame_width=616,
+        frame_height=676,
+        quality_profile="final_composite",
+    )
+
+    assert source_limits["alpha_delta_p99_direct"] == 0.025
+    assert final_limits["alpha_delta_p99_direct"] == 0.035
+    assert "image_alpha_delta_p99_direct_exceeded" in {
+        finding.code for finding in source_findings
+    }
+    assert "image_alpha_delta_p99_direct_exceeded" not in {
+        finding.code for finding in final_findings
+    }
+
+
 def test_image_geometry_gate_rejects_large_single_frame_centroid_jump() -> None:
     timestamps = [index / 30 for index in range(60)]
     tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}

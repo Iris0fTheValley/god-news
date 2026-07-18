@@ -44,6 +44,11 @@ def _parser() -> argparse.ArgumentParser:
         help="Analyze only this normalized input-frame rectangle.",
     )
     parser.add_argument("--require-dynamic-quality", action="store_true")
+    parser.add_argument(
+        "--quality-profile",
+        choices=("host_source", "final_composite"),
+        default="host_source",
+    )
     return parser
 
 
@@ -334,6 +339,7 @@ def analyze(
     start_seconds: float = 0.0,
     duration_seconds: float | None = None,
     crop_normalized: tuple[float, float, float, float] | None = None,
+    quality_profile: str = "host_source",
 ) -> dict[str, object]:
     import av
     import numpy as np
@@ -429,6 +435,7 @@ def analyze(
         fps=expected_fps,
         frame_width=crop_pixels[2] - crop_pixels[0],
         frame_height=crop_pixels[3] - crop_pixels[1],
+        quality_profile=quality_profile,
     )
     metric_summary = {
         name: metrics.as_dict()
@@ -474,6 +481,7 @@ def analyze(
                 "bottom": crop_pixels[3],
             },
         },
+        "quality_profile": quality_profile,
     }
     if preencode_trace is not None or require_transparency:
         if preencode_trace is None:
@@ -538,6 +546,7 @@ def main() -> int:
         crop_normalized=(
             tuple(args.crop_normalized) if args.crop_normalized is not None else None
         ),
+        quality_profile=args.quality_profile,
     )
     output.write_text(
         json.dumps(report, ensure_ascii=False, indent=2),

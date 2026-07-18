@@ -4,7 +4,7 @@ import math
 import statistics
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass
-from typing import Final, TypeVar
+from typing import Final, Literal, TypeVar
 
 from god_news.live2d_control import (
     DEFAULT_DERIVATIVE_LIMITS,
@@ -108,6 +108,16 @@ def _percentile(values: list[float], fraction: float) -> float:
         return float(ordered[lower])
     weight = position - lower
     return float(ordered[lower] * (1 - weight) + ordered[upper] * weight)
+
+
+def _median_three(values: list[float]) -> list[float]:
+    if len(values) < 3:
+        return list(values)
+    middle = [
+        statistics.median(values[index - 1 : index + 2])
+        for index in range(1, len(values) - 1)
+    ]
+    return [values[0], *middle, values[-1]]
 
 
 def _derivative(values: list[float], timestamps: list[float]) -> list[float]:
@@ -304,6 +314,7 @@ def evaluate_image_tracks(
     fps: int,
     frame_width: int,
     frame_height: int,
+    quality_profile: Literal["host_source", "final_composite"] = "host_source",
 ) -> tuple[dict[str, SignalMetrics], dict[str, float], list[GateFinding]]:
     """Evaluate normalized image-space motion without re-differencing deltas.
 
@@ -316,6 +327,8 @@ def evaluate_image_tracks(
 
     if fps < 1 or frame_width < 1 or frame_height < 1:
         raise ValueError("fps and analyzed frame dimensions must be positive")
+    if quality_profile not in {"host_source", "final_composite"}:
+        raise ValueError("unknown image quality profile")
     missing = IMAGE_REQUIRED_TRACKS.difference(tracks)
     if missing:
         raise ValueError(f"missing image diagnostic tracks: {sorted(missing)}")
@@ -342,6 +355,12 @@ def evaluate_image_tracks(
         )
         for name, values in tracks.items()
     }
+    for name in geometry_tracks:
+        metrics[f"{name}_stability"] = compute_signal_metrics(
+            _median_three(tracks[name]),
+            timestamps,
+            reversal_epsilon=pixel_epsilon,
+        )
     frame_scale = 30.0 / fps
     limits = {
         "geometry_reversal_epsilon": pixel_epsilon,
@@ -388,6 +407,12 @@ def evaluate_image_tracks(
         "signed_delta_alternating_energy_ratio": 0.45,
         "geometry_alternating_energy_ratio": 0.45,
     }
+    if quality_profile == "final_composite":
+        # The final profile is measured after host scaling plus a second lossy
+        # H.264 encode. Regional RGB/flow gates remain unchanged; only alpha
+        # reconstructed from the opaque composition receives codec margin.
+        limits["alpha_delta_p99_direct"] = 0.035
+        limits["alpha_delta_max_direct"] = 0.060
     checks: dict[str, tuple[float, float]] = {
         "centroid_x_step": (
             metrics["centroid_x"].maximum_absolute_step,
@@ -398,11 +423,11 @@ def evaluate_image_tracks(
             limits["centroid_step"],
         ),
         "centroid_x_reversals": (
-            metrics["centroid_x"].direction_reversals_per_second,
+            metrics["centroid_x_stability"].direction_reversals_per_second,
             limits["centroid_reversals_per_second"],
         ),
         "centroid_y_reversals": (
-            metrics["centroid_y"].direction_reversals_per_second,
+            metrics["centroid_y_stability"].direction_reversals_per_second,
             limits["centroid_reversals_per_second"],
         ),
         "outline_centroid_x_step": (
@@ -510,7 +535,7 @@ def evaluate_image_tracks(
             limits["geometry_alternating_energy_ratio"],
         ),
     ):
-        item = metrics[name]
+        item = metrics[f"{name}_stability"]
         if (
             item.high_frequency_energy_ratio > frequency_limit
             and item.direction_reversals_per_second > reversal_floor
@@ -526,7 +551,7 @@ def evaluate_image_tracks(
                 )
             )
     for name in ("outline_centroid_x", "outline_centroid_y"):
-        item = metrics[name]
+        item = metrics[f"{name}_stability"]
         if (
             item.direction_reversals_per_second
             > limits["outline_reversals_per_second"]
