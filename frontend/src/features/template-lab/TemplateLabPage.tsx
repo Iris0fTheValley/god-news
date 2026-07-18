@@ -379,6 +379,7 @@ export function TemplateLabPage() {
               <button
                 className="icon-button"
                 type="button"
+                data-testid="template-lab-play-pause"
                 disabled={!fixtureResult.available}
                 aria-label={playing ? '暂停' : '播放'}
                 onClick={() => {
@@ -391,16 +392,16 @@ export function TemplateLabPage() {
               <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="首帧" onClick={() => seekTo(0)}>
                 <ChevronFirst size={17} />
               </button>
-              <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="上一帧" onClick={() => seekTo(currentFrame - 1)}>
+              <button className="icon-button" type="button" data-testid="template-lab-previous-frame" disabled={!fixtureResult.available} aria-label="上一帧" onClick={() => seekTo(currentFrame - 1)}>
                 <StepBack size={17} />
               </button>
-              <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="下一帧" onClick={() => seekTo(currentFrame + 1)}>
+              <button className="icon-button" type="button" data-testid="template-lab-next-frame" disabled={!fixtureResult.available} aria-label="下一帧" onClick={() => seekTo(currentFrame + 1)}>
                 <StepForward size={17} />
               </button>
               <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="末帧" onClick={() => seekTo(durationInFrames - 1)}>
                 <ChevronLast size={17} />
               </button>
-              <span className="metadata">FRAME {currentFrame} / {durationInFrames - 1}</span>
+              <span className="metadata" data-testid="template-lab-current-frame">FRAME {currentFrame} / {durationInFrames - 1}</span>
             </div>
             <label className="template-lab-zoom">
               <span>缩放 {Math.round(state.zoom * 100)}%</span>
@@ -435,6 +436,7 @@ export function TemplateLabPage() {
             {props && profile && fixtureResult.available ? (
               <div
                 className="template-lab-player-frame"
+                data-testid="template-lab-player-frame"
                 style={{
                   width: `${Math.round(profile.width * state.zoom)}px`,
                   aspectRatio: `${profile.width} / ${profile.height}`,

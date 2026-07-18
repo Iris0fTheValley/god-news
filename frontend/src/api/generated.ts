@@ -1643,10 +1643,68 @@ export interface components {
             /** Profiles */
             profiles: components["schemas"]["OutputProfileLayout"][];
         };
+        /** Live2DAudioCalibration */
+        Live2DAudioCalibration: {
+            /** Noise Floor */
+            noise_floor: number;
+            /** Normalization Peak */
+            normalization_peak: number;
+        };
+        /** Live2DDynamicThreshold */
+        Live2DDynamicThreshold: {
+            /** Maximum Absolute Acceleration */
+            maximum_absolute_acceleration: number;
+            /** Maximum Absolute Jerk */
+            maximum_absolute_jerk: number;
+            /** Maximum Absolute Step */
+            maximum_absolute_step: number;
+            /** Maximum Absolute Velocity */
+            maximum_absolute_velocity: number;
+            /** Maximum Direction Reversals Per Second */
+            maximum_direction_reversals_per_second: number;
+            /** Maximum High Frequency Energy Ratio */
+            maximum_high_frequency_energy_ratio: number;
+        };
+        /** Live2DMotionMetadata */
+        Live2DMotionMetadata: {
+            /** Fade In Ms */
+            fade_in_ms?: number | null;
+            /** Fade Out Ms */
+            fade_out_ms?: number | null;
+            /** File */
+            file: string;
+            /** Fps */
+            fps?: number | null;
+            /** Frames */
+            frames?: number | null;
+        };
+        /** Live2DParameterDiagnostics */
+        Live2DParameterDiagnostics: {
+            /** Findings */
+            findings?: string[];
+            metrics: components["schemas"]["Live2DSignalMetrics"];
+            range: components["schemas"]["Live2DParameterRange"];
+            threshold: components["schemas"]["Live2DDynamicThreshold"];
+        };
+        /** Live2DParameterRange */
+        Live2DParameterRange: {
+            /** Default */
+            default: number;
+            /** Maximum */
+            maximum: number;
+            /** Minimum */
+            minimum: number;
+        };
         /** Live2DRenderDiagnostics */
         Live2DRenderDiagnostics: {
+            audio_calibration: components["schemas"]["Live2DAudioCalibration"];
             /** Blink Events */
             blink_events: number;
+            /**
+             * Control Mode
+             * @enum {string}
+             */
+            control_mode: "legacy_conflict" | "motion_only" | "procedural_only" | "no_lip_sync" | "final";
             /** Controlled Parameters */
             controlled_parameters?: string[];
             /** Envelope Frames */
@@ -1659,12 +1717,31 @@ export interface components {
             fps: number;
             /** Frames */
             frames: number;
+            /** Gate Findings */
+            gate_findings?: string[];
+            /** Image Metrics */
+            image_metrics?: {
+                [key: string]: components["schemas"]["Live2DSignalMetrics"];
+            };
+            /** Image Thresholds */
+            image_thresholds?: {
+                [key: string]: number;
+            };
             /** Longest Exact Duplicate Run */
             longest_exact_duplicate_run: number;
             /** Motion Group */
             motion_group?: string | null;
+            motion_metadata?: components["schemas"]["Live2DMotionMetadata"] | null;
             /** Motion Restarts */
             motion_restarts: number;
+            /** Motion Source Switch Max Delta */
+            motion_source_switch_max_delta: number;
+            /** Motion State Counts */
+            motion_state_counts?: {
+                [key: string]: number;
+            };
+            /** Motion Switch Max Delta */
+            motion_switch_max_delta: number;
             /** Mouth Max */
             mouth_max: number;
             /** Mouth Max Delta */
@@ -1675,14 +1752,69 @@ export interface components {
             mouth_p50: number;
             /** Mouth P95 */
             mouth_p95: number;
+            /** Parameter Metrics */
+            parameter_metrics?: {
+                [key: string]: components["schemas"]["Live2DParameterDiagnostics"];
+            };
+            /** Parameter Owners */
+            parameter_owners?: {
+                [key: string]: string;
+            };
+            /** Quality Gate Passed */
+            quality_gate_passed: boolean;
             /** Rendered Frames */
             rendered_frames: number;
+            /**
+             * Schema Version
+             * @default 2.0
+             * @constant
+             */
+            schema_version: "2.0";
             /** Time Delta Ms Max */
             time_delta_ms_max: number;
             /** Time Delta Ms Min */
             time_delta_ms_min: number;
+            /** Trace Path */
+            trace_path: string;
+            /** Trace Sha256 */
+            trace_sha256: string;
+            /** Trace Size Bytes */
+            trace_size_bytes: number;
             /** Voiced Frame Ratio */
             voiced_frame_ratio: number;
+        };
+        /** Live2DSignalMetrics */
+        Live2DSignalMetrics: {
+            /** Direction Reversals Per Second */
+            direction_reversals_per_second: number;
+            /** Duration Seconds */
+            duration_seconds: number;
+            /** High Frequency Energy Ratio */
+            high_frequency_energy_ratio: number;
+            /** Maximum */
+            maximum: number;
+            /** Maximum Absolute Acceleration */
+            maximum_absolute_acceleration: number;
+            /** Maximum Absolute Jerk */
+            maximum_absolute_jerk: number;
+            /** Maximum Absolute Step */
+            maximum_absolute_step: number;
+            /** Maximum Absolute Velocity */
+            maximum_absolute_velocity: number;
+            /** Minimum */
+            minimum: number;
+            /** P95 Absolute Acceleration */
+            p95_absolute_acceleration: number;
+            /** P95 Absolute Jerk */
+            p95_absolute_jerk: number;
+            /** P95 Absolute Step */
+            p95_absolute_step: number;
+            /** P95 Absolute Velocity */
+            p95_absolute_velocity: number;
+            /** P99 Absolute Step */
+            p99_absolute_step: number;
+            /** Samples */
+            samples: number;
         };
         /** Liveness */
         Liveness: {

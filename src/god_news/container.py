@@ -545,6 +545,7 @@ async def build_container(settings: Settings) -> AppContainer:
             motion_intensity=settings.video_live2d_motion_intensity,
             mouth_attack_ms=settings.video_live2d_mouth_attack_ms,
             mouth_release_ms=settings.video_live2d_mouth_release_ms,
+            seed=settings.video_live2d_seed,
             max_exact_duplicate_ratio=settings.video_live2d_max_exact_duplicate_ratio,
         )
     else:

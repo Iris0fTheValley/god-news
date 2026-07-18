@@ -859,6 +859,109 @@ def visual_review_times(batch: VideoBatch) -> list[tuple[str, float]]:
     return unique
 
 
+def host_dynamic_review_windows(batch: VideoBatch) -> list[dict[str, object]]:
+    props = batch.remotion_props
+    if props is None or props.episode_plan is None:
+        raise RuntimeError("Dynamic review requires compiled Remotion props.")
+    segments = {segment.segment_id: segment for segment in props.manifest.timeline}
+    source_videos = {asset.asset_id: asset for asset in props.source_videos}
+    cursor_ms = props.intro_duration_ms
+    candidates: list[dict[str, object]] = []
+    for scene in props.episode_plan.scenes:
+        if scene.narration_segment_id is not None:
+            segment = segments[scene.narration_segment_id]
+            duration_ms = segment.end_ms - segment.start_ms
+        else:
+            if scene.source_video_asset_id is None:
+                raise RuntimeError("Dynamic review found a scene without media identity.")
+            asset = source_videos[scene.source_video_asset_id]
+            duration_ms = asset.out_ms - asset.in_ms
+        if (
+            scene.host_visibility.value == "visible"
+            and scene.narration_segment_id is not None
+            and duration_ms >= 2_200
+        ):
+            segment_offset_ms = min(500, max(0, duration_ms - 2_000))
+            candidates.append(
+                {
+                    "label": f"scene-{scene.sequence:02d}",
+                    "segment_id": str(scene.narration_segment_id),
+                    "segment_offset_seconds": segment_offset_ms / 1_000,
+                    "output_start_seconds": (cursor_ms + segment_offset_ms) / 1_000,
+                }
+            )
+        cursor_ms += duration_ms + props.transition_duration_ms
+    if len(candidates) < 3:
+        raise RuntimeError("Final video review requires at least three visible host windows.")
+    indexes = (0, len(candidates) // 2, len(candidates) - 1)
+    return [candidates[index] for index in indexes]
+
+
+async def extract_continuous_sequence(
+    *,
+    ffmpeg: Path,
+    video: Path,
+    target: Path,
+    start_seconds: float,
+    fps: int = 30,
+) -> dict[str, object]:
+    frames = target / "frames"
+    await asyncio.to_thread(frames.mkdir, parents=True, exist_ok=True)
+    await run_process(
+        str(ffmpeg),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start_seconds:.6f}",
+        "-i",
+        str(video),
+        "-t",
+        "2",
+        "-vf",
+        f"fps={fps}",
+        str(frames / "frame-%03d.png"),
+        cwd=target,
+        timeout_seconds=180,
+    )
+    frame_paths = sorted(frames.glob("frame-*.png"))
+    if len(frame_paths) < fps * 2:
+        raise RuntimeError(f"Continuous visual review is too short: {target}")
+    contact = target / "full-contact.png"
+    await run_process(
+        str(ffmpeg),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-framerate",
+        str(fps),
+        "-start_number",
+        "1",
+        "-i",
+        str(frames / "frame-%03d.png"),
+        "-vf",
+        (
+            "scale=256:144:force_original_aspect_ratio=decrease,"
+            "pad=256:144:(ow-iw)/2:(oh-ih)/2:color=0x101512,"
+            "tile=10x6:padding=2:margin=2"
+        ),
+        "-frames:v",
+        "1",
+        str(contact),
+        cwd=target,
+        timeout_seconds=180,
+    )
+    return {
+        "start_seconds": round(start_seconds, 6),
+        "duration_seconds": 2,
+        "frame_count": len(frame_paths),
+        "frames": [str(path.resolve()) for path in frame_paths],
+        "contact_sheet": str(contact.resolve()),
+    }
+
+
 async def extract_visual_review_evidence(
     *,
     ffmpeg: Path,
@@ -868,6 +971,7 @@ async def extract_visual_review_evidence(
 ) -> dict[str, dict[str, object]]:
     await asyncio.to_thread(frame_root.mkdir, parents=True, exist_ok=True)
     review_points = visual_review_times(batch)
+    dynamic_windows = host_dynamic_review_windows(batch)
     if len(review_points) < 20:
         raise RuntimeError("Visual review plan must contain at least twenty samples.")
     result: dict[str, dict[str, object]] = {}
@@ -927,11 +1031,157 @@ async def extract_visual_review_evidence(
             cwd=frame_root,
             timeout_seconds=180,
         )
+        uniform_contact = frame_root / f"{output.profile_id.value}-uniform-20.png"
+        await run_process(
+            str(ffmpeg),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            output.local_path,
+            "-vf",
+            (
+                f"fps=20/{output.duration_in_frames / output.fps:.6f},"
+                "scale=320:180:force_original_aspect_ratio=decrease,"
+                "pad=320:180:(ow-iw)/2:(oh-ih)/2:color=0x101512,"
+                "tile=5x4:padding=4:margin=4"
+            ),
+            "-frames:v",
+            "1",
+            str(uniform_contact),
+            cwd=frame_root,
+            timeout_seconds=180,
+        )
+        dynamic_sequences: list[dict[str, object]] = []
+        for window in dynamic_windows:
+            sequence = await extract_continuous_sequence(
+                ffmpeg=ffmpeg,
+                video=Path(output.local_path),
+                target=(
+                    frame_root
+                    / f"{output.profile_id.value}-{window['label']}-continuous"
+                ),
+                start_seconds=cast(float, window["output_start_seconds"]),
+            )
+            dynamic_sequences.append({**window, **sequence})
         result[output.profile_id.value] = {
             "samples": samples,
             "contact_sheet": str(contact_sheet.resolve()),
+            "uniform_20_contact_sheet": str(uniform_contact.resolve()),
+            "dynamic_sequences": dynamic_sequences,
         }
     return result
+
+
+async def extract_layer_comparison_evidence(
+    *,
+    ffmpeg: Path,
+    live2d_python: Path,
+    batch: VideoBatch,
+    artifact: VideoRenderArtifact,
+    layer_root: Path,
+) -> dict[str, object]:
+    await asyncio.to_thread(layer_root.mkdir, parents=True, exist_ok=True)
+    first_window = host_dynamic_review_windows(batch)[0]
+    segment_id = UUID(cast(str, first_window["segment_id"]))
+    raw_asset = next(
+        asset
+        for asset in batch.visual_reservations.host_videos
+        if asset.segment_id == segment_id
+    )
+    clip = next(
+        item
+        for item in cast(AudioBundle, batch.narration.audio).clips
+        if item.segment_id == segment_id
+    )
+    raw = Path(raw_asset.local_path)
+    background = layer_root / "host-fixed-background.mp4"
+    await run_process(
+        str(ffmpeg),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(raw),
+        "-i",
+        clip.path,
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=0x24302a:s={raw_asset.width}x{raw_asset.height}:r={raw_asset.fps}",
+        "-filter_complex",
+        "[2:v][0:v]overlay=shortest=1:format=auto,format=yuv420p[out]",
+        "-map",
+        "[out]",
+        "-map",
+        "1:a",
+        "-c:v",
+        "h264_mf",
+        "-b:v",
+        "4M",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-shortest",
+        str(background),
+        cwd=layer_root,
+        timeout_seconds=300,
+    )
+    analysis: dict[str, str] = {}
+    for label, path in (("raw_webm", raw), ("fixed_background", background)):
+        analysis_path = layer_root / f"{label}-analysis.json"
+        await run_process(
+            str(live2d_python),
+            str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
+            "--input",
+            str(path),
+            "--output",
+            str(analysis_path),
+            "--expected-fps",
+            str(raw_asset.fps),
+            cwd=WORKSPACE,
+            timeout_seconds=300,
+        )
+        analysis[label] = str(analysis_path)
+    offset = cast(float, first_window["segment_offset_seconds"])
+    sequences: dict[str, object] = {
+        "raw_webm": await extract_continuous_sequence(
+            ffmpeg=ffmpeg,
+            video=raw,
+            target=layer_root / "raw-webm-continuous",
+            start_seconds=offset,
+            fps=raw_asset.fps,
+        ),
+        "fixed_background": await extract_continuous_sequence(
+            ffmpeg=ffmpeg,
+            video=background,
+            target=layer_root / "fixed-background-continuous",
+            start_seconds=offset,
+            fps=raw_asset.fps,
+        ),
+    }
+    for render_output in artifact.outputs:
+        sequences[render_output.profile_id.value] = await extract_continuous_sequence(
+            ffmpeg=ffmpeg,
+            video=Path(render_output.local_path),
+            target=layer_root / f"{render_output.profile_id.value}-continuous",
+            start_seconds=cast(float, first_window["output_start_seconds"]),
+            fps=raw_asset.fps,
+        )
+    return {
+        "segment_id": str(segment_id),
+        "raw_webm": str(raw),
+        "fixed_background_mp4": str(background),
+        "final_outputs": {
+            output.profile_id.value: output.local_path for output in artifact.outputs
+        },
+        "aligned_window": first_window,
+        "analysis": analysis,
+        "continuous_sequences": sequences,
+    }
 
 
 def build_report(
@@ -943,6 +1193,8 @@ def build_report(
     artifact: VideoRenderArtifact,
     source_assets: Sequence[SourceVideoRenderAsset],
     frame_paths: dict[str, dict[str, object]],
+    layer_comparison: dict[str, object],
+    source_commit: str,
 ) -> dict[str, object]:
     narration = batch.narration
     remotion_props = batch.remotion_props
@@ -955,6 +1207,7 @@ def build_report(
         raise RuntimeError("Rendered E2E batch is missing its reviewed program evidence.")
     return {
         "schema_version": "1.0",
+        "source_commit": source_commit,
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "duration_seconds": (finished_at - started_at).total_seconds(),
@@ -999,6 +1252,7 @@ def build_report(
         ],
         "render_artifact": artifact.model_dump(mode="json"),
         "visual_review_evidence": frame_paths,
+        "live2d_layer_comparison": layer_comparison,
     }
 
 
@@ -1017,6 +1271,14 @@ async def main() -> None:
         raise SystemExit("--render-attempts must stay between 1 and 3.")
 
     started_at = datetime.now(UTC)
+    git_stdout, _ = await run_process(
+        "git",
+        "rev-parse",
+        "HEAD",
+        cwd=WORKSPACE,
+        timeout_seconds=30,
+    )
+    source_commit = git_stdout.decode("ascii", errors="strict").strip()
     run_id = f"{started_at:%Y%m%dT%H%M%SZ}-{uuid4()}"
     settings: Settings = get_settings()
     run_root = (settings.output_dir / "e2e" / run_id).resolve()
@@ -1025,6 +1287,7 @@ async def main() -> None:
     render_root = run_root / "renders"
     live2d_root = run_root / "live2d"
     frame_root = run_root / "visual-review"
+    layer_root = run_root / "live2d-layer-review"
     report_path = run_root / "artifact-report.json"
     source_audio = run_root / "source-story-evidence.wav"
     write_evidence_wav(source_audio)
@@ -1244,6 +1507,15 @@ async def main() -> None:
             artifact=batch.artifact,
             frame_root=frame_root,
         )
+        layer_comparison = await extract_layer_comparison_evidence(
+            ffmpeg=ffmpeg,
+            live2d_python=(dsakiko_root / "runtime" / "python.exe").resolve(
+                strict=True
+            ),
+            batch=batch,
+            artifact=batch.artifact,
+            layer_root=layer_root,
+        )
         finished_at = datetime.now(UTC)
         report = build_report(
             started_at=started_at,
@@ -1253,6 +1525,8 @@ async def main() -> None:
             artifact=batch.artifact,
             source_assets=source_assets,
             frame_paths=frames,
+            layer_comparison=layer_comparison,
+            source_commit=source_commit,
         )
         report_path.write_text(
             json.dumps(report, ensure_ascii=False, indent=2),
@@ -1274,6 +1548,7 @@ async def main() -> None:
                     ],
                     "report": str(report_path),
                     "frames": frames,
+                    "live2d_layer_comparison": layer_comparison,
                 },
                 ensure_ascii=False,
             )

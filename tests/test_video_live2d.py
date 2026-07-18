@@ -9,6 +9,7 @@ import sys
 import wave
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -175,10 +176,21 @@ async def test_live2d_renderer_snapshots_role_model_audio_and_output(
     audio = _audio(script, tmp_path / "clip.wav")
     renderer = _renderer(tmp_path=tmp_path, model_root=model_root, profile=profile)
 
-    async def fake_worker(**kwargs: object) -> None:
+    async def fake_worker(**kwargs: object) -> Live2DRenderDiagnostics:
         output_path = kwargs["output_path"]
+        trace_path = kwargs["trace_path"]
         assert isinstance(output_path, Path)
+        assert isinstance(trace_path, Path)
         output_path.write_bytes(b"transparent-vp9-fixture")
+        trace_path.write_text('{"frame":0}\n', encoding="utf-8")
+        trace_bytes = trace_path.read_bytes()
+        return Live2DRenderDiagnostics.model_validate(
+            _diagnostic_payload(
+                trace_path=str(trace_path),
+                trace_sha256=hashlib.sha256(trace_bytes).hexdigest(),
+                trace_size_bytes=len(trace_bytes),
+            )
+        )
 
     monkeypatch.setattr(renderer, "_run_worker", fake_worker)
     result = await renderer.prepare(batch_id=uuid4(), script=script, audio=audio)
@@ -193,6 +205,11 @@ async def test_live2d_renderer_snapshots_role_model_audio_and_output(
     assert host.model_sha256 != SHA
     assert await asyncio.to_thread(Path(host.local_path).read_bytes) == b"transparent-vp9-fixture"
     assert host.sha256 == hashlib.sha256(b"transparent-vp9-fixture").hexdigest()
+    assert host.diagnostics is not None
+    trace_path = Path(host.diagnostics.trace_path)
+    assert await asyncio.to_thread(trace_path.read_text, encoding="utf-8") == '{"frame":0}\n'
+    trace_bytes = await asyncio.to_thread(trace_path.read_bytes)
+    assert host.diagnostics.trace_sha256 == hashlib.sha256(trace_bytes).hexdigest()
 
 
 @pytest.mark.asyncio
@@ -275,7 +292,52 @@ def test_deterministic_blink_and_idle_pose_are_bounded() -> None:
 
 
 def _diagnostic_payload(**overrides: object) -> dict[str, object]:
+    metric = {
+        "samples": 36,
+        "duration_seconds": 1.2,
+        "minimum": 0.0,
+        "maximum": 0.9,
+        "p95_absolute_step": 0.1,
+        "p99_absolute_step": 0.15,
+        "maximum_absolute_step": 0.2,
+        "p95_absolute_velocity": 1.0,
+        "maximum_absolute_velocity": 2.0,
+        "p95_absolute_acceleration": 4.0,
+        "maximum_absolute_acceleration": 8.0,
+        "p95_absolute_jerk": 20.0,
+        "maximum_absolute_jerk": 40.0,
+        "direction_reversals_per_second": 1.0,
+        "high_frequency_energy_ratio": 0.1,
+    }
+    threshold = {
+        "maximum_absolute_step": 0.35,
+        "maximum_absolute_velocity": 7.7,
+        "maximum_absolute_acceleration": 92.0,
+        "maximum_absolute_jerk": 1080.0,
+        "maximum_direction_reversals_per_second": 18.0,
+        "maximum_high_frequency_energy_ratio": 1.1,
+    }
+    parameter_owners = {
+        "PARAM_ANGLE_X": "motion_mixer",
+        "PARAM_ANGLE_Y": "motion_mixer",
+        "PARAM_ANGLE_Z": "motion_mixer",
+        "PARAM_BODY_ANGLE_X": "motion_mixer",
+        "PARAM_BREATH": "breath_controller",
+        "PARAM_EYE_BALL_X": "eye_gaze_mixer",
+        "PARAM_EYE_BALL_Y": "eye_gaze_mixer",
+        "PARAM_EYE_L_OPEN": "blink_controller",
+        "PARAM_EYE_R_OPEN": "blink_controller",
+        "PARAM_MOUTH_OPEN_Y": "lip_sync_controller",
+    }
+    parameter_diagnostic = {
+        "range": {"minimum": 0.0, "maximum": 1.0, "default": 0.0},
+        "metrics": metric,
+        "threshold": threshold,
+        "findings": [],
+    }
     payload: dict[str, object] = {
+        "schema_version": "2.0",
+        "control_mode": "final",
         "frames": 36,
         "envelope_frames": 36,
         "rendered_frames": 36,
@@ -284,6 +346,16 @@ def _diagnostic_payload(**overrides: object) -> dict[str, object]:
         "time_delta_ms_max": 34,
         "motion_group": "happiness",
         "motion_restarts": 1,
+        "motion_state_counts": {"playing_motion": 36},
+        "motion_switch_max_delta": 0.1,
+        "motion_source_switch_max_delta": 0.4,
+        "motion_metadata": {
+            "file": "happy.mtn",
+            "fps": 30,
+            "fade_in_ms": 1_000,
+            "fade_out_ms": 1_000,
+            "frames": 36,
+        },
         "expression": "happiness",
         "blink_events": 0,
         "mouth_min": 0.0,
@@ -294,7 +366,19 @@ def _diagnostic_payload(**overrides: object) -> dict[str, object]:
         "voiced_frame_ratio": 0.8,
         "exact_duplicate_pair_ratio": 0.02,
         "longest_exact_duplicate_run": 1,
-        "controlled_parameters": ["PARAM_MOUTH_OPEN_Y"],
+        "controlled_parameters": list(parameter_owners),
+        "parameter_owners": parameter_owners,
+        "parameter_metrics": {
+            parameter: parameter_diagnostic for parameter in parameter_owners
+        },
+        "image_metrics": {"perceptual_delta": metric},
+        "image_thresholds": {"perceptual_delta_p99": 0.16},
+        "gate_findings": [],
+        "quality_gate_passed": True,
+        "audio_calibration": {"noise_floor": 0.0015, "normalization_peak": 0.25},
+        "trace_path": "trace.jsonl",
+        "trace_sha256": hashlib.sha256(b"trace").hexdigest(),
+        "trace_size_bytes": 5,
     }
     payload.update(overrides)
     return payload
@@ -328,3 +412,73 @@ def test_live2d_renderer_rejects_frozen_worker_diagnostic(tmp_path: Path) -> Non
             json.dumps(payload).encode(),
             duration_ms=1_200,
         )
+
+
+def test_live2d_renderer_rejects_failed_dynamic_gate(tmp_path: Path) -> None:
+    model_root = tmp_path / "models"
+    model_path = _model(model_root)
+    profile = RoleProfile(
+        slug="main-anchor",
+        display_name="Main anchor",
+        kind=RoleKind.HOST,
+        speaker_id="anchor",
+        visual_assets=RoleVisualAssets(live2d_asset_ref=str(model_path)),
+    )
+    renderer = _renderer(tmp_path=tmp_path, model_root=model_root, profile=profile)
+    payload = _diagnostic_payload(
+        quality_gate_passed=False,
+        gate_findings=["param_angle_x_maximum_absolute_jerk_exceeded"],
+    )
+
+    with pytest.raises(VideoNarrationSynthesisError, match="dynamic quality gate"):
+        renderer._validate_worker_diagnostics(
+            json.dumps(payload).encode(),
+            duration_ms=1_200,
+        )
+
+
+def test_live2d_renderer_rejects_parameter_owner_conflict(tmp_path: Path) -> None:
+    model_root = tmp_path / "models"
+    model_path = _model(model_root)
+    profile = RoleProfile(
+        slug="main-anchor",
+        display_name="Main anchor",
+        kind=RoleKind.HOST,
+        speaker_id="anchor",
+        visual_assets=RoleVisualAssets(live2d_asset_ref=str(model_path)),
+    )
+    renderer = _renderer(tmp_path=tmp_path, model_root=model_root, profile=profile)
+    owners = cast(dict[str, str], _diagnostic_payload()["parameter_owners"]).copy()
+    owners["PARAM_EYE_L_OPEN"] = "motion_mixer"
+    payload = _diagnostic_payload(parameter_owners=owners)
+
+    with pytest.raises(VideoNarrationSynthesisError, match="ownership contract"):
+        renderer._validate_worker_diagnostics(
+            json.dumps(payload).encode(),
+            duration_ms=1_200,
+        )
+
+
+def test_live2d_renderer_accepts_model_without_optional_parameters(tmp_path: Path) -> None:
+    model_root = tmp_path / "models"
+    model_path = _model(model_root)
+    profile = RoleProfile(
+        slug="main-anchor",
+        display_name="Main anchor",
+        kind=RoleKind.HOST,
+        speaker_id="anchor",
+        visual_assets=RoleVisualAssets(live2d_asset_ref=str(model_path)),
+    )
+    renderer = _renderer(tmp_path=tmp_path, model_root=model_root, profile=profile)
+    payload = _diagnostic_payload()
+    controlled = cast(list[str], payload["controlled_parameters"])
+    controlled.remove("PARAM_BREATH")
+    cast(dict[str, str], payload["parameter_owners"]).pop("PARAM_BREATH")
+    cast(dict[str, object], payload["parameter_metrics"]).pop("PARAM_BREATH")
+
+    diagnostic = renderer._validate_worker_diagnostics(
+        json.dumps(payload).encode(),
+        duration_ms=1_200,
+    )
+
+    assert "PARAM_BREATH" not in diagnostic.controlled_parameters

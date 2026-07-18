@@ -141,6 +141,7 @@ Template Lab 的 Live2D 预览必须提供真实预渲染 WebM；缺少媒体时
 - 四个真实内容源只有在对应凭据、用途授权和站点条款均确认后才会启用；离线演示不访问真实网络。
 - 视频批次、时间轴审阅、审核输入快照、严格类型的 `ProgramDirectorPlan` / `EpisodePlan`、版本化模板、类型化视觉素材、审核通过的原始视频和真实 Remotion 双格式渲染已接入。节目导演只排列不可变的已审核故事、选择注册语义场景、决定已批准原视频是否在故事后插入，并为相邻故事生成显式串联段；模板与确定性编译器负责视觉变体、布局和时间轴。`GOD_NEWS_VIDEO_RENDERER_ENABLED=false` 仍是安全默认值。
 - DSakiko 兼容的 Cubism 2 Live2D 可选适配器会在最终批次 TTS 后，按每段最终 `speaker_id` 在一次性 OpenGL 子进程中生成透明 VP9 WebM。审核快照记录角色版本、模型树哈希、音频哈希和角色视频哈希；Remotion 不加载 Live2D SDK。启用前须配置 `GOD_NEWS_VIDEO_LIVE2D_PYTHON_EXECUTABLE` 与 `GOD_NEWS_VIDEO_LIVE2D_TRUSTED_ASSET_ROOTS`，模型文件不进入仓库。
+- Live2D 生产适配器要求单一参数所有权、完整逐帧 JSONL 轨迹以及参数级和图像级动态门禁全部通过；根因、A/B 实验、阈值依据与三层视频验收方法见 [`docs/live2d-motion-stability-audit.md`](docs/live2d-motion-stability-audit.md)。
 - 生产视频质量门需要功能完整的 FFmpeg（支持 `blackdetect` 与 `freezedetect`），通过 `GOD_NEWS_VIDEO_QUALITY_FFMPEG_COMMAND` 配置。Remotion 自带的裁剪版 FFmpeg 仍用于封装，但不会被误当作视觉质量分析器。
 - 已启用 TTS 的角色使用独立的权重对、七组情绪参考音频/文本与可选参考语言；合成器按段选择角色和情绪。为保护显存，不同权重永不并存，切换时会先终止旧本地子进程。
 - 固定内容源的网络采集节奏由后端强制：同一来源两次网络采集完成之间不少于 30 秒，全局最多两个采集请求并行。前端不提供频率设置；随仓库启动命令固定为单 worker，若未来部署多进程/多实例，须先替换为持久化租约适配器。

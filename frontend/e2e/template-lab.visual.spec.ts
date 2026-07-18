@@ -1,4 +1,5 @@
 import {expect, test} from '@playwright/test';
+import type {Locator, Page} from '@playwright/test';
 import {copyFile, mkdir, rm} from 'node:fs/promises';
 import path from 'node:path';
 
@@ -7,15 +8,45 @@ const hostPublicPath = path.resolve('public/template-lab/e2e-host.webm');
 const hostBrowserUrl = '/template-lab/e2e-host.webm';
 
 test.beforeAll(async () => {
-  if (!hostSource) return;
+  if (!hostSource) {
+    throw new Error(
+      'GOD_NEWS_TEMPLATE_LAB_HOST_VIDEO must point to a real pre-rendered Live2D WebM.',
+    );
+  }
   await mkdir(path.dirname(hostPublicPath), {recursive: true});
   await copyFile(path.resolve(hostSource), hostPublicPath);
 });
 
 test.afterAll(async () => {
-  if (!hostSource) return;
   await rm(hostPublicPath, {force: true});
 });
+
+const currentFrame = async (page: Page): Promise<number> => {
+  const text = await page.getByTestId('template-lab-current-frame').innerText();
+  const match = /FRAME\s+(\d+)/u.exec(text);
+  if (!match) throw new Error(`Unable to parse Template Lab frame: ${text}`);
+  return Number(match[1]);
+};
+
+const hostFrameHash = async (
+  video: Locator,
+): Promise<string> =>
+  video.evaluate((element) => {
+    const source = element as HTMLVideoElement;
+    const canvas = document.createElement('canvas');
+    canvas.width = source.videoWidth;
+    canvas.height = source.videoHeight;
+    const context = canvas.getContext('2d', {willReadFrequently: true});
+    if (!context) throw new Error('Canvas 2D context is unavailable.');
+    context.drawImage(source, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 2166136261;
+    for (let index = 0; index < pixels.length; index += 32) {
+      hash ^= pixels[index] ?? 0;
+      hash = Math.imul(hash, 16777619);
+    }
+    return `${source.currentTime.toFixed(6)}:${(hash >>> 0).toString(16)}`;
+  });
 
 const cases = [
   {
@@ -27,13 +58,13 @@ const cases = [
     name: 'host-split-horizontal',
     requiresHost: true,
     query:
-      `fixture=host-volunteers&scene=host_evidence&variant=host_split_editorial&profile=bilibili_horizontal&frame=90&zoom=0.48&host=1&hostVideo=${encodeURIComponent(hostBrowserUrl)}`,
+      `fixture=host-volunteers&scene=host_evidence&variant=host_split_editorial&profile=bilibili_horizontal&frame=0&zoom=0.48&host=1&hostVideo=${encodeURIComponent(hostBrowserUrl)}`,
   },
   {
     name: 'host-corner-vertical',
     requiresHost: true,
     query:
-      `fixture=host-corner-volunteers&scene=host_evidence&variant=host_corner_full_bleed&profile=douyin_vertical&frame=90&zoom=0.36&host=1&hostSlot=corner&hostVideo=${encodeURIComponent(hostBrowserUrl)}`,
+      `fixture=host-corner-volunteers&scene=host_evidence&variant=host_corner_full_bleed&profile=douyin_vertical&frame=0&zoom=0.36&host=1&hostSlot=corner&hostVideo=${encodeURIComponent(hostBrowserUrl)}`,
   },
   {
     name: 'long-caption-vertical',
@@ -51,10 +82,6 @@ for (const fixture of cases) {
   test(`${fixture.name} uses decodable production media without overflow`, async ({
     page,
   }, testInfo) => {
-    test.skip(
-      'requiresHost' in fixture && fixture.requiresHost && !hostSource,
-      'Set GOD_NEWS_TEMPLATE_LAB_HOST_VIDEO to a reviewed pre-rendered Live2D WebM.',
-    );
     const browserErrors: string[] = [];
     page.on('console', (message) => {
       if (message.type() === 'error') browserErrors.push(message.text());
@@ -96,6 +123,42 @@ for (const fixture of cases) {
           ),
         )
         .toBe(true);
+    }
+    if ('requiresHost' in fixture && fixture.requiresHost) {
+      const host = page.locator('video[data-host-segment-id]');
+      await expect(host).toHaveCount(1);
+      const initialFrame = await currentFrame(page);
+      const initialTime = await host.evaluate(
+        (element) => (element as HTMLVideoElement).currentTime,
+      );
+      await page.getByTestId('template-lab-play-pause').click();
+      await expect
+        .poll(() => currentFrame(page), {timeout: 5_000})
+        .toBeGreaterThanOrEqual(initialFrame + 50);
+
+      const hashes: string[] = [];
+      for (let index = 0; index < 4; index += 1) {
+        hashes.push(await hostFrameHash(host));
+        await page.getByTestId('template-lab-player-frame').screenshot({
+          path: testInfo.outputPath(`${fixture.name}-dynamic-${index}.png`),
+        });
+        await page.waitForTimeout(350);
+      }
+      const advancedTime = await host.evaluate(
+        (element) => (element as HTMLVideoElement).currentTime,
+      );
+      expect(advancedTime - initialTime).toBeGreaterThan(1.5);
+      expect(new Set(hashes).size).toBeGreaterThanOrEqual(3);
+
+      await page.getByTestId('template-lab-play-pause').click();
+      const pausedFrame = await currentFrame(page);
+      await page.getByTestId('template-lab-next-frame').click();
+      await expect.poll(() => currentFrame(page)).toBe(pausedFrame + 1);
+      await page.getByTestId('template-lab-play-pause').click();
+      await expect
+        .poll(() => currentFrame(page), {timeout: 3_000})
+        .toBeGreaterThan(pausedFrame + 10);
+      await page.getByTestId('template-lab-play-pause').click();
     }
     for (const caption of await page.locator('[data-caption-region]').all()) {
       const overflow = await caption.evaluate(

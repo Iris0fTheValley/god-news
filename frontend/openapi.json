@@ -1757,13 +1757,215 @@
         "title": "LayoutPreset",
         "type": "object"
       },
+      "Live2DAudioCalibration": {
+        "additionalProperties": false,
+        "properties": {
+          "noise_floor": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Noise Floor",
+            "type": "number"
+          },
+          "normalization_peak": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Normalization Peak",
+            "type": "number"
+          }
+        },
+        "required": [
+          "noise_floor",
+          "normalization_peak"
+        ],
+        "title": "Live2DAudioCalibration",
+        "type": "object"
+      },
+      "Live2DDynamicThreshold": {
+        "additionalProperties": false,
+        "properties": {
+          "maximum_absolute_acceleration": {
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Absolute Acceleration",
+            "type": "number"
+          },
+          "maximum_absolute_jerk": {
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Absolute Jerk",
+            "type": "number"
+          },
+          "maximum_absolute_step": {
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Absolute Step",
+            "type": "number"
+          },
+          "maximum_absolute_velocity": {
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Absolute Velocity",
+            "type": "number"
+          },
+          "maximum_direction_reversals_per_second": {
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Direction Reversals Per Second",
+            "type": "number"
+          },
+          "maximum_high_frequency_energy_ratio": {
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum High Frequency Energy Ratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "maximum_absolute_step",
+          "maximum_absolute_velocity",
+          "maximum_absolute_acceleration",
+          "maximum_absolute_jerk",
+          "maximum_direction_reversals_per_second",
+          "maximum_high_frequency_energy_ratio"
+        ],
+        "title": "Live2DDynamicThreshold",
+        "type": "object"
+      },
+      "Live2DMotionMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "fade_in_ms": {
+            "anyOf": [
+              {
+                "maximum": 60000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fade In Ms"
+          },
+          "fade_out_ms": {
+            "anyOf": [
+              {
+                "maximum": 60000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fade Out Ms"
+          },
+          "file": {
+            "minLength": 1,
+            "title": "File",
+            "type": "string"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          },
+          "frames": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frames"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Live2DMotionMetadata",
+        "type": "object"
+      },
+      "Live2DParameterDiagnostics": {
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Findings",
+            "type": "array"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Live2DSignalMetrics"
+          },
+          "range": {
+            "$ref": "#/components/schemas/Live2DParameterRange"
+          },
+          "threshold": {
+            "$ref": "#/components/schemas/Live2DDynamicThreshold"
+          }
+        },
+        "required": [
+          "range",
+          "metrics",
+          "threshold"
+        ],
+        "title": "Live2DParameterDiagnostics",
+        "type": "object"
+      },
+      "Live2DParameterRange": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "number"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "number"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "number"
+          }
+        },
+        "required": [
+          "minimum",
+          "maximum",
+          "default"
+        ],
+        "title": "Live2DParameterRange",
+        "type": "object"
+      },
       "Live2DRenderDiagnostics": {
         "additionalProperties": false,
         "properties": {
+          "audio_calibration": {
+            "$ref": "#/components/schemas/Live2DAudioCalibration"
+          },
           "blink_events": {
             "minimum": 0.0,
             "title": "Blink Events",
             "type": "integer"
+          },
+          "control_mode": {
+            "enum": [
+              "legacy_conflict",
+              "motion_only",
+              "procedural_only",
+              "no_lip_sync",
+              "final"
+            ],
+            "title": "Control Mode",
+            "type": "string"
           },
           "controlled_parameters": {
             "items": {
@@ -1807,6 +2009,37 @@
             "title": "Frames",
             "type": "integer"
           },
+          "gate_findings": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 256,
+            "title": "Gate Findings",
+            "type": "array"
+          },
+          "image_metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Live2DSignalMetrics"
+            },
+            "maxProperties": 32,
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Image Metrics",
+            "type": "object"
+          },
+          "image_thresholds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "maxProperties": 32,
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Image Thresholds",
+            "type": "object"
+          },
           "longest_exact_duplicate_run": {
             "minimum": 0.0,
             "title": "Longest Exact Duplicate Run",
@@ -1823,10 +2056,40 @@
             ],
             "title": "Motion Group"
           },
+          "motion_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Live2DMotionMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "motion_restarts": {
             "minimum": 0.0,
             "title": "Motion Restarts",
             "type": "integer"
+          },
+          "motion_source_switch_max_delta": {
+            "minimum": 0.0,
+            "title": "Motion Source Switch Max Delta",
+            "type": "number"
+          },
+          "motion_state_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Motion State Counts",
+            "type": "object"
+          },
+          "motion_switch_max_delta": {
+            "minimum": 0.0,
+            "title": "Motion Switch Max Delta",
+            "type": "number"
           },
           "mouth_max": {
             "maximum": 1.0,
@@ -1858,10 +2121,43 @@
             "title": "Mouth P95",
             "type": "number"
           },
+          "parameter_metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Live2DParameterDiagnostics"
+            },
+            "maxProperties": 32,
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Parameter Metrics",
+            "type": "object"
+          },
+          "parameter_owners": {
+            "additionalProperties": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxProperties": 32,
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Parameter Owners",
+            "type": "object"
+          },
+          "quality_gate_passed": {
+            "title": "Quality Gate Passed",
+            "type": "boolean"
+          },
           "rendered_frames": {
             "exclusiveMinimum": 0.0,
             "title": "Rendered Frames",
             "type": "integer"
+          },
+          "schema_version": {
+            "const": "2.0",
+            "default": "2.0",
+            "title": "Schema Version",
+            "type": "string"
           },
           "time_delta_ms_max": {
             "exclusiveMinimum": 0.0,
@@ -1873,6 +2169,21 @@
             "title": "Time Delta Ms Min",
             "type": "integer"
           },
+          "trace_path": {
+            "minLength": 1,
+            "title": "Trace Path",
+            "type": "string"
+          },
+          "trace_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Trace Sha256",
+            "type": "string"
+          },
+          "trace_size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Trace Size Bytes",
+            "type": "integer"
+          },
           "voiced_frame_ratio": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1881,6 +2192,7 @@
           }
         },
         "required": [
+          "control_mode",
           "frames",
           "envelope_frames",
           "rendered_frames",
@@ -1888,6 +2200,8 @@
           "time_delta_ms_min",
           "time_delta_ms_max",
           "motion_restarts",
+          "motion_switch_max_delta",
+          "motion_source_switch_max_delta",
           "blink_events",
           "mouth_min",
           "mouth_p50",
@@ -1896,9 +2210,111 @@
           "mouth_max_delta",
           "voiced_frame_ratio",
           "exact_duplicate_pair_ratio",
-          "longest_exact_duplicate_run"
+          "longest_exact_duplicate_run",
+          "quality_gate_passed",
+          "audio_calibration",
+          "trace_path",
+          "trace_sha256",
+          "trace_size_bytes"
         ],
         "title": "Live2DRenderDiagnostics",
+        "type": "object"
+      },
+      "Live2DSignalMetrics": {
+        "additionalProperties": false,
+        "properties": {
+          "direction_reversals_per_second": {
+            "minimum": 0.0,
+            "title": "Direction Reversals Per Second",
+            "type": "number"
+          },
+          "duration_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "high_frequency_energy_ratio": {
+            "minimum": 0.0,
+            "title": "High Frequency Energy Ratio",
+            "type": "number"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "number"
+          },
+          "maximum_absolute_acceleration": {
+            "minimum": 0.0,
+            "title": "Maximum Absolute Acceleration",
+            "type": "number"
+          },
+          "maximum_absolute_jerk": {
+            "minimum": 0.0,
+            "title": "Maximum Absolute Jerk",
+            "type": "number"
+          },
+          "maximum_absolute_step": {
+            "minimum": 0.0,
+            "title": "Maximum Absolute Step",
+            "type": "number"
+          },
+          "maximum_absolute_velocity": {
+            "minimum": 0.0,
+            "title": "Maximum Absolute Velocity",
+            "type": "number"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "number"
+          },
+          "p95_absolute_acceleration": {
+            "minimum": 0.0,
+            "title": "P95 Absolute Acceleration",
+            "type": "number"
+          },
+          "p95_absolute_jerk": {
+            "minimum": 0.0,
+            "title": "P95 Absolute Jerk",
+            "type": "number"
+          },
+          "p95_absolute_step": {
+            "minimum": 0.0,
+            "title": "P95 Absolute Step",
+            "type": "number"
+          },
+          "p95_absolute_velocity": {
+            "minimum": 0.0,
+            "title": "P95 Absolute Velocity",
+            "type": "number"
+          },
+          "p99_absolute_step": {
+            "minimum": 0.0,
+            "title": "P99 Absolute Step",
+            "type": "number"
+          },
+          "samples": {
+            "exclusiveMinimum": 0.0,
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "samples",
+          "duration_seconds",
+          "minimum",
+          "maximum",
+          "p95_absolute_step",
+          "p99_absolute_step",
+          "maximum_absolute_step",
+          "p95_absolute_velocity",
+          "maximum_absolute_velocity",
+          "p95_absolute_acceleration",
+          "maximum_absolute_acceleration",
+          "p95_absolute_jerk",
+          "maximum_absolute_jerk",
+          "direction_reversals_per_second",
+          "high_frequency_energy_ratio"
+        ],
+        "title": "Live2DSignalMetrics",
         "type": "object"
       },
       "Liveness": {

@@ -704,6 +704,50 @@ const DifferentialArtReservationSchema = z
   })
   .strict();
 
+const Live2DSignalMetricsSchema = z
+  .object({
+    samples: z.number().int().positive(),
+    duration_seconds: z.number().positive(),
+    minimum: z.number(),
+    maximum: z.number(),
+    p95_absolute_step: z.number().nonnegative(),
+    p99_absolute_step: z.number().nonnegative(),
+    maximum_absolute_step: z.number().nonnegative(),
+    p95_absolute_velocity: z.number().nonnegative(),
+    maximum_absolute_velocity: z.number().nonnegative(),
+    p95_absolute_acceleration: z.number().nonnegative(),
+    maximum_absolute_acceleration: z.number().nonnegative(),
+    p95_absolute_jerk: z.number().nonnegative(),
+    maximum_absolute_jerk: z.number().nonnegative(),
+    direction_reversals_per_second: z.number().nonnegative(),
+    high_frequency_energy_ratio: z.number().nonnegative(),
+  })
+  .strict();
+
+const Live2DParameterDiagnosticsSchema = z
+  .object({
+    range: z
+      .object({
+        minimum: z.number(),
+        maximum: z.number(),
+        default: z.number(),
+      })
+      .strict(),
+    metrics: Live2DSignalMetricsSchema,
+    threshold: z
+      .object({
+        maximum_absolute_step: z.number().positive(),
+        maximum_absolute_velocity: z.number().positive(),
+        maximum_absolute_acceleration: z.number().positive(),
+        maximum_absolute_jerk: z.number().positive(),
+        maximum_direction_reversals_per_second: z.number().positive(),
+        maximum_high_frequency_energy_ratio: z.number().positive(),
+      })
+      .strict(),
+    findings: z.array(nonBlank).max(32),
+  })
+  .strict();
+
 const RenderedHostVideoSchema = z
   .object({
     asset_id: z.string().uuid(),
@@ -723,6 +767,14 @@ const RenderedHostVideoSchema = z
     video_codec: nonBlank,
     diagnostics: z
       .object({
+        schema_version: z.literal('2.0'),
+        control_mode: z.enum([
+          'legacy_conflict',
+          'motion_only',
+          'procedural_only',
+          'no_lip_sync',
+          'final',
+        ]),
         frames: z.number().int().positive(),
         envelope_frames: z.number().int().positive(),
         rendered_frames: z.number().int().positive(),
@@ -731,6 +783,20 @@ const RenderedHostVideoSchema = z
         time_delta_ms_max: z.number().int().positive(),
         motion_group: z.string().nullable().optional(),
         motion_restarts: z.number().int().nonnegative(),
+        motion_state_counts: z.record(nonBlank, z.number().int().nonnegative()),
+        motion_switch_max_delta: z.number().nonnegative(),
+        motion_source_switch_max_delta: z.number().nonnegative(),
+        motion_metadata: z
+          .object({
+            file: nonBlank,
+            fps: z.number().int().min(1).max(120).nullable().optional(),
+            fade_in_ms: z.number().min(0).max(60_000).nullable().optional(),
+            fade_out_ms: z.number().min(0).max(60_000).nullable().optional(),
+            frames: z.number().int().positive().nullable().optional(),
+          })
+          .strict()
+          .nullable()
+          .optional(),
         expression: z.string().nullable().optional(),
         blink_events: z.number().int().nonnegative(),
         mouth_min: z.number().min(0).max(1),
@@ -742,6 +808,21 @@ const RenderedHostVideoSchema = z
         exact_duplicate_pair_ratio: z.number().min(0).max(1),
         longest_exact_duplicate_run: z.number().int().nonnegative(),
         controlled_parameters: z.array(nonBlank).max(32),
+        parameter_owners: z.record(nonBlank, nonBlank),
+        parameter_metrics: z.record(nonBlank, Live2DParameterDiagnosticsSchema),
+        image_metrics: z.record(nonBlank, Live2DSignalMetricsSchema),
+        image_thresholds: z.record(nonBlank, z.number()),
+        gate_findings: z.array(nonBlank).max(256),
+        quality_gate_passed: z.boolean(),
+        audio_calibration: z
+          .object({
+            noise_floor: z.number().min(0).max(1),
+            normalization_peak: z.number().positive().max(1),
+          })
+          .strict(),
+        trace_path: localPath,
+        trace_sha256: sha256,
+        trace_size_bytes: z.number().int().positive(),
       })
       .strict()
       .nullable()
