@@ -45,7 +45,7 @@ const hostFrameHash = async (
       hash ^= pixels[index] ?? 0;
       hash = Math.imul(hash, 16777619);
     }
-    return `${source.currentTime.toFixed(6)}:${(hash >>> 0).toString(16)}`;
+    return (hash >>> 0).toString(16);
   });
 
 const cases = [
@@ -127,6 +127,14 @@ for (const fixture of cases) {
     if ('requiresHost' in fixture && fixture.requiresHost) {
       const host = page.locator('video[data-host-segment-id]');
       await expect(host).toHaveCount(1);
+      await expect
+        .poll(() =>
+          host.evaluate((element) => {
+            const video = element as HTMLVideoElement;
+            return `${video.videoWidth}x${video.videoHeight}`;
+          }),
+        )
+        .toBe('720x720');
       const initialFrame = await currentFrame(page);
       const initialTime = await host.evaluate(
         (element) => (element as HTMLVideoElement).currentTime,
@@ -147,10 +155,13 @@ for (const fixture of cases) {
       const advancedTime = await host.evaluate(
         (element) => (element as HTMLVideoElement).currentTime,
       );
-      expect(advancedTime - initialTime).toBeGreaterThan(1.5);
+      expect(advancedTime - initialTime).toBeGreaterThan(2);
       expect(new Set(hashes).size).toBeGreaterThanOrEqual(3);
 
       await page.getByTestId('template-lab-play-pause').click();
+      const pausedPixelHash = await hostFrameHash(host);
+      await page.waitForTimeout(350);
+      expect(await hostFrameHash(host)).toBe(pausedPixelHash);
       const pausedFrame = await currentFrame(page);
       await page.getByTestId('template-lab-next-frame').click();
       await expect.poll(() => currentFrame(page)).toBe(pausedFrame + 1);

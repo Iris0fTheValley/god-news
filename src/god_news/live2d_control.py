@@ -170,6 +170,7 @@ class KinematicLimiter:
     value: float
     velocity: float = 0.0
     acceleration: float = 0.0
+    _velocity_braking_direction: int = 0
 
     def update(
         self,
@@ -195,6 +196,36 @@ class KinematicLimiter:
             -maximum_acceleration,
             min(maximum_acceleration, desired_acceleration),
         )
+        # Begin removing acceleration early enough to reach the velocity
+        # boundary without a hard clamp.  A hard velocity clamp changes the
+        # observed acceleration in one frame and therefore creates precisely
+        # the jerk spike this limiter is meant to prevent.
+        if self._velocity_braking_direction > 0 and self.acceleration <= 0:
+            self._velocity_braking_direction = 0
+        elif self._velocity_braking_direction < 0 and self.acceleration >= 0:
+            self._velocity_braking_direction = 0
+        if self._velocity_braking_direction > 0:
+            desired_acceleration = min(0.0, desired_acceleration)
+        elif self._velocity_braking_direction < 0:
+            desired_acceleration = max(0.0, desired_acceleration)
+        elif self.acceleration > 0:
+            positive_headroom = max(0.0, maximum_velocity - self.velocity)
+            braking_distance = (
+                self.acceleration * self.acceleration / (2 * maximum_jerk)
+                + self.acceleration * delta_seconds * 0.5
+            )
+            if positive_headroom <= braking_distance:
+                self._velocity_braking_direction = 1
+                desired_acceleration = min(0.0, desired_acceleration)
+        elif self.acceleration < 0:
+            negative_headroom = max(0.0, maximum_velocity + self.velocity)
+            braking_distance = (
+                self.acceleration * self.acceleration / (2 * maximum_jerk)
+                + abs(self.acceleration) * delta_seconds * 0.5
+            )
+            if negative_headroom <= braking_distance:
+                self._velocity_braking_direction = -1
+                desired_acceleration = max(0.0, desired_acceleration)
         if desired_acceleration > 0:
             velocity_headroom = max(0.0, maximum_velocity - self.velocity)
             desired_acceleration = min(
@@ -214,7 +245,13 @@ class KinematicLimiter:
             acceleration_delta,
         )
         next_velocity = self.velocity + next_acceleration * delta_seconds
-        next_velocity = max(-maximum_velocity, min(maximum_velocity, next_velocity))
+        bounded_velocity = max(
+            -maximum_velocity,
+            min(maximum_velocity, next_velocity),
+        )
+        if bounded_velocity != next_velocity:
+            next_velocity = bounded_velocity
+            next_acceleration = (next_velocity - self.velocity) / delta_seconds
         next_value = self.value + next_velocity * delta_seconds
         if (
             abs(target - next_value) < 1e-5
@@ -672,6 +709,7 @@ class ParameterMixer:
         blink_openness: float,
         blink_owned: bool,
         mouth_value: float,
+        expression_values: dict[str, float] | None = None,
     ) -> dict[str, ParameterContribution]:
         contributions: dict[str, ParameterContribution] = {}
         motion_enabled = mode in {
@@ -685,8 +723,11 @@ class ParameterMixer:
             Live2DControlMode.FINAL,
         }
         lip_sync_enabled = mode is not Live2DControlMode.NO_LIP_SYNC
+        expression_values = expression_values or {}
         for parameter, parameter_range in self.parameter_ranges.items():
             base = base_values.get(parameter, parameter_range.default)
+            expression = expression_values.get(parameter)
+            expression_base = expression if expression is not None else base
             motion = motion_values.get(parameter) if motion_enabled else None
             idle = procedural_pose.idle.get(parameter) if procedural_enabled else None
             look = procedural_pose.look.get(parameter) if procedural_enabled else None
@@ -706,7 +747,6 @@ class ParameterMixer:
                 if lip_sync_enabled and parameter == PARAM_MOUTH_OPEN_Y
                 else None
             )
-            expression: float | None = None
             if parameter in {
                 PARAM_ANGLE_X,
                 PARAM_ANGLE_Y,
@@ -714,17 +754,17 @@ class ParameterMixer:
                 PARAM_BODY_ANGLE_X,
             }:
                 desired = (
-                    base + (motion - base) * motion_weight
+                    expression_base + (motion - base) * motion_weight
                     if motion is not None
-                    else base
+                    else expression_base
                 )
                 if idle is not None:
                     desired += idle
             elif parameter in {PARAM_EYE_BALL_X, PARAM_EYE_BALL_Y}:
                 motion_base = (
-                    base + (motion - base) * motion_weight
+                    expression_base + (motion - base) * motion_weight
                     if motion is not None
-                    else base
+                    else expression_base
                 )
                 desired = look if look is not None else motion_base
                 if look is not None and motion is not None:
@@ -732,15 +772,19 @@ class ParameterMixer:
             elif parameter in {PARAM_EYE_L_OPEN, PARAM_EYE_R_OPEN}:
                 if mode is Live2DControlMode.MOTION_ONLY:
                     desired = (
-                        base + (motion - base) * motion_weight
+                        expression_base + (motion - base) * motion_weight
                         if motion is not None
-                        else base
+                        else expression_base
                     )
                 else:
-                    # Eyelids have exactly one production owner. Emotion
-                    # motions may animate the face, but cannot also overwrite
-                    # the procedural blink curve.
-                    desired = blink if blink is not None else base
+                    # Expression supplies the baseline openness while the blink
+                    # state machine owns the final eyelid value. Motion and
+                    # low-priority controllers cannot overwrite it afterwards.
+                    desired = (
+                        expression_base * blink
+                        if blink is not None
+                        else expression_base
+                    )
             elif parameter == PARAM_MOUTH_OPEN_Y:
                 if lip_sync is not None:
                     desired = lip_sync
@@ -755,16 +799,16 @@ class ParameterMixer:
             elif parameter == PARAM_BREATH:
                 if mode is Live2DControlMode.MOTION_ONLY:
                     desired = (
-                    base + (motion - base) * motion_weight
+                        expression_base + (motion - base) * motion_weight
                         if motion is not None
-                        else base
+                        else expression_base
                     )
                 else:
                     # The breath oscillator owns this parameter in production;
                     # motion files are not allowed to compete for it.
                     desired = breath if breath is not None else base
             else:
-                desired = base
+                desired = expression_base
             desired = parameter_range.clamp(desired)
             family = PARAMETER_FAMILIES[parameter]
             velocity, acceleration, jerk = self.derivative_limits[family].for_range(

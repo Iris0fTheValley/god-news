@@ -22,7 +22,8 @@ The production path now has:
 - deterministic target-based idle, gaze, blink, breath, and lip-sync
   controllers;
 - velocity, acceleration, jerk, reversal, and high-frequency gates;
-- image-space centroid, alpha, face, eye, and perceptual-delta gates;
+- image-space centroid, outline, alpha geometry, regional direct-delta,
+  signed-delta, local-flow, and period-two gates;
 - a complete JSONL trace beside every accepted host WebM;
 - fail-closed validation in the backend adapter.
 
@@ -54,20 +55,22 @@ The production path now has:
    `.mtn` FPS, frame count, fade-in, and fade-out metadata. The state machine
    applies bounded enter/exit transitions and a minimum neutral/cooldown
    interval.
-8. **Did VP9 alpha add extra jumps?** No evidence of that. The native capture
-   verifies a varying alpha channel before encoding. PyAV may expose VP9 as
-   `yuv420p`; the offline analyzer therefore records whether alpha was decoded
-   or recovered from the stable background. The fixed-background comparison is
-   the independent control.
+8. **Did VP9 alpha add extra jumps?** No evidence of that. Acceptance requires
+   three independent facts: varying foreground coverage in the pre-encode
+   trace, `alpha_mode=1` in the WebM stream metadata, and real Edge decoding
+   that produces both background-responsive transparent pixels and
+   background-invariant opaque pixels on black and white canvases. Alpha
+   reconstructed from a fixed background is explicitly recorded as analysis
+   data, never accepted as transparency proof.
 
 ## Production parameter ownership
 
 | Parameter family | Final owner | Other inputs |
 | --- | --- | --- |
-| Head X/Y/Z | `motion_mixer` | motion pose plus low-weight idle target |
-| Body X | `motion_mixer` | motion pose plus low-weight idle target |
+| Head X/Y/Z | `motion_mixer` | expression baseline, motion pose, low-weight idle target |
+| Body X | `motion_mixer` | expression baseline, motion pose, low-weight idle target |
 | Eye ball X/Y | `eye_gaze_mixer` | weighted motion gaze and smooth look target |
-| Eye open L/R | `blink_controller` | deterministic blink state only |
+| Eye open L/R | `blink_controller` | expression baseline multiplied by deterministic blink state |
 | Mouth open | `lip_sync_controller` | calibrated audio envelope only |
 | Breath | `breath_controller` | low-amplitude continuous oscillator only |
 
@@ -139,11 +142,15 @@ The acceptance gate checks:
 - high-frequency energy;
 - raw source-pose and committed motion-switch gaps;
 - alpha area and centroid changes;
-- decoded perceptual, face-region, and eye-region deltas;
+- decoded perceptual, face-region, eye-region, signed-delta, outline, and
+  low-resolution local-flow changes;
+- sustained frame-alternating geometry and regional intensity energy;
 - repeated-frame ratio and longest frozen run.
 
-The thresholds are not relaxed when a candidate fails. The controller is
-changed and the full experiment is rerun.
+Threshold changes require decoded/pre-encode evidence, a documented codec
+margin where relevant, and a negative regression proving that a materially
+larger discontinuity or sustained alternating signal still fails. A passing
+parameter trace cannot waive a failing decoded-image gate, and vice versa.
 
 ## AIRI and DSakiko research
 

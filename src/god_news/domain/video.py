@@ -248,6 +248,9 @@ class Live2DSignalMetrics(DomainModel):
     duration_seconds: float = Field(gt=0)
     minimum: float
     maximum: float
+    p95_absolute_value: float = Field(ge=0)
+    p99_absolute_value: float = Field(ge=0)
+    maximum_absolute_value: float = Field(ge=0)
     p95_absolute_step: float = Field(ge=0)
     p99_absolute_step: float = Field(ge=0)
     maximum_absolute_step: float = Field(ge=0)
@@ -259,6 +262,7 @@ class Live2DSignalMetrics(DomainModel):
     maximum_absolute_jerk: float = Field(ge=0)
     direction_reversals_per_second: float = Field(ge=0)
     high_frequency_energy_ratio: float = Field(ge=0)
+    alternating_energy_ratio: float = Field(ge=0, le=1)
 
 
 class Live2DParameterRange(DomainModel):
@@ -284,11 +288,18 @@ class Live2DDynamicThreshold(DomainModel):
     maximum_high_frequency_energy_ratio: float = Field(gt=0)
 
 
+class Live2DGateFinding(DomainModel):
+    code: NonBlankStr
+    metric: NonBlankStr
+    observed: float = Field(ge=0)
+    threshold: float = Field(ge=0)
+
+
 class Live2DParameterDiagnostics(DomainModel):
     range: Live2DParameterRange
     metrics: Live2DSignalMetrics
     threshold: Live2DDynamicThreshold
-    findings: list[NonBlankStr] = Field(default_factory=list, max_length=32)
+    findings: list[Live2DGateFinding] = Field(default_factory=list, max_length=32)
 
 
 class Live2DMotionMetadata(DomainModel):
@@ -352,7 +363,10 @@ class Live2DRenderDiagnostics(DomainModel):
         default_factory=dict,
         max_length=32,
     )
-    gate_findings: list[NonBlankStr] = Field(default_factory=list, max_length=256)
+    gate_findings: list[Live2DGateFinding] = Field(
+        default_factory=list,
+        max_length=256,
+    )
     quality_gate_passed: bool
     audio_calibration: Live2DAudioCalibration
     trace_path: NonBlankStr

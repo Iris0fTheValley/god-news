@@ -34,6 +34,9 @@ class SignalMetrics:
     duration_seconds: float
     minimum: float
     maximum: float
+    p95_absolute_value: float
+    p99_absolute_value: float
+    maximum_absolute_value: float
     p95_absolute_step: float
     p99_absolute_step: float
     maximum_absolute_step: float
@@ -45,6 +48,7 @@ class SignalMetrics:
     maximum_absolute_jerk: float
     direction_reversals_per_second: float
     high_frequency_energy_ratio: float
+    alternating_energy_ratio: float
 
     def as_dict(self) -> dict[str, int | float]:
         return asdict(self)
@@ -145,11 +149,26 @@ def compute_signal_metrics(
     high_frequency_energy = sum(
         (right - left) ** 2 for left, right in pairwise(steps)
     )
+    high_pass = [
+        values[index] - (values[index - 1] + values[index + 1]) * 0.5
+        for index in range(1, len(values) - 1)
+    ]
+    mean = statistics.fmean(high_pass) if high_pass else 0.0
+    centered = [value - mean for value in high_pass]
+    centered_energy = sum(value * value for value in centered)
+    alternating_projection = sum(
+        value if index % 2 == 0 else -value
+        for index, value in enumerate(centered)
+    )
+    absolute_values = [abs(value) for value in values]
     return SignalMetrics(
         samples=len(values),
         duration_seconds=duration,
         minimum=min(values),
         maximum=max(values),
+        p95_absolute_value=_percentile(absolute_values, 0.95),
+        p99_absolute_value=_percentile(absolute_values, 0.99),
+        maximum_absolute_value=max(absolute_values),
         p95_absolute_step=_percentile([abs(value) for value in steps], 0.95),
         p99_absolute_step=_percentile([abs(value) for value in steps], 0.99),
         maximum_absolute_step=max((abs(value) for value in steps), default=0.0),
@@ -177,6 +196,12 @@ def compute_signal_metrics(
         high_frequency_energy_ratio=(
             high_frequency_energy / first_difference_energy
             if first_difference_energy > 1e-12
+            else 0.0
+        ),
+        alternating_energy_ratio=(
+            alternating_projection * alternating_projection
+            / (len(centered) * centered_energy)
+            if centered_energy > 1e-12
             else 0.0
         ),
     )
@@ -248,6 +273,287 @@ def evaluate_signal(
         for metric, (observed, limit) in comparisons.items()
         if observed > limit
     ]
+
+
+IMAGE_REQUIRED_TRACKS: Final[frozenset[str]] = frozenset(
+    {
+        "alpha_area_ratio",
+        "alpha_delta",
+        "alpha_spread_x",
+        "alpha_spread_y",
+        "centroid_x",
+        "centroid_y",
+        "outline_centroid_x",
+        "outline_centroid_y",
+        "perceptual_delta",
+        "face_delta",
+        "eye_delta",
+        "face_signed_delta",
+        "eye_signed_delta",
+        "local_flow_x",
+        "local_flow_y",
+        "local_flow_magnitude",
+    }
+)
+
+
+def evaluate_image_tracks(
+    tracks: dict[str, list[float]],
+    timestamps: list[float],
+    *,
+    fps: int,
+) -> tuple[dict[str, SignalMetrics], dict[str, float], list[GateFinding]]:
+    """Evaluate normalized image-space motion without re-differencing deltas.
+
+    Tracks such as ``perceptual_delta`` and ``alpha_delta`` already represent
+    direct inter-frame differences.  Their p95/p99/max *values* are therefore
+    gated directly.  Signed regional deltas, outline/alpha geometry, and a
+    lightweight local-flow estimate catch alternating flicker and scale jitter
+    that a whole-frame centroid alone can miss.
+    """
+
+    if fps < 1:
+        raise ValueError("fps must be positive")
+    missing = IMAGE_REQUIRED_TRACKS.difference(tracks)
+    if missing:
+        raise ValueError(f"missing image diagnostic tracks: {sorted(missing)}")
+    metrics = {
+        name: compute_signal_metrics(
+            values,
+            timestamps,
+            reversal_epsilon=(
+                0.002
+                if name.endswith("signed_delta") or name.startswith("local_flow")
+                else 0.0001
+            ),
+        )
+        for name, values in tracks.items()
+    }
+    frame_scale = 30.0 / fps
+    limits = {
+        # A corrected motion handoff measured 0.0167 before encode and 0.0188
+        # after fixed-background H.264 reconstruction. Keep a small codec
+        # margin here; parameter jerk, regional frame deltas, flow, reversal,
+        # and period-two gates independently constrain abrupt or cyclic motion.
+        "centroid_step": 0.022 * frame_scale,
+        "centroid_reversals_per_second": 10.0,
+        "centroid_high_frequency_ratio": 0.9,
+        "centroid_high_frequency_min_reversals": 4.0,
+        "centroid_high_frequency_min_p95_step": 0.0027 * frame_scale,
+        # The VP9 decoder exposed by PyAV omits alpha and requires a bounded
+        # color-distance reconstruction. Corrected A/B renders measured up to
+        # 0.0377 here at the 512px smoke resolution while subject centroid
+        # stayed below 0.0176 and alternating energy stayed near zero. 0.045
+        # retains codec/segmentation margin while centroid, regional delta,
+        # flow, reversal, and period-two gates still reject visual jitter.
+        "outline_centroid_step": 0.045 * frame_scale,
+        "outline_reversals_per_second": 12.0,
+        "outline_high_frequency_ratio": 1.1,
+        "outline_high_frequency_min_reversals": 5.0,
+        "outline_high_frequency_min_p95_step": 0.0052 * frame_scale,
+        "alpha_area_step": 0.025 * frame_scale,
+        "alpha_spread_step": 0.018 * frame_scale,
+        "alpha_delta_p99_direct": 0.020,
+        "alpha_delta_max_direct": 0.050,
+        "perceptual_delta_p99_direct": 0.160,
+        "perceptual_delta_max_direct": 0.280,
+        "face_delta_p99_direct": 0.180,
+        "face_delta_max_direct": 0.320,
+        "eye_delta_p99_direct": 0.280,
+        "eye_delta_max_direct": 0.450,
+        "local_flow_p99_direct": 0.120,
+        "local_flow_max_direct": 0.250,
+        "signed_delta_amplitude_floor": 0.012,
+        "signed_delta_reversals_per_second": 18.0,
+        "signed_delta_high_frequency_ratio": 1.7,
+        "signed_delta_alternating_energy_ratio": 0.45,
+        "geometry_alternating_energy_ratio": 0.45,
+    }
+    checks: dict[str, tuple[float, float]] = {
+        "centroid_x_step": (
+            metrics["centroid_x"].maximum_absolute_step,
+            limits["centroid_step"],
+        ),
+        "centroid_y_step": (
+            metrics["centroid_y"].maximum_absolute_step,
+            limits["centroid_step"],
+        ),
+        "centroid_x_reversals": (
+            metrics["centroid_x"].direction_reversals_per_second,
+            limits["centroid_reversals_per_second"],
+        ),
+        "centroid_y_reversals": (
+            metrics["centroid_y"].direction_reversals_per_second,
+            limits["centroid_reversals_per_second"],
+        ),
+        "outline_centroid_x_step": (
+            metrics["outline_centroid_x"].maximum_absolute_step,
+            limits["outline_centroid_step"],
+        ),
+        "outline_centroid_y_step": (
+            metrics["outline_centroid_y"].maximum_absolute_step,
+            limits["outline_centroid_step"],
+        ),
+        "outline_centroid_x_reversals": (
+            metrics["outline_centroid_x"].direction_reversals_per_second,
+            limits["outline_reversals_per_second"],
+        ),
+        "outline_centroid_y_reversals": (
+            metrics["outline_centroid_y"].direction_reversals_per_second,
+            limits["outline_reversals_per_second"],
+        ),
+        "alpha_area_step": (
+            metrics["alpha_area_ratio"].maximum_absolute_step,
+            limits["alpha_area_step"],
+        ),
+        "alpha_spread_x_step": (
+            metrics["alpha_spread_x"].maximum_absolute_step,
+            limits["alpha_spread_step"],
+        ),
+        "alpha_spread_y_step": (
+            metrics["alpha_spread_y"].maximum_absolute_step,
+            limits["alpha_spread_step"],
+        ),
+        "alpha_delta_p99_direct": (
+            metrics["alpha_delta"].p99_absolute_value,
+            limits["alpha_delta_p99_direct"],
+        ),
+        "alpha_delta_max_direct": (
+            metrics["alpha_delta"].maximum_absolute_value,
+            limits["alpha_delta_max_direct"],
+        ),
+        "perceptual_delta_p99_direct": (
+            metrics["perceptual_delta"].p99_absolute_value,
+            limits["perceptual_delta_p99_direct"],
+        ),
+        "perceptual_delta_max_direct": (
+            metrics["perceptual_delta"].maximum_absolute_value,
+            limits["perceptual_delta_max_direct"],
+        ),
+        "face_delta_p99_direct": (
+            metrics["face_delta"].p99_absolute_value,
+            limits["face_delta_p99_direct"],
+        ),
+        "face_delta_max_direct": (
+            metrics["face_delta"].maximum_absolute_value,
+            limits["face_delta_max_direct"],
+        ),
+        "eye_delta_p99_direct": (
+            metrics["eye_delta"].p99_absolute_value,
+            limits["eye_delta_p99_direct"],
+        ),
+        "eye_delta_max_direct": (
+            metrics["eye_delta"].maximum_absolute_value,
+            limits["eye_delta_max_direct"],
+        ),
+        "local_flow_p99_direct": (
+            metrics["local_flow_magnitude"].p99_absolute_value,
+            limits["local_flow_p99_direct"],
+        ),
+        "local_flow_max_direct": (
+            metrics["local_flow_magnitude"].maximum_absolute_value,
+            limits["local_flow_max_direct"],
+        ),
+    }
+    findings = [
+        GateFinding(
+            code=f"image_{name}_exceeded",
+            metric=name,
+            observed=observed,
+            threshold=threshold,
+        )
+        for name, (observed, threshold) in checks.items()
+        if observed > threshold
+    ]
+    # A single normal scene entrance can have high second-difference energy.
+    # Treat it as high-frequency jitter only when it is also reversing often;
+    # sustained alternating motion therefore fails while one bounded transient
+    # does not.
+    for name, frequency_limit, reversal_floor, step_floor in (
+        (
+            "centroid_x",
+            limits["centroid_high_frequency_ratio"],
+            limits["centroid_high_frequency_min_reversals"],
+            limits["centroid_high_frequency_min_p95_step"],
+        ),
+        (
+            "centroid_y",
+            limits["centroid_high_frequency_ratio"],
+            limits["centroid_high_frequency_min_reversals"],
+            limits["centroid_high_frequency_min_p95_step"],
+        ),
+        (
+            "outline_centroid_x",
+            limits["outline_high_frequency_ratio"],
+            limits["outline_high_frequency_min_reversals"],
+            limits["outline_high_frequency_min_p95_step"],
+        ),
+        (
+            "outline_centroid_y",
+            limits["outline_high_frequency_ratio"],
+            limits["outline_high_frequency_min_reversals"],
+            limits["outline_high_frequency_min_p95_step"],
+        ),
+    ):
+        item = metrics[name]
+        if (
+            item.high_frequency_energy_ratio > frequency_limit
+            and item.direction_reversals_per_second > reversal_floor
+            and item.p95_absolute_step > step_floor
+        ):
+            findings.append(
+                GateFinding(
+                    code=f"image_{name}_high_frequency_exceeded",
+                    metric=f"{name}_high_frequency",
+                    observed=item.high_frequency_energy_ratio,
+                    threshold=frequency_limit,
+                )
+            )
+    amplitude_floor = limits["signed_delta_amplitude_floor"]
+    for name in ("face_signed_delta", "eye_signed_delta"):
+        item = metrics[name]
+        if item.p95_absolute_value <= amplitude_floor:
+            continue
+        conditional_checks = {
+            f"{name}_reversals": (
+                item.direction_reversals_per_second,
+                limits["signed_delta_reversals_per_second"],
+            ),
+            f"{name}_high_frequency": (
+                item.high_frequency_energy_ratio,
+                limits["signed_delta_high_frequency_ratio"],
+            ),
+            f"{name}_period_two": (
+                item.alternating_energy_ratio,
+                limits["signed_delta_alternating_energy_ratio"],
+            ),
+        }
+        findings.extend(
+            GateFinding(
+                code=f"image_{metric_name}_exceeded",
+                metric=metric_name,
+                observed=observed,
+                threshold=threshold,
+            )
+            for metric_name, (observed, threshold) in conditional_checks.items()
+            if observed > threshold
+        )
+    for name in ("alpha_spread_x", "alpha_spread_y"):
+        item = metrics[name]
+        if (
+            item.p95_absolute_step > 0.002
+            and item.alternating_energy_ratio
+            > limits["geometry_alternating_energy_ratio"]
+        ):
+            findings.append(
+                GateFinding(
+                    code=f"image_{name}_period_two_exceeded",
+                    metric=f"{name}_period_two",
+                    observed=item.alternating_energy_ratio,
+                    threshold=limits["geometry_alternating_energy_ratio"],
+                )
+            )
+    return metrics, limits, findings
 
 
 def robust_audio_calibration(raw_envelope: list[float]) -> tuple[float, float]:

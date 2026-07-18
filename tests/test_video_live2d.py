@@ -297,6 +297,9 @@ def _diagnostic_payload(**overrides: object) -> dict[str, object]:
         "duration_seconds": 1.2,
         "minimum": 0.0,
         "maximum": 0.9,
+        "p95_absolute_value": 0.8,
+        "p99_absolute_value": 0.88,
+        "maximum_absolute_value": 0.9,
         "p95_absolute_step": 0.1,
         "p99_absolute_step": 0.15,
         "maximum_absolute_step": 0.2,
@@ -308,6 +311,7 @@ def _diagnostic_payload(**overrides: object) -> dict[str, object]:
         "maximum_absolute_jerk": 40.0,
         "direction_reversals_per_second": 1.0,
         "high_frequency_energy_ratio": 0.1,
+        "alternating_energy_ratio": 0.02,
     }
     threshold = {
         "maximum_absolute_step": 0.35,
@@ -427,7 +431,14 @@ def test_live2d_renderer_rejects_failed_dynamic_gate(tmp_path: Path) -> None:
     renderer = _renderer(tmp_path=tmp_path, model_root=model_root, profile=profile)
     payload = _diagnostic_payload(
         quality_gate_passed=False,
-        gate_findings=["param_angle_x_maximum_absolute_jerk_exceeded"],
+        gate_findings=[
+            {
+                "code": "param_angle_x_maximum_absolute_jerk_exceeded",
+                "metric": "maximum_absolute_jerk",
+                "observed": 1_100.0,
+                "threshold": 1_080.0,
+            }
+        ],
     )
 
     with pytest.raises(VideoNarrationSynthesisError, match="dynamic quality gate"):

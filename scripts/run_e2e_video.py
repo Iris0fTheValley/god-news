@@ -1130,10 +1130,11 @@ async def extract_layer_comparison_evidence(
         cwd=layer_root,
         timeout_seconds=300,
     )
-    analysis: dict[str, str] = {}
+    offset = cast(float, first_window["segment_offset_seconds"])
+    analysis: dict[str, object] = {}
     for label, path in (("raw_webm", raw), ("fixed_background", background)):
         analysis_path = layer_root / f"{label}-analysis.json"
-        await run_process(
+        analysis_arguments = [
             str(live2d_python),
             str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
             "--input",
@@ -1142,11 +1143,64 @@ async def extract_layer_comparison_evidence(
             str(analysis_path),
             "--expected-fps",
             str(raw_asset.fps),
+            "--start-seconds",
+            f"{offset:.6f}",
+            "--duration-seconds",
+            "2",
+            "--require-dynamic-quality",
+        ]
+        if label == "raw_webm":
+            if raw_asset.diagnostics is None:
+                raise RuntimeError("Raw Live2D layer is missing diagnostics.")
+            analysis_arguments.extend(
+                [
+                    "--preencode-trace",
+                    raw_asset.diagnostics.trace_path,
+                    "--require-transparency",
+                ]
+            )
+        await run_process(
+            *analysis_arguments,
             cwd=WORKSPACE,
             timeout_seconds=300,
         )
         analysis[label] = str(analysis_path)
-    offset = cast(float, first_window["segment_offset_seconds"])
+    final_analysis: dict[str, list[dict[str, object]]] = {}
+    for render_output in artifact.outputs:
+        profile_reports: list[dict[str, object]] = []
+        for window in host_dynamic_review_windows(batch):
+            analysis_path = (
+                layer_root
+                / (
+                    f"{render_output.profile_id.value}-{window['label']}"
+                    "-analysis.json"
+                )
+            )
+            await run_process(
+                str(live2d_python),
+                str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
+                "--input",
+                render_output.local_path,
+                "--output",
+                str(analysis_path),
+                "--expected-fps",
+                str(render_output.fps),
+                "--start-seconds",
+                f"{cast(float, window['output_start_seconds']):.6f}",
+                "--duration-seconds",
+                "2",
+                "--require-dynamic-quality",
+                cwd=WORKSPACE,
+                timeout_seconds=300,
+            )
+            profile_reports.append(
+                {
+                    "window": window,
+                    "analysis": str(analysis_path.resolve()),
+                }
+            )
+        final_analysis[render_output.profile_id.value] = profile_reports
+    analysis["final_outputs"] = final_analysis
     sequences: dict[str, object] = {
         "raw_webm": await extract_continuous_sequence(
             ffmpeg=ffmpeg,

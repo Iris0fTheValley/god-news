@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import subprocess
 import wave
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 MODES = ("motion_only", "procedural_only", "no_lip_sync", "final")
@@ -69,26 +71,461 @@ def _audio_duration_ms(path: Path) -> int:
         return round(source.getnframes() * 1_000 / source.getframerate())
 
 
-def _transition_window(trace_path: Path, *, fps: int) -> float:
+def _percentile(values: list[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    return ordered[math.floor((len(ordered) - 1) * percentile)]
+
+
+def _pcm_rms(block: bytes, *, sample_width: int) -> float:
+    if not block:
+        return 0.0
+    if sample_width not in {1, 2, 3, 4}:
+        raise ValueError(f"unsupported PCM sample width: {sample_width}")
+    total = 0.0
+    count = len(block) // sample_width
+    for offset in range(0, count * sample_width, sample_width):
+        sample_bytes = block[offset : offset + sample_width]
+        if sample_width == 1:
+            sample = sample_bytes[0] - 128
+            peak = 128
+        else:
+            sample = int.from_bytes(sample_bytes, "little", signed=True)
+            peak = 1 << (sample_width * 8 - 1)
+        total += (sample / peak) ** 2
+    return math.sqrt(total / max(1, count))
+
+
+def _silence_bytes(frame_count: int, *, channels: int, sample_width: int) -> bytes:
+    value = b"\x80" if sample_width == 1 else b"\x00" * sample_width
+    return value * channels * frame_count
+
+
+def _cyclic_pcm_slice(
+    pcm: bytes,
+    *,
+    frame_size: int,
+    start_frame: int,
+    frame_count: int,
+) -> bytes:
+    source_frames = len(pcm) // frame_size
+    if source_frames < 1:
+        raise ValueError("source WAV contains no PCM frames")
+    output = bytearray()
+    cursor = start_frame % source_frames
+    remaining = frame_count
+    while remaining:
+        available = min(remaining, source_frames - cursor)
+        start = cursor * frame_size
+        output.extend(pcm[start : start + available * frame_size])
+        remaining -= available
+        cursor = 0
+    return bytes(output)
+
+
+def _wave_envelope(
+    pcm: bytes,
+    *,
+    sample_rate: int,
+    channels: int,
+    sample_width: int,
+    frame_ms: int = 20,
+) -> tuple[list[float], int]:
+    frame_size = channels * sample_width
+    window_frames = max(1, round(sample_rate * frame_ms / 1_000))
+    window_bytes = window_frames * frame_size
+    envelope = [
+        _pcm_rms(pcm[offset : offset + window_bytes], sample_width=sample_width)
+        for offset in range(0, len(pcm) - window_bytes + 1, window_bytes)
+    ]
+    return envelope, window_frames
+
+
+def _pcm_neutral(block: bytes, *, sample_width: int) -> bool:
+    neutral = b"\x80" if sample_width == 1 else b"\x00" * sample_width
+    return bool(block) and all(
+        block[offset : offset + sample_width] == neutral
+        for offset in range(0, len(block) - sample_width + 1, sample_width)
+    )
+
+
+def _scan_diagnostic_signal(path: Path, *, window_ms: int = 20) -> dict[str, Any]:
+    resolved = path.expanduser().resolve(strict=True)
+    with wave.open(str(resolved), "rb") as reader:
+        if reader.getcomptype() != "NONE":
+            raise ValueError("diagnostic input must be uncompressed PCM WAV")
+        channels = reader.getnchannels()
+        sample_width = reader.getsampwidth()
+        sample_rate = reader.getframerate()
+        pcm = reader.readframes(reader.getnframes())
+    frame_size = channels * sample_width
+    window_frames = max(1, round(sample_rate * window_ms / 1_000))
+    window_bytes = window_frames * frame_size
+    blocks = [
+        pcm[offset : offset + window_bytes]
+        for offset in range(0, len(pcm) - window_bytes + 1, window_bytes)
+    ]
+    envelope = [_pcm_rms(block, sample_width=sample_width) for block in blocks]
+    neutral = [_pcm_neutral(block, sample_width=sample_width) for block in blocks]
+    if len(envelope) < math.ceil(12_000 / window_ms):
+        raise ValueError("diagnostic WAV contains fewer than twelve seconds")
+    two_seconds = math.ceil(2_000 / window_ms)
+    silence_candidates: list[tuple[float, float, int]] = []
+    for start in range(0, len(envelope) - two_seconds + 1):
+        values = envelope[start : start + two_seconds]
+        exact_ratio = sum(neutral[start : start + two_seconds]) / two_seconds
+        silence_candidates.append((exact_ratio, -max(values), -start))
+    exact_ratio, negative_max_rms, negative_silence_start = max(silence_candidates)
+    silence_start = -negative_silence_start
+    if exact_ratio < 0.99 or -negative_max_rms > 0.000_01:
+        raise ValueError("diagnostic WAV has no verified two-second PCM silence")
+    nonzero = [value for value in envelope if value > 0.000_01]
+    if not nonzero:
+        raise ValueError("diagnostic WAV contains no audible signal")
+    speech_threshold = max(0.003, _percentile(nonzero, 0.2) * 0.55)
+    speech_candidates: list[tuple[float, int, float, float]] = []
+    for start in range(0, len(envelope) - two_seconds + 1):
+        values = envelope[start : start + two_seconds]
+        voiced_ratio = sum(value >= speech_threshold for value in values) / len(values)
+        mean = sum(values) / len(values)
+        speech_candidates.append((voiced_ratio * 2 + mean, -start, voiced_ratio, mean))
+    _, negative_speech_start, voiced_ratio, speech_mean = max(speech_candidates)
+    speech_start = -negative_speech_start
+    if voiced_ratio < 0.7 or speech_mean < 0.005:
+        raise ValueError("diagnostic WAV has no verified two-second speech window")
+    runs: list[tuple[int, int]] = []
+    run_start: int | None = None
+    for index, is_neutral in enumerate([*neutral, False]):
+        if is_neutral and run_start is None:
+            run_start = index
+        elif not is_neutral and run_start is not None:
+            runs.append((run_start, index))
+            run_start = None
+    short_pause_runs = [
+        (start, end)
+        for start, end in runs
+        if start > 0
+        and end < len(neutral)
+        and 100 <= (end - start) * window_ms <= 800
+    ]
+    if not short_pause_runs:
+        raise ValueError("diagnostic WAV has no verified interior short PCM pause")
+    voiced_median = _percentile(nonzero, 0.5)
+    peak = max(envelope)
+    if peak < max(0.02, voiced_median * 1.5):
+        raise ValueError("diagnostic WAV has no verified strong syllable peak")
+    return {
+        "schema_version": "1.0",
+        "path": str(resolved),
+        "sha256": _sha256(resolved),
+        "window_ms": window_ms,
+        "windows_analyzed": len(envelope),
+        "silence": {
+            "start_seconds": silence_start * window_ms / 1_000,
+            "duration_seconds": 2.0,
+            "exact_neutral_window_ratio": exact_ratio,
+            "maximum_rms": -negative_max_rms,
+        },
+        "speech": {
+            "start_seconds": speech_start * window_ms / 1_000,
+            "duration_seconds": 2.0,
+            "speech_threshold": speech_threshold,
+            "voiced_window_ratio": voiced_ratio,
+            "mean_rms": speech_mean,
+        },
+        "short_pauses": [
+            {
+                "start_seconds": start * window_ms / 1_000,
+                "duration_ms": (end - start) * window_ms,
+                "exact_neutral": True,
+            }
+            for start, end in short_pause_runs
+        ],
+        "strong_syllable": {
+            "timestamp_seconds": envelope.index(peak) * window_ms / 1_000,
+            "peak_rms": peak,
+            "voiced_median_rms": voiced_median,
+            "peak_to_median_ratio": peak / max(voiced_median, 1e-9),
+        },
+        "passed": True,
+    }
+
+
+def _best_speech_source_window(
+    envelope: list[float],
+    *,
+    window_count: int,
+) -> tuple[int, dict[str, float]]:
+    if len(envelope) < window_count:
+        raise ValueError("source WAV is too short for a continuous speech section")
+    nonzero = [value for value in envelope if value > 0.000_01]
+    if not nonzero:
+        raise ValueError("source WAV has no audible speech")
+    speech_threshold = max(0.003, _percentile(nonzero, 0.2) * 0.55)
+    best: tuple[float, int, float, float] | None = None
+    for start in range(0, len(envelope) - window_count + 1):
+        values = envelope[start : start + window_count]
+        voiced_ratio = sum(value >= speech_threshold for value in values) / len(values)
+        mean = sum(values) / len(values)
+        score = voiced_ratio * 2 + mean
+        candidate = (score, -start, voiced_ratio, mean)
+        if best is None or candidate > best:
+            best = candidate
+    assert best is not None
+    _, negative_start, voiced_ratio, mean = best
+    if voiced_ratio < 0.7 or mean < 0.005:
+        raise ValueError(
+            "source WAV does not contain a sufficiently continuous speech section"
+        )
+    return -negative_start, {
+        "speech_threshold": speech_threshold,
+        "voiced_ratio": voiced_ratio,
+        "mean_rms": mean,
+    }
+
+
+def _prepare_diagnostic_wav(
+    source: Path,
+    target: Path,
+    *,
+    duration_ms: int,
+) -> dict[str, Any]:
+    """Build one deterministic, auditable PCM stimulus shared by every A/B mode."""
+
+    with wave.open(str(source), "rb") as reader:
+        if reader.getcomptype() != "NONE":
+            raise ValueError("diagnostic input must be uncompressed PCM WAV")
+        channels = reader.getnchannels()
+        sample_width = reader.getsampwidth()
+        sample_rate = reader.getframerate()
+        source_frames = reader.getnframes()
+        pcm = reader.readframes(source_frames)
+    if sample_width not in {1, 2, 3, 4}:
+        raise ValueError(f"unsupported PCM sample width: {sample_width}")
+    target_frames = round(sample_rate * duration_ms / 1_000)
+    minimum_frames = sample_rate * 12
+    if target_frames < minimum_frames:
+        raise ValueError("diagnostic WAV must be at least twelve seconds")
+    frame_size = channels * sample_width
+    envelope, envelope_window_frames = _wave_envelope(
+        pcm,
+        sample_rate=sample_rate,
+        channels=channels,
+        sample_width=sample_width,
+    )
+    continuous_frames = min(round(sample_rate * 3.0), target_frames - minimum_frames // 2)
+    continuous_windows = max(1, continuous_frames // envelope_window_frames)
+    speech_window, speech_evidence = _best_speech_source_window(
+        envelope,
+        window_count=continuous_windows,
+    )
+    speech_start_frame = speech_window * envelope_window_frames
+    strong_window = max(range(len(envelope)), key=envelope.__getitem__)
+    strong_frames = round(sample_rate * 0.8)
+    strong_start_frame = max(
+        0,
+        min(
+            source_frames - strong_frames,
+            strong_window * envelope_window_frames - strong_frames // 2,
+        ),
+    )
+    long_silence_frames = sample_rate * 2
+    short_pause_frames = round(sample_rate * 0.3)
+    fixed_frames = long_silence_frames + continuous_frames + short_pause_frames + strong_frames
+    if fixed_frames > target_frames:
+        raise ValueError("duration is too short for the required diagnostic sections")
+    filler_frames = target_frames - fixed_frames
+    sections: list[tuple[str, bytes, dict[str, Any]]] = [
+        (
+            "long_pcm_silence",
+            _silence_bytes(
+                long_silence_frames,
+                channels=channels,
+                sample_width=sample_width,
+            ),
+            {"source": "generated_pcm_neutral", "required_minimum_ms": 2_000},
+        ),
+        (
+            "continuous_speech",
+            _cyclic_pcm_slice(
+                pcm,
+                frame_size=frame_size,
+                start_frame=speech_start_frame,
+                frame_count=continuous_frames,
+            ),
+            {
+                "source": "source_wav",
+                "source_start_frame": speech_start_frame,
+                **speech_evidence,
+            },
+        ),
+        (
+            "short_pcm_pause",
+            _silence_bytes(
+                short_pause_frames,
+                channels=channels,
+                sample_width=sample_width,
+            ),
+            {
+                "source": "generated_pcm_neutral",
+                "required_range_ms": [100, 800],
+            },
+        ),
+        (
+            "strong_syllable",
+            _cyclic_pcm_slice(
+                pcm,
+                frame_size=frame_size,
+                start_frame=strong_start_frame,
+                frame_count=strong_frames,
+            ),
+            {
+                "source": "source_wav",
+                "source_start_frame": strong_start_frame,
+                "source_peak_rms": envelope[strong_window],
+            },
+        ),
+        (
+            "natural_speech_remainder",
+            _cyclic_pcm_slice(
+                pcm,
+                frame_size=frame_size,
+                start_frame=speech_start_frame + continuous_frames,
+                frame_count=filler_frames,
+            ),
+            {"source": "source_wav"},
+        ),
+    ]
+    output_pcm = b"".join(section[1] for section in sections)
+    if len(output_pcm) != target_frames * frame_size:
+        raise RuntimeError("diagnostic PCM assembly produced an unexpected length")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(target), "wb") as writer:
+        writer.setnchannels(channels)
+        writer.setsampwidth(sample_width)
+        writer.setframerate(sample_rate)
+        writer.writeframes(output_pcm)
+    section_audit: list[dict[str, Any]] = []
+    frame_cursor = 0
+    for name, section_pcm, metadata in sections:
+        section_frames = len(section_pcm) // frame_size
+        section_audit.append(
+            {
+                "kind": name,
+                "start_ms": round(frame_cursor * 1_000 / sample_rate, 3),
+                "end_ms": round((frame_cursor + section_frames) * 1_000 / sample_rate, 3),
+                "frames": section_frames,
+                "pcm_sha256": hashlib.sha256(section_pcm).hexdigest(),
+                **metadata,
+            }
+        )
+        frame_cursor += section_frames
+    audit = {
+        "schema_version": "1.0",
+        "source": str(source),
+        "source_sha256": _sha256(source),
+        "path": str(target.resolve()),
+        "sha256": _sha256(target),
+        "duration_ms": round(target_frames * 1_000 / sample_rate),
+        "sample_rate": sample_rate,
+        "channels": channels,
+        "sample_width_bytes": sample_width,
+        "pcm_frames": target_frames,
+        "sections": section_audit,
+    }
+    audit["signal_validation"] = _scan_diagnostic_signal(target)
+    return audit
+
+
+def _select_audio_windows(audio_path: Path) -> dict[str, dict[str, Any]]:
+    signal = _scan_diagnostic_signal(audio_path)
+    return {
+        "silence": {
+            "start_seconds": signal["silence"]["start_seconds"],
+            "selector": "minimum_rms_exact_pcm_window_scan",
+            "evidence": signal["silence"],
+            "audio_sha256": signal["sha256"],
+        },
+        "speech": {
+            "start_seconds": signal["speech"]["start_seconds"],
+            "selector": "maximum_voiced_ratio_envelope_window_scan",
+            "evidence": signal["speech"],
+            "audio_sha256": signal["sha256"],
+        },
+    }
+
+
+def _transition_window(trace_path: Path, *, fps: int) -> dict[str, Any]:
     rows = [
         json.loads(line)
         for line in trace_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    previous_state = rows[0]["motion_state"]
-    for row in rows[1:]:
-        state = row["motion_state"]
-        if state != previous_state and state in {
-            "exiting_motion",
-            "returning_to_neutral",
-            "closing",
-        }:
-            return max(0.0, float(row["timestamp_ms"]) / 1_000 - 1.0)
-        previous_state = state
-    for row in rows:
-        if row["blink_state"] == "closing":
-            return max(0.0, float(row["timestamp_ms"]) / 1_000 - 1.0)
-    return max(0.0, len(rows) / fps / 2 - 1.0)
+    if len(rows) < fps * 2:
+        raise RuntimeError("trace is too short for a two-second transition window")
+    candidates: list[dict[str, Any]] = []
+    for index in range(1, len(rows)):
+        before_motion = rows[index - 1]["motion_state"]
+        after_motion = rows[index]["motion_state"]
+        before_motion_index = rows[index - 1].get("motion_index")
+        after_motion_index = rows[index].get("motion_index")
+        before_blink = rows[index - 1]["blink_state"]
+        after_blink = rows[index]["blink_state"]
+        changes: list[dict[str, str]] = []
+        if after_motion != before_motion:
+            changes.append(
+                {"track": "motion_state", "before": before_motion, "after": after_motion}
+            )
+        if after_motion_index != before_motion_index:
+            changes.append(
+                {
+                    "track": "motion_index",
+                    "before": str(before_motion_index),
+                    "after": str(after_motion_index),
+                }
+            )
+        if after_blink != before_blink:
+            changes.append(
+                {"track": "blink_state", "before": before_blink, "after": after_blink}
+            )
+        if not changes:
+            continue
+        timestamp = float(rows[index]["timestamp_ms"]) / 1_000
+        max_start = max(0.0, float(rows[-1]["timestamp_ms"]) / 1_000 - 2.0)
+        start = min(max(0.0, timestamp - 1.0), max_start)
+        margin = min(timestamp - start, start + 2.0 - timestamp)
+        candidates.append(
+            {
+                "start_seconds": start,
+                "selector": "trace_state_change_centered",
+                "transition_timestamp_seconds": timestamp,
+                "changes": changes,
+                "margin_seconds": margin,
+                "trace_row": index,
+            }
+        )
+    if not candidates:
+        raise RuntimeError("trace contains no observable motion or blink state transition")
+    selected = max(
+        candidates,
+        key=lambda candidate: (
+            candidate["margin_seconds"],
+            any(
+                change["track"] in {"motion_state", "motion_index"}
+                for change in candidate["changes"]
+            ),
+            -candidate["transition_timestamp_seconds"],
+        ),
+    )
+    if not (
+        selected["start_seconds"]
+        <= selected["transition_timestamp_seconds"]
+        <= selected["start_seconds"] + 2.0
+    ):
+        raise RuntimeError("selected transition is outside its evidence window")
+    selected["trace_sha256"] = _sha256(trace_path)
+    return selected
 
 
 def _extract_sequence(
@@ -198,9 +635,7 @@ def main() -> int:
     ffmpeg = args.ffmpeg.expanduser().resolve(strict=True)
     if args.duration_ms < 12_000:
         raise ValueError("all isolation experiments require at least twelve seconds")
-    actual_audio_duration = _audio_duration_ms(audio)
-    if abs(actual_audio_duration - args.duration_ms) > 50:
-        raise ValueError("duration-ms must match the PCM audio duration")
+    source_audio_duration = _audio_duration_ms(audio)
     commit = _run(
         ["git", "rev-parse", "HEAD"],
         cwd=WORKSPACE,
@@ -218,6 +653,19 @@ def main() -> int:
         ).resolve()
     )
     output_root.mkdir(parents=True, exist_ok=False)
+    diagnostic_audio = output_root / "diagnostic-input.wav"
+    audio_audit = _prepare_diagnostic_wav(
+        audio,
+        diagnostic_audio,
+        duration_ms=args.duration_ms,
+    )
+    audio_audit["source_duration_ms"] = source_audio_duration
+    audio_audit_path = output_root / "diagnostic-input-audit.json"
+    audio_audit_path.write_text(
+        json.dumps(audio_audit, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    audio_windows = _select_audio_windows(diagnostic_audio)
     modes = (*(("legacy_conflict",) if args.include_legacy else ()), *MODES)
     results: dict[str, object] = {}
     commands: list[list[str]] = []
@@ -234,7 +682,7 @@ def main() -> int:
             "--model",
             str(model),
             "--audio",
-            str(audio),
+            str(diagnostic_audio),
             "--output",
             str(transparent),
             "--diagnostic-trace",
@@ -268,7 +716,7 @@ def main() -> int:
             "-i",
             str(transparent),
             "-i",
-            str(audio),
+            str(diagnostic_audio),
             "-f",
             "lavfi",
             "-i",
@@ -308,6 +756,14 @@ def main() -> int:
                 "--expected-fps",
                 str(args.fps),
             ]
+            if input_video == transparent:
+                analysis_command.extend(
+                    [
+                        "--preencode-trace",
+                        str(trace),
+                        "--require-transparency",
+                    ]
+                )
             commands.append(analysis_command)
             _run(analysis_command, cwd=WORKSPACE)
         uniform_contact = mode_root / "uniform-20-contact.png"
@@ -317,22 +773,27 @@ def main() -> int:
             output=uniform_contact,
             duration_seconds=duration_seconds,
         )
-        transition_start = _transition_window(trace, fps=args.fps)
+        transition_evidence = _transition_window(trace, fps=args.fps)
         sequence_windows = {
-            "silence": 0.0,
-            "speech": 1.0,
-            "transition": transition_start,
+            **audio_windows,
+            "transition": transition_evidence,
         }
-        sequences = {
-            name: _extract_sequence(
+        sequences = {}
+        for name, window in sequence_windows.items():
+            sequence = _extract_sequence(
                 ffmpeg=ffmpeg,
                 video=background,
                 target=mode_root / f"sequence-{name}",
-                start_seconds=start,
+                start_seconds=float(window["start_seconds"]),
                 fps=args.fps,
             )
-            for name, start in sequence_windows.items()
-        }
+            sequence["selection"] = window
+            sequences[name] = sequence
+        transparent_report = json.loads(transparent_analysis.read_text(encoding="utf-8"))
+        background_report = json.loads(background_analysis.read_text(encoding="utf-8"))
+        alpha_validation = transparent_report.get("alpha_validation")
+        if not isinstance(alpha_validation, dict) or not alpha_validation.get("passed"):
+            raise RuntimeError(f"transparency evidence gate failed for {mode}")
         results[mode] = {
             "transparent_webm": str(transparent.resolve()),
             "background_mp4": str(background.resolve()),
@@ -342,8 +803,19 @@ def main() -> int:
             "background_analysis_json": str(background_analysis.resolve()),
             "uniform_contact_sheet": str(uniform_contact.resolve()),
             "sequences": sequences,
+            "alpha_validation": alpha_validation,
             "quality_gate_passed": diagnostics["quality_gate_passed"],
             "gate_findings": diagnostics["gate_findings"],
+            "decoded_quality": {
+                "transparent": {
+                    "passed": transparent_report["quality_gate_passed"],
+                    "findings": transparent_report["gate_findings"],
+                },
+                "fixed_background": {
+                    "passed": background_report["quality_gate_passed"],
+                    "findings": background_report["gate_findings"],
+                },
+            },
         }
     comparison = output_root / "four-mode-comparison.mp4"
     comparison_inputs: list[str] = []
@@ -380,6 +852,19 @@ def main() -> int:
     ]
     commands.append(comparison_command)
     _run(comparison_command, cwd=output_root)
+    required_candidate_modes = ("procedural_only", "no_lip_sync", "final")
+    acceptance_failures: list[str] = []
+    for mode in required_candidate_modes:
+        result = results[mode]
+        if not result["quality_gate_passed"]:
+            acceptance_failures.append(f"{mode}:parameter_or_preencode_image_gate")
+        decoded_quality = result["decoded_quality"]
+        if not decoded_quality["transparent"]["passed"]:  # type: ignore[index]
+            acceptance_failures.append(f"{mode}:decoded_transparent_gate")
+        if not decoded_quality["fixed_background"]["passed"]:  # type: ignore[index]
+            acceptance_failures.append(f"{mode}:decoded_background_gate")
+    if args.include_legacy and results["legacy_conflict"]["quality_gate_passed"]:
+        acceptance_failures.append("legacy_conflict:failed_to_reproduce")
     report = {
         "schema_version": "1.0",
         "commit": commit,
@@ -390,9 +875,15 @@ def main() -> int:
             "sha256": _sha256(model),
         },
         "audio": {
-            "path": str(audio),
-            "sha256": _sha256(audio),
-            "duration_ms": actual_audio_duration,
+            "path": str(diagnostic_audio.resolve()),
+            "sha256": _sha256(diagnostic_audio),
+            "duration_ms": audio_audit["duration_ms"],
+            "audit_json": str(audio_audit_path.resolve()),
+            "source_path": str(audio),
+            "source_sha256": _sha256(audio),
+            "source_duration_ms": source_audio_duration,
+            "required_sections": audio_audit["sections"],
+            "signal_validation": audio_audit["signal_validation"],
         },
         "settings": {
             "width": args.width,
@@ -408,6 +899,11 @@ def main() -> int:
             "bottom_right": "final",
         },
         "comparison_video": str(comparison.resolve()),
+        "acceptance": {
+            "passed": not acceptance_failures,
+            "required_candidate_modes": list(required_candidate_modes),
+            "failures": acceptance_failures,
+        },
         "results": results,
         "commands": commands,
     }
@@ -426,6 +922,10 @@ def main() -> int:
             ensure_ascii=False,
         )
     )
+    if acceptance_failures:
+        raise RuntimeError(
+            "Live2D A/B acceptance failed: " + ", ".join(acceptance_failures)
+        )
     return 0
 
 

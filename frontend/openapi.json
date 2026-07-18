@@ -1825,6 +1825,39 @@
         "title": "Live2DDynamicThreshold",
         "type": "object"
       },
+      "Live2DGateFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "metric": {
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "observed": {
+            "minimum": 0.0,
+            "title": "Observed",
+            "type": "number"
+          },
+          "threshold": {
+            "minimum": 0.0,
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "metric",
+          "observed",
+          "threshold"
+        ],
+        "title": "Live2DGateFinding",
+        "type": "object"
+      },
       "Live2DMotionMetadata": {
         "additionalProperties": false,
         "properties": {
@@ -1896,8 +1929,7 @@
         "properties": {
           "findings": {
             "items": {
-              "minLength": 1,
-              "type": "string"
+              "$ref": "#/components/schemas/Live2DGateFinding"
             },
             "maxItems": 32,
             "title": "Findings",
@@ -2011,8 +2043,7 @@
           },
           "gate_findings": {
             "items": {
-              "minLength": 1,
-              "type": "string"
+              "$ref": "#/components/schemas/Live2DGateFinding"
             },
             "maxItems": 256,
             "title": "Gate Findings",
@@ -2223,6 +2254,12 @@
       "Live2DSignalMetrics": {
         "additionalProperties": false,
         "properties": {
+          "alternating_energy_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Alternating Energy Ratio",
+            "type": "number"
+          },
           "direction_reversals_per_second": {
             "minimum": 0.0,
             "title": "Direction Reversals Per Second",
@@ -2257,6 +2294,11 @@
             "title": "Maximum Absolute Step",
             "type": "number"
           },
+          "maximum_absolute_value": {
+            "minimum": 0.0,
+            "title": "Maximum Absolute Value",
+            "type": "number"
+          },
           "maximum_absolute_velocity": {
             "minimum": 0.0,
             "title": "Maximum Absolute Velocity",
@@ -2281,6 +2323,11 @@
             "title": "P95 Absolute Step",
             "type": "number"
           },
+          "p95_absolute_value": {
+            "minimum": 0.0,
+            "title": "P95 Absolute Value",
+            "type": "number"
+          },
           "p95_absolute_velocity": {
             "minimum": 0.0,
             "title": "P95 Absolute Velocity",
@@ -2289,6 +2336,11 @@
           "p99_absolute_step": {
             "minimum": 0.0,
             "title": "P99 Absolute Step",
+            "type": "number"
+          },
+          "p99_absolute_value": {
+            "minimum": 0.0,
+            "title": "P99 Absolute Value",
             "type": "number"
           },
           "samples": {
@@ -2302,6 +2354,9 @@
           "duration_seconds",
           "minimum",
           "maximum",
+          "p95_absolute_value",
+          "p99_absolute_value",
+          "maximum_absolute_value",
           "p95_absolute_step",
           "p99_absolute_step",
           "maximum_absolute_step",
@@ -2312,7 +2367,8 @@
           "p95_absolute_jerk",
           "maximum_absolute_jerk",
           "direction_reversals_per_second",
-          "high_frequency_energy_ratio"
+          "high_frequency_energy_ratio",
+          "alternating_energy_ratio"
         ],
         "title": "Live2DSignalMetrics",
         "type": "object"

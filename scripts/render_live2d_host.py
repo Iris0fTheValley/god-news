@@ -36,6 +36,7 @@ from god_news.live2d_control import (  # noqa: E402
 )
 from god_news.live2d_diagnostics import (  # noqa: E402
     compute_signal_metrics,
+    evaluate_image_tracks,
     evaluate_signal,
     robust_audio_calibration,
     threshold_for_parameter,
@@ -247,6 +248,71 @@ def _expression_name(model_data: dict[str, object], emotion: str) -> str | None:
     return None
 
 
+def _expression_values(
+    model_path: Path,
+    model_data: dict[str, object],
+    expression_name: str | None,
+    parameter_ranges: dict[str, ParameterRange],
+) -> dict[str, float]:
+    """Compile a Cubism 2 expression into absolute baseline values.
+
+    The SDK defaults an omitted ``calc`` field to ``add``.  Compiling the
+    expression here keeps it inside the typed mixer instead of allowing a
+    second SDK controller to mutate production parameters after ownership has
+    been decided.
+    """
+
+    if expression_name is None:
+        return {}
+    expressions = model_data.get("expressions")
+    if not isinstance(expressions, list):
+        return {}
+    entry = next(
+        (
+            item
+            for item in expressions
+            if isinstance(item, dict)
+            and item.get("name") == expression_name
+            and isinstance(item.get("file"), str)
+        ),
+        None,
+    )
+    if entry is None:
+        return {}
+    expression_path = (model_path.parent / str(entry["file"])).resolve(strict=True)
+    if not expression_path.is_file():
+        raise RuntimeError(f"Live2D expression is not a file: {expression_path}")
+    expression_data = json.loads(expression_path.read_text(encoding="utf-8-sig"))
+    params = expression_data.get("params")
+    if not isinstance(params, list):
+        return {}
+    values: dict[str, float] = {}
+    for raw in params:
+        if not isinstance(raw, dict):
+            continue
+        parameter = raw.get("id")
+        raw_value = raw.get("val")
+        if parameter not in parameter_ranges or not isinstance(raw_value, (int, float)):
+            continue
+        parameter_range = parameter_ranges[parameter]
+        base = parameter_range.default
+        calculation = str(raw.get("calc", "add")).casefold()
+        value = float(raw_value)
+        if calculation == "add":
+            compiled = base + value - float(raw.get("def", 0.0))
+        elif calculation == "mult":
+            default = float(raw.get("def", 1.0)) or 1.0
+            compiled = base * value / default
+        elif calculation == "set":
+            compiled = value
+        else:
+            raise RuntimeError(
+                f"Unsupported Live2D expression calculation {calculation!r}"
+            )
+        values[parameter] = parameter_range.clamp(compiled)
+    return values
+
+
 def _motion_file(
     model_path: Path,
     model_data: dict[str, object],
@@ -390,24 +456,66 @@ def _frame_image_metrics(
             "alpha_area_ratio": 0.0,
             "centroid_x": 0.5,
             "centroid_y": 0.5,
+            "alpha_spread_x": 0.0,
+            "alpha_spread_y": 0.0,
+            "outline_centroid_x": 0.5,
+            "outline_centroid_y": 0.5,
             "perceptual_delta": 0.0,
             "alpha_delta": 0.0,
             "face_delta": 0.0,
             "eye_delta": 0.0,
+            "face_signed_delta": 0.0,
+            "eye_signed_delta": 0.0,
+            "local_flow_x": 0.0,
+            "local_flow_y": 0.0,
+            "local_flow_magnitude": 0.0,
         }
     ys, xs = np.nonzero(mask)
     height, width = alpha.shape
     weights = alpha[mask]
     centroid_x = float(np.average(xs, weights=weights) / max(1, width - 1))
     centroid_y = float(np.average(ys, weights=weights) / max(1, height - 1))
+    centroid_x_px = centroid_x * max(1, width - 1)
+    centroid_y_px = centroid_y * max(1, height - 1)
+    alpha_spread_x = float(
+        np.sqrt(np.average((xs - centroid_x_px) ** 2, weights=weights))
+        / max(1, width - 1)
+    )
+    alpha_spread_y = float(
+        np.sqrt(np.average((ys - centroid_y_px) ** 2, weights=weights))
+        / max(1, height - 1)
+    )
+    alpha_gradient_y, alpha_gradient_x = np.gradient(alpha)
+    outline = np.hypot(alpha_gradient_x, alpha_gradient_y)
+    outline_total = float(np.sum(outline))
+    if outline_total > 1e-8:
+        grid_y, grid_x = np.indices(alpha.shape)
+        outline_centroid_x = float(
+            np.sum(grid_x * outline) / outline_total / max(1, width - 1)
+        )
+        outline_centroid_y = float(
+            np.sum(grid_y * outline) / outline_total / max(1, height - 1)
+        )
+    else:
+        outline_centroid_x = centroid_x
+        outline_centroid_y = centroid_y
     metrics = {
         "alpha_area_ratio": float(np.mean(mask)),
         "centroid_x": centroid_x,
         "centroid_y": centroid_y,
+        "alpha_spread_x": alpha_spread_x,
+        "alpha_spread_y": alpha_spread_y,
+        "outline_centroid_x": outline_centroid_x,
+        "outline_centroid_y": outline_centroid_y,
         "perceptual_delta": 0.0,
         "alpha_delta": 0.0,
         "face_delta": 0.0,
         "eye_delta": 0.0,
+        "face_signed_delta": 0.0,
+        "eye_signed_delta": 0.0,
+        "local_flow_x": 0.0,
+        "local_flow_y": 0.0,
+        "local_flow_magnitude": 0.0,
     }
     if previous_rgba is None:
         return metrics
@@ -425,6 +533,7 @@ def _frame_image_metrics(
         + previous[:, :, 2].astype(np.float32) * 0.0722
     )
     luma_delta = np.abs(current_luma - previous_luma) / 255.0
+    signed_luma_delta = (current_luma - previous_luma) / 255.0
     metrics["perceptual_delta"] = float(np.mean(luma_delta[union]))
     metrics["alpha_delta"] = float(np.mean(np.abs(alpha - previous_alpha)))
     x0, x1 = int(xs.min()), int(xs.max()) + 1
@@ -438,13 +547,69 @@ def _frame_image_metrics(
     eye_y0 = y0 + int(box_height * 0.13)
     eye_y1 = min(face_y1, y0 + int(box_height * 0.27))
     if face_x1 > face_x0 and face_y1 > face_y0:
-        metrics["face_delta"] = float(
-            np.mean(luma_delta[face_y0:face_y1, face_x0:face_x1])
+        face_slice = np.s_[face_y0:face_y1, face_x0:face_x1]
+        metrics["face_delta"] = float(np.mean(luma_delta[face_slice]))
+        metrics["face_signed_delta"] = float(
+            np.mean(signed_luma_delta[face_slice])
         )
     if face_x1 > face_x0 and eye_y1 > eye_y0:
-        metrics["eye_delta"] = float(
-            np.mean(luma_delta[eye_y0:eye_y1, face_x0:face_x1])
+        eye_slice = np.s_[eye_y0:eye_y1, face_x0:face_x1]
+        metrics["eye_delta"] = float(np.mean(luma_delta[eye_slice]))
+        metrics["eye_signed_delta"] = float(
+            np.mean(signed_luma_delta[eye_slice])
         )
+    # Pure-numpy, low-resolution Lucas-Kanade flow.  The 3x3 local grid
+    # catches regional back-and-forth motion without adding an OpenCV runtime
+    # dependency to the isolated DSakiko interpreter.
+    sample_step = max(1, min(height, width) // 72)
+    sampled_current = (current_luma * alpha)[::sample_step, ::sample_step] / 255.0
+    sampled_previous = (
+        previous_luma * previous_alpha
+    )[::sample_step, ::sample_step] / 255.0
+    sampled_mask = (
+        (alpha > 0.03) | (previous_alpha > 0.03)
+    )[::sample_step, ::sample_step]
+    if min(sampled_current.shape) >= 9:
+        average = (sampled_current + sampled_previous) * 0.5
+        gradient_y, gradient_x = np.gradient(average)
+        temporal = sampled_current - sampled_previous
+        flow_vectors: list[tuple[float, float]] = []
+        inner_height, inner_width = sampled_current.shape
+        for row in range(3):
+            y_start = row * inner_height // 3
+            y_end = (row + 1) * inner_height // 3
+            for column in range(3):
+                x_start = column * inner_width // 3
+                x_end = (column + 1) * inner_width // 3
+                local_mask = sampled_mask[y_start:y_end, x_start:x_end]
+                if int(np.count_nonzero(local_mask)) < 12:
+                    continue
+                local_x = gradient_x[y_start:y_end, x_start:x_end][local_mask]
+                local_y = gradient_y[y_start:y_end, x_start:x_end][local_mask]
+                local_t = temporal[y_start:y_end, x_start:x_end][local_mask]
+                a_xx = float(np.dot(local_x, local_x)) + 1e-4
+                a_xy = float(np.dot(local_x, local_y))
+                a_yy = float(np.dot(local_y, local_y)) + 1e-4
+                b_x = -float(np.dot(local_x, local_t))
+                b_y = -float(np.dot(local_y, local_t))
+                determinant = a_xx * a_yy - a_xy * a_xy
+                if determinant <= 1e-10:
+                    continue
+                flow_x = (a_yy * b_x - a_xy * b_y) / determinant
+                flow_y = (a_xx * b_y - a_xy * b_x) / determinant
+                flow_vectors.append(
+                    (flow_x / max(1, inner_width), flow_y / max(1, inner_height))
+                )
+        if flow_vectors:
+            metrics["local_flow_x"] = float(
+                np.median([value[0] for value in flow_vectors])
+            )
+            metrics["local_flow_y"] = float(
+                np.median([value[1] for value in flow_vectors])
+            )
+            metrics["local_flow_magnitude"] = float(
+                np.median([math.hypot(*value) for value in flow_vectors])
+            )
     return metrics
 
 
@@ -589,7 +754,10 @@ def render(args: argparse.Namespace) -> None:
         if group is not None and control_mode is Live2DControlMode.LEGACY_CONFLICT:
             model.StartMotion(group, motion_index, 3)
         expression = _expression_name(model_data, args.emotion)
-        if expression is not None:
+        if (
+            expression is not None
+            and control_mode is Live2DControlMode.LEGACY_CONFLICT
+        ):
             model.SetExpression(expression)
         parameter_indexes = {
             model.GetParameter(index).id: index
@@ -602,6 +770,12 @@ def render(args: argparse.Namespace) -> None:
             parameter: parameter_range.default
             for parameter, parameter_range in parameter_ranges.items()
         }
+        expression_values = _expression_values(
+            model_path,
+            model_data,
+            expression,
+            parameter_ranges,
+        )
         mixer = ParameterMixer(parameter_ranges)
         procedural_controller = ProceduralPoseController(seed=args.seed)
         blink_controller = BlinkController(seed=args.seed)
@@ -671,10 +845,19 @@ def render(args: argparse.Namespace) -> None:
                 "alpha_area_ratio",
                 "centroid_x",
                 "centroid_y",
+                "alpha_spread_x",
+                "alpha_spread_y",
+                "outline_centroid_x",
+                "outline_centroid_y",
                 "perceptual_delta",
                 "alpha_delta",
                 "face_delta",
                 "eye_delta",
+                "face_signed_delta",
+                "eye_signed_delta",
+                "local_flow_x",
+                "local_flow_y",
+                "local_flow_magnitude",
             )
         }
         previous_rgba = None
@@ -799,6 +982,7 @@ def render(args: argparse.Namespace) -> None:
                     blink_openness=blink,
                     blink_owned=blink_enabled,
                     mouth_value=mouth_open,
+                    expression_values=expression_values,
                 )
                 motion_state = transition.state.value
                 motion_weight = transition.blend_weight
@@ -953,70 +1137,16 @@ def render(args: argparse.Namespace) -> None:
                 "findings": [finding.as_dict() for finding in findings],
             }
             gate_findings.extend(finding.as_dict() for finding in findings)
+        image_metric_objects, image_limits, image_findings = evaluate_image_tracks(
+            image_tracks,
+            timestamps,
+            fps=args.fps,
+        )
         image_metrics_summary = {
-            key: compute_signal_metrics(
-                values,
-                timestamps,
-                reversal_epsilon=0.0001,
-            ).as_dict()
-            for key, values in image_tracks.items()
+            name: metrics.as_dict()
+            for name, metrics in image_metric_objects.items()
         }
-        image_limits = {
-            "centroid_step": 0.018,
-            "centroid_reversals_per_second": 10.0,
-            "alpha_area_step": 0.025,
-            "perceptual_delta_p99": 0.16,
-            "face_delta_p99": 0.18,
-            "eye_delta_p99": 0.28,
-        }
-        image_checks = {
-            "centroid_x_step": (
-                image_metrics_summary["centroid_x"]["maximum_absolute_step"],
-                image_limits["centroid_step"],
-            ),
-            "centroid_y_step": (
-                image_metrics_summary["centroid_y"]["maximum_absolute_step"],
-                image_limits["centroid_step"],
-            ),
-            "centroid_x_reversals": (
-                image_metrics_summary["centroid_x"][
-                    "direction_reversals_per_second"
-                ],
-                image_limits["centroid_reversals_per_second"],
-            ),
-            "centroid_y_reversals": (
-                image_metrics_summary["centroid_y"][
-                    "direction_reversals_per_second"
-                ],
-                image_limits["centroid_reversals_per_second"],
-            ),
-            "alpha_area_step": (
-                image_metrics_summary["alpha_area_ratio"]["maximum_absolute_step"],
-                image_limits["alpha_area_step"],
-            ),
-            "perceptual_delta_p99": (
-                image_metrics_summary["perceptual_delta"]["p99_absolute_step"],
-                image_limits["perceptual_delta_p99"],
-            ),
-            "face_delta_p99": (
-                image_metrics_summary["face_delta"]["p99_absolute_step"],
-                image_limits["face_delta_p99"],
-            ),
-            "eye_delta_p99": (
-                image_metrics_summary["eye_delta"]["p99_absolute_step"],
-                image_limits["eye_delta_p99"],
-            ),
-        }
-        for metric_name, (observed, threshold) in image_checks.items():
-            if float(observed) > threshold:
-                gate_findings.append(
-                    {
-                        "code": f"image_{metric_name}_exceeded",
-                        "metric": metric_name,
-                        "observed": observed,
-                        "threshold": threshold,
-                    }
-                )
+        gate_findings.extend(finding.as_dict() for finding in image_findings)
         trace_size = trace_path.stat().st_size
         trace_sha256 = hashlib.sha256(trace_path.read_bytes()).hexdigest()
         print(

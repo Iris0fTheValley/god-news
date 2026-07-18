@@ -322,6 +322,35 @@ def test_parameter_mixer_enforces_production_parameter_ownership() -> None:
     )
 
 
+def test_expression_is_a_typed_baseline_beneath_blink_and_motion() -> None:
+    ranges = _ranges()
+    pose = ProceduralPoseController(seed=5).update(
+        timestamp_seconds=1,
+        delta_seconds=1 / 30,
+        motion_weight=0,
+    )
+    values = ParameterMixer(ranges).mix(
+        delta_seconds=1 / 30,
+        mode=Live2DControlMode.FINAL,
+        base_values={parameter: value.default for parameter, value in ranges.items()},
+        motion_values={PARAM_ANGLE_X: 12, PARAM_EYE_L_OPEN: 1.5},
+        motion_weight=0,
+        procedural_pose=pose,
+        blink_openness=0.5,
+        blink_owned=True,
+        mouth_value=0.2,
+        expression_values={PARAM_ANGLE_X: 4.0, PARAM_EYE_L_OPEN: 0.8},
+    )
+
+    assert values[PARAM_ANGLE_X].expression == pytest.approx(4.0)
+    assert values[PARAM_ANGLE_X].desired == pytest.approx(
+        4.0 + pose.idle[PARAM_ANGLE_X]
+    )
+    assert values[PARAM_EYE_L_OPEN].expression == pytest.approx(0.8)
+    assert values[PARAM_EYE_L_OPEN].desired == pytest.approx(0.4)
+    assert values[PARAM_EYE_L_OPEN].blink == pytest.approx(0.5)
+
+
 def test_procedural_pose_is_seeded_and_stable_across_frame_rates() -> None:
     at_30 = ProceduralPoseController(seed=123)
     at_60 = ProceduralPoseController(seed=123)

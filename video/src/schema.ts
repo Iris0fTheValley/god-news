@@ -710,6 +710,9 @@ const Live2DSignalMetricsSchema = z
     duration_seconds: z.number().positive(),
     minimum: z.number(),
     maximum: z.number(),
+    p95_absolute_value: z.number().nonnegative(),
+    p99_absolute_value: z.number().nonnegative(),
+    maximum_absolute_value: z.number().nonnegative(),
     p95_absolute_step: z.number().nonnegative(),
     p99_absolute_step: z.number().nonnegative(),
     maximum_absolute_step: z.number().nonnegative(),
@@ -721,6 +724,16 @@ const Live2DSignalMetricsSchema = z
     maximum_absolute_jerk: z.number().nonnegative(),
     direction_reversals_per_second: z.number().nonnegative(),
     high_frequency_energy_ratio: z.number().nonnegative(),
+    alternating_energy_ratio: z.number().min(0).max(1),
+  })
+  .strict();
+
+const Live2DGateFindingSchema = z
+  .object({
+    code: nonBlank,
+    metric: nonBlank,
+    observed: z.number().nonnegative(),
+    threshold: z.number().nonnegative(),
   })
   .strict();
 
@@ -744,7 +757,7 @@ const Live2DParameterDiagnosticsSchema = z
         maximum_high_frequency_energy_ratio: z.number().positive(),
       })
       .strict(),
-    findings: z.array(nonBlank).max(32),
+    findings: z.array(Live2DGateFindingSchema).max(32),
   })
   .strict();
 
@@ -812,7 +825,7 @@ const RenderedHostVideoSchema = z
         parameter_metrics: z.record(nonBlank, Live2DParameterDiagnosticsSchema),
         image_metrics: z.record(nonBlank, Live2DSignalMetricsSchema),
         image_thresholds: z.record(nonBlank, z.number()),
-        gate_findings: z.array(nonBlank).max(256),
+        gate_findings: z.array(Live2DGateFindingSchema).max(256),
         quality_gate_passed: z.boolean(),
         audio_calibration: z
           .object({

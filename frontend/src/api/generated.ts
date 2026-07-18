@@ -1665,6 +1665,17 @@ export interface components {
             /** Maximum High Frequency Energy Ratio */
             maximum_high_frequency_energy_ratio: number;
         };
+        /** Live2DGateFinding */
+        Live2DGateFinding: {
+            /** Code */
+            code: string;
+            /** Metric */
+            metric: string;
+            /** Observed */
+            observed: number;
+            /** Threshold */
+            threshold: number;
+        };
         /** Live2DMotionMetadata */
         Live2DMotionMetadata: {
             /** Fade In Ms */
@@ -1681,7 +1692,7 @@ export interface components {
         /** Live2DParameterDiagnostics */
         Live2DParameterDiagnostics: {
             /** Findings */
-            findings?: string[];
+            findings?: components["schemas"]["Live2DGateFinding"][];
             metrics: components["schemas"]["Live2DSignalMetrics"];
             range: components["schemas"]["Live2DParameterRange"];
             threshold: components["schemas"]["Live2DDynamicThreshold"];
@@ -1718,7 +1729,7 @@ export interface components {
             /** Frames */
             frames: number;
             /** Gate Findings */
-            gate_findings?: string[];
+            gate_findings?: components["schemas"]["Live2DGateFinding"][];
             /** Image Metrics */
             image_metrics?: {
                 [key: string]: components["schemas"]["Live2DSignalMetrics"];
@@ -1785,6 +1796,8 @@ export interface components {
         };
         /** Live2DSignalMetrics */
         Live2DSignalMetrics: {
+            /** Alternating Energy Ratio */
+            alternating_energy_ratio: number;
             /** Direction Reversals Per Second */
             direction_reversals_per_second: number;
             /** Duration Seconds */
@@ -1799,6 +1812,8 @@ export interface components {
             maximum_absolute_jerk: number;
             /** Maximum Absolute Step */
             maximum_absolute_step: number;
+            /** Maximum Absolute Value */
+            maximum_absolute_value: number;
             /** Maximum Absolute Velocity */
             maximum_absolute_velocity: number;
             /** Minimum */
@@ -1809,10 +1824,14 @@ export interface components {
             p95_absolute_jerk: number;
             /** P95 Absolute Step */
             p95_absolute_step: number;
+            /** P95 Absolute Value */
+            p95_absolute_value: number;
             /** P95 Absolute Velocity */
             p95_absolute_velocity: number;
             /** P99 Absolute Step */
             p99_absolute_step: number;
+            /** P99 Absolute Value */
+            p99_absolute_value: number;
             /** Samples */
             samples: number;
         };
