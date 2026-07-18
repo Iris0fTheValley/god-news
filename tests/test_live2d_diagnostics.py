@@ -199,6 +199,60 @@ def test_image_signed_delta_high_frequency_requires_sustained_reversals() -> Non
     }
 
 
+def test_image_signed_delta_gate_separates_speech_bursts_from_fast_jitter() -> None:
+    timestamps = [index / 30 for index in range(60)]
+
+    def tracks_with_face_signal(signal: list[float]) -> dict[str, list[float]]:
+        tracks = {name: [0.0] * 60 for name in IMAGE_REQUIRED_TRACKS}
+        for name in (
+            "alpha_area_ratio",
+            "alpha_spread_x",
+            "alpha_spread_y",
+            "centroid_x",
+            "centroid_y",
+            "outline_centroid_x",
+            "outline_centroid_y",
+        ):
+            tracks[name] = [0.5] * 60
+        tracks["face_signed_delta"] = signal
+        return tracks
+
+    speech_bursts = [0.0] * 60
+    for start in range(5, 60, 5):
+        speech_bursts[start : start + 2] = [0.03, -0.03]
+    speech_metrics, limits, speech_findings = evaluate_image_tracks(
+        tracks_with_face_signal(speech_bursts),
+        timestamps,
+        fps=30,
+        frame_width=720,
+        frame_height=720,
+    )
+    speech_face = speech_metrics["face_signed_delta"]
+    assert speech_face.high_frequency_energy_ratio > 1.7
+    assert 10 < speech_face.direction_reversals_per_second < 12
+    assert limits["signed_delta_high_frequency_min_reversals"] == 12.0
+    assert "image_face_signed_delta_high_frequency_exceeded" not in {
+        finding.code for finding in speech_findings
+    }
+
+    fast_jitter = [
+        0.02 * math.sin(2 * math.pi * 8 * timestamp) for timestamp in timestamps
+    ]
+    jitter_metrics, _, jitter_findings = evaluate_image_tracks(
+        tracks_with_face_signal(fast_jitter),
+        timestamps,
+        fps=30,
+        frame_width=720,
+        frame_height=720,
+    )
+    jitter_face = jitter_metrics["face_signed_delta"]
+    assert jitter_face.high_frequency_energy_ratio > 1.7
+    assert jitter_face.direction_reversals_per_second > 12
+    assert "image_face_signed_delta_high_frequency_exceeded" in {
+        finding.code for finding in jitter_findings
+    }
+
+
 @pytest.mark.parametrize(
     ("amplitude", "should_fail"),
     [(0.0008, False), (0.005, True)],

@@ -183,6 +183,16 @@ pause gate separately freezes the Remotion frame and native media time. Its
 captures (at most 0.0098 mean levels) and remains well below the smallest
 observed real-motion delta (0.846 mean levels).
 
+The final-composite signed-delta gate also distinguishes a bounded semantic
+pose transition from sustained high-frequency reversal. A real 30 FPS
+speech-plus-arm-transition window measured a high-frequency ratio of 3.6453
+but only 10.17 reversals per second; all direct-displacement, optical-flow,
+outline, and period-two gates were clean and visual review showed one smooth
+transition. The sustained-reversal requirement is therefore 12 reversals per
+second. An 8 Hz synthetic oscillation measures 15.76 reversals per second and
+still fails the same gate. This calibration changes neither the ratio threshold
+nor any direct or period-two threshold.
+
 The complete E2E command is:
 
 ```powershell
@@ -216,11 +226,13 @@ describe the current catalog as a complete multi-template library.
 ## Tooling note
 
 The real browser workflow was verified through Playwright using the installed
-Microsoft Edge channel. Windows computer control was also available for final
-desktop playback inspection. No claim is made that the DSakiko GUI itself was
+Microsoft Edge channel. Windows computer control was attempted separately, but
+did not yield independently verifiable desktop-player evidence, so this audit
+does not claim desktop playback acceptance. No claim is made that the DSakiko
+GUI itself was
 operated: its packaged entry point is a batch launcher, and safe desktop
 automation does not execute terminal or batch commands through the UI. Its
 motion, priority, fade, blink, breath, look, preview, and parameter behavior was
 therefore audited from the installed source and model files. Native OpenGL
-rendering, real model files, continuous decoded frames, browser playback, and
-desktop playback provide the executable acceptance evidence.
+rendering, real model files, continuous decoded frames, and browser playback
+provide the executable acceptance evidence.

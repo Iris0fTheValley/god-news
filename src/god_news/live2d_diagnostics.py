@@ -411,7 +411,13 @@ def evaluate_image_tracks(
         "signed_delta_amplitude_floor": 0.012,
         "signed_delta_reversals_per_second": 18.0,
         "signed_delta_high_frequency_ratio": 1.7,
-        "signed_delta_high_frequency_min_reversals": 10.0,
+        # At 30 FPS, 12 reversals/s means a sustained direction change about
+        # every 2.5 frames. Real final-composite speech plus a smooth arm
+        # transition measured 10.17/s with every direct/period-two gate clean;
+        # an 8 Hz synthetic oscillation measured 15.76/s. Keep the ratio gate
+        # tied to genuinely rapid sustained reversal instead of a bounded
+        # transition that merely has high normalized second-difference energy.
+        "signed_delta_high_frequency_min_reversals": 12.0,
         "signed_delta_alternating_energy_ratio": 0.45,
         "geometry_alternating_energy_ratio": 0.45,
         "geometry_period_two_min_p95_step": 0.002,
