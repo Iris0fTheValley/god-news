@@ -184,14 +184,15 @@ captures (at most 0.0098 mean levels) and remains well below the smallest
 observed real-motion delta (0.846 mean levels).
 
 The final-composite signed-delta gate also distinguishes a bounded semantic
-pose transition from sustained high-frequency reversal. A real 30 FPS
-speech-plus-arm-transition window measured a high-frequency ratio of 3.6453
-but only 10.17 reversals per second; all direct-displacement, optical-flow,
-outline, and period-two gates were clean and visual review showed one smooth
-transition. The sustained-reversal requirement is therefore 12 reversals per
-second. An 8 Hz synthetic oscillation measures 15.76 reversals per second and
-still fails the same gate. This calibration changes neither the ratio threshold
-nor any direct or period-two threshold.
+pose transition from sustained high-frequency reversal. Real 30 FPS windows
+containing speech plus smooth arm transitions produced high normalized energy
+and up to 12.71 reversals per second, while direct-displacement, optical-flow,
+outline, and period-two gates stayed clean. The signed-delta gate therefore
+evaluates non-overlapping 0.5-second windows and requires rapid active reversal
+in at least 75 percent of them. A bounded transition is active in at most half
+the windows, while a continuous 8 Hz synthetic oscillation is active in every
+window and still fails. This temporal-persistence rule changes neither the
+frequency/reversal thresholds nor any direct or period-two threshold.
 
 The complete E2E command is:
 

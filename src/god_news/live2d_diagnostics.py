@@ -217,6 +217,50 @@ def compute_signal_metrics(
     )
 
 
+def _sustained_high_frequency_window_coverage(
+    values: list[float],
+    timestamps: list[float],
+    *,
+    fps: int,
+    window_seconds: float,
+    reversal_epsilon: float,
+    amplitude_floor: float,
+    frequency_ratio: float,
+    reversal_floor: float,
+) -> float:
+    """Return the share of full windows containing active rapid reversal.
+
+    A semantic entrance or pose change can be locally energetic without being
+    jitter. Splitting the signal into short non-overlapping windows makes the
+    gate require temporal persistence instead of treating one bounded
+    transition as if it occupied the whole review interval.
+    """
+
+    if len(values) != len(timestamps) or not values:
+        raise ValueError("signal values and timestamps must be non-empty and aligned")
+    window_samples = max(3, round(fps * window_seconds))
+    full_windows = len(values) // window_samples
+    if full_windows == 0:
+        full_windows = 1
+        window_samples = len(values)
+    active_windows = 0
+    for index in range(full_windows):
+        start = index * window_samples
+        end = start + window_samples
+        item = compute_signal_metrics(
+            values[start:end],
+            timestamps[start:end],
+            reversal_epsilon=reversal_epsilon,
+        )
+        if (
+            item.p95_absolute_value > amplitude_floor
+            and item.high_frequency_energy_ratio > frequency_ratio
+            and item.direction_reversals_per_second > reversal_floor
+        ):
+            active_windows += 1
+    return active_windows / full_windows
+
+
 def threshold_for_parameter(
     parameter: str,
     parameter_range: ParameterRange,
@@ -411,13 +455,9 @@ def evaluate_image_tracks(
         "signed_delta_amplitude_floor": 0.012,
         "signed_delta_reversals_per_second": 18.0,
         "signed_delta_high_frequency_ratio": 1.7,
-        # At 30 FPS, 12 reversals/s means a sustained direction change about
-        # every 2.5 frames. Real final-composite speech plus a smooth arm
-        # transition measured 10.17/s with every direct/period-two gate clean;
-        # an 8 Hz synthetic oscillation measured 15.76/s. Keep the ratio gate
-        # tied to genuinely rapid sustained reversal instead of a bounded
-        # transition that merely has high normalized second-difference energy.
-        "signed_delta_high_frequency_min_reversals": 12.0,
+        "signed_delta_high_frequency_min_reversals": 10.0,
+        "signed_delta_high_frequency_window_seconds": 0.5,
+        "signed_delta_high_frequency_min_window_coverage": 0.75,
         "signed_delta_alternating_energy_ratio": 0.45,
         "geometry_alternating_energy_ratio": 0.45,
         "geometry_period_two_min_p95_step": 0.002,
@@ -624,18 +664,27 @@ def evaluate_image_tracks(
             for metric_name, (observed, threshold) in conditional_checks.items()
             if observed > threshold
         )
-        if (
-            item.high_frequency_energy_ratio
-            > limits["signed_delta_high_frequency_ratio"]
-            and item.direction_reversals_per_second
-            > limits["signed_delta_high_frequency_min_reversals"]
-        ):
+        sustained_coverage = _sustained_high_frequency_window_coverage(
+            tracks[name],
+            timestamps,
+            fps=fps,
+            window_seconds=limits["signed_delta_high_frequency_window_seconds"],
+            reversal_epsilon=0.002,
+            amplitude_floor=amplitude_floor,
+            frequency_ratio=limits["signed_delta_high_frequency_ratio"],
+            reversal_floor=limits["signed_delta_high_frequency_min_reversals"],
+        )
+        if sustained_coverage >= limits[
+            "signed_delta_high_frequency_min_window_coverage"
+        ]:
             findings.append(
                 GateFinding(
-                    code=f"image_{name}_high_frequency_exceeded",
-                    metric=f"{name}_high_frequency",
-                    observed=item.high_frequency_energy_ratio,
-                    threshold=limits["signed_delta_high_frequency_ratio"],
+                    code=f"image_{name}_sustained_high_frequency_exceeded",
+                    metric=f"{name}_sustained_high_frequency_window_coverage",
+                    observed=sustained_coverage,
+                    threshold=limits[
+                        "signed_delta_high_frequency_min_window_coverage"
+                    ],
                 )
             )
     for name in ("alpha_area_ratio", "alpha_spread_x", "alpha_spread_y"):
