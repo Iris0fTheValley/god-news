@@ -764,6 +764,10 @@ def main() -> int:
                         "--require-transparency",
                     ]
                 )
+            else:
+                analysis_command.extend(
+                    ["--quality-profile", "fixed_background"]
+                )
             commands.append(analysis_command)
             _run(analysis_command, cwd=WORKSPACE)
         uniform_contact = mode_root / "uniform-20-contact.png"

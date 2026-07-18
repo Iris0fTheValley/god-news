@@ -1207,6 +1207,10 @@ async def extract_layer_comparison_evidence(
                     "--require-transparency",
                 ]
             )
+        else:
+            analysis_arguments.extend(
+                ["--quality-profile", "fixed_background"]
+            )
         await run_process(
             *analysis_arguments,
             cwd=WORKSPACE,

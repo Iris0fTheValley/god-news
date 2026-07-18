@@ -314,7 +314,11 @@ def evaluate_image_tracks(
     fps: int,
     frame_width: int,
     frame_height: int,
-    quality_profile: Literal["host_source", "final_composite"] = "host_source",
+    quality_profile: Literal[
+        "host_source",
+        "fixed_background",
+        "final_composite",
+    ] = "host_source",
 ) -> tuple[dict[str, SignalMetrics], dict[str, float], list[GateFinding]]:
     """Evaluate normalized image-space motion without re-differencing deltas.
 
@@ -327,7 +331,11 @@ def evaluate_image_tracks(
 
     if fps < 1 or frame_width < 1 or frame_height < 1:
         raise ValueError("fps and analyzed frame dimensions must be positive")
-    if quality_profile not in {"host_source", "final_composite"}:
+    if quality_profile not in {
+        "host_source",
+        "fixed_background",
+        "final_composite",
+    }:
         raise ValueError("unknown image quality profile")
     missing = IMAGE_REQUIRED_TRACKS.difference(tracks)
     if missing:
@@ -407,7 +415,15 @@ def evaluate_image_tracks(
         "signed_delta_alternating_energy_ratio": 0.45,
         "geometry_alternating_energy_ratio": 0.45,
     }
-    if quality_profile == "final_composite":
+    if quality_profile == "fixed_background":
+        # A fixed-background review transcodes the alpha host once to opaque
+        # H.264 and reconstructs its silhouette from color distance. Keep the
+        # raw host gate unchanged while allowing the measured segmentation
+        # variance; all geometry, RGB, flow, reversal, and period-two gates
+        # remain identical to the source profile.
+        limits["alpha_delta_p99_direct"] = 0.032
+        limits["alpha_delta_max_direct"] = 0.055
+    elif quality_profile == "final_composite":
         # The final profile is measured after host scaling plus a second lossy
         # H.264 encode. Regional RGB/flow gates remain unchanged; only alpha
         # reconstructed from the opaque composition receives codec margin.

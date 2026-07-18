@@ -46,7 +46,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--require-dynamic-quality", action="store_true")
     parser.add_argument(
         "--quality-profile",
-        choices=("host_source", "final_composite"),
+        choices=("host_source", "fixed_background", "final_composite"),
         default="host_source",
     )
     return parser
