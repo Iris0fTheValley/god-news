@@ -243,7 +243,87 @@ class DifferentialArtReservation(DomainModel):
         return _require_local_path(value)
 
 
+class Live2DSignalMetrics(DomainModel):
+    samples: int = Field(gt=0)
+    duration_seconds: float = Field(gt=0)
+    minimum: float
+    maximum: float
+    p95_absolute_value: float = Field(ge=0)
+    p99_absolute_value: float = Field(ge=0)
+    maximum_absolute_value: float = Field(ge=0)
+    p95_absolute_step: float = Field(ge=0)
+    p99_absolute_step: float = Field(ge=0)
+    maximum_absolute_step: float = Field(ge=0)
+    p95_absolute_velocity: float = Field(ge=0)
+    maximum_absolute_velocity: float = Field(ge=0)
+    p95_absolute_acceleration: float = Field(ge=0)
+    maximum_absolute_acceleration: float = Field(ge=0)
+    p95_absolute_jerk: float = Field(ge=0)
+    maximum_absolute_jerk: float = Field(ge=0)
+    direction_reversals_per_second: float = Field(ge=0)
+    high_frequency_energy_ratio: float = Field(ge=0)
+    alternating_energy_ratio: float = Field(ge=0, le=1)
+
+
+class Live2DParameterRange(DomainModel):
+    minimum: float
+    maximum: float
+    default: float
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Live2DParameterRange:
+        if self.minimum >= self.maximum:
+            raise ValueError("Live2D parameter range must be increasing")
+        if not self.minimum <= self.default <= self.maximum:
+            raise ValueError("Live2D parameter default must be inside its range")
+        return self
+
+
+class Live2DDynamicThreshold(DomainModel):
+    maximum_absolute_step: float = Field(gt=0)
+    maximum_absolute_velocity: float = Field(gt=0)
+    maximum_absolute_acceleration: float = Field(gt=0)
+    maximum_absolute_jerk: float = Field(gt=0)
+    maximum_direction_reversals_per_second: float = Field(gt=0)
+    maximum_high_frequency_energy_ratio: float = Field(gt=0)
+
+
+class Live2DGateFinding(DomainModel):
+    code: NonBlankStr
+    metric: NonBlankStr
+    observed: float = Field(ge=0)
+    threshold: float = Field(ge=0)
+
+
+class Live2DParameterDiagnostics(DomainModel):
+    range: Live2DParameterRange
+    metrics: Live2DSignalMetrics
+    threshold: Live2DDynamicThreshold
+    findings: list[Live2DGateFinding] = Field(default_factory=list, max_length=32)
+
+
+class Live2DMotionMetadata(DomainModel):
+    file: NonBlankStr
+    fps: int | None = Field(default=None, ge=1, le=120)
+    fade_in_ms: float | None = Field(default=None, ge=0, le=60_000)
+    fade_out_ms: float | None = Field(default=None, ge=0, le=60_000)
+    frames: int | None = Field(default=None, gt=0)
+
+
+class Live2DAudioCalibration(DomainModel):
+    noise_floor: float = Field(ge=0, le=1)
+    normalization_peak: float = Field(gt=0, le=1)
+
+
 class Live2DRenderDiagnostics(DomainModel):
+    schema_version: Literal["2.0"] = "2.0"
+    control_mode: Literal[
+        "legacy_conflict",
+        "motion_only",
+        "procedural_only",
+        "no_lip_sync",
+        "final",
+    ]
     frames: int = Field(gt=0)
     envelope_frames: int = Field(gt=0)
     rendered_frames: int = Field(gt=0)
@@ -252,6 +332,10 @@ class Live2DRenderDiagnostics(DomainModel):
     time_delta_ms_max: int = Field(gt=0)
     motion_group: str | None = None
     motion_restarts: int = Field(ge=0)
+    motion_state_counts: dict[NonBlankStr, int] = Field(default_factory=dict)
+    motion_switch_max_delta: float = Field(ge=0)
+    motion_source_switch_max_delta: float = Field(ge=0)
+    motion_metadata: Live2DMotionMetadata | None = None
     expression: str | None = None
     blink_events: int = Field(ge=0)
     mouth_min: float = Field(ge=0, le=1)
@@ -262,7 +346,40 @@ class Live2DRenderDiagnostics(DomainModel):
     voiced_frame_ratio: float = Field(ge=0, le=1)
     exact_duplicate_pair_ratio: float = Field(ge=0, le=1)
     longest_exact_duplicate_run: int = Field(ge=0)
+    capture_retry_frames: int = Field(default=0, ge=0)
+    capture_retries_total: int = Field(default=0, ge=0)
+    capture_max_attempts: int = Field(default=3, ge=1, le=10)
     controlled_parameters: list[NonBlankStr] = Field(default_factory=list, max_length=32)
+    parameter_owners: dict[NonBlankStr, NonBlankStr] = Field(
+        default_factory=dict,
+        max_length=32,
+    )
+    parameter_metrics: dict[NonBlankStr, Live2DParameterDiagnostics] = Field(
+        default_factory=dict,
+        max_length=32,
+    )
+    image_metrics: dict[NonBlankStr, Live2DSignalMetrics] = Field(
+        default_factory=dict,
+        max_length=32,
+    )
+    image_thresholds: dict[NonBlankStr, float] = Field(
+        default_factory=dict,
+        max_length=32,
+    )
+    gate_findings: list[Live2DGateFinding] = Field(
+        default_factory=list,
+        max_length=256,
+    )
+    quality_gate_passed: bool
+    audio_calibration: Live2DAudioCalibration
+    trace_path: NonBlankStr
+    trace_sha256: Sha256
+    trace_size_bytes: int = Field(gt=0)
+
+    @field_validator("trace_path")
+    @classmethod
+    def require_trace_local_path(cls, value: str) -> str:
+        return _require_local_path(value)
 
     @model_validator(mode="after")
     def validate_consistency(self) -> Live2DRenderDiagnostics:
@@ -277,6 +394,18 @@ class Live2DRenderDiagnostics(DomainModel):
             <= self.mouth_max
         ):
             raise ValueError("Live2D mouth percentiles are inconsistent")
+        if set(self.parameter_owners) != set(self.controlled_parameters):
+            raise ValueError("Every controlled Live2D parameter must have one owner")
+        if set(self.parameter_metrics) != set(self.controlled_parameters):
+            raise ValueError("Every controlled Live2D parameter requires dynamic metrics")
+        if self.quality_gate_passed != (not self.gate_findings):
+            raise ValueError("Live2D quality gate state and findings disagree")
+        if sum(self.motion_state_counts.values()) != self.frames:
+            raise ValueError("Live2D motion state counts must cover every rendered frame")
+        if self.capture_retry_frames > self.frames:
+            raise ValueError("Live2D retry frame count cannot exceed rendered frames")
+        if self.capture_retries_total < self.capture_retry_frames:
+            raise ValueError("Live2D retry total cannot be smaller than retry frames")
         return self
 
 

@@ -67,8 +67,12 @@ export function TemplateLabPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const state = useMemo(() => readTemplateLabState(searchParams), [searchParams]);
   const playerRef = useRef<PlayerRef>(null);
+  const playerFrameRef = useRef<HTMLDivElement>(null);
   const [currentFrame, setCurrentFrame] = useState(state.frame);
   const [playing, setPlaying] = useState(false);
+  const [playbackState, setPlaybackState] = useState<
+    'paused' | 'pausing' | 'playing'
+  >('paused');
   const [notice, setNotice] = useState<string | null>(null);
 
   const updateState = useCallback(
@@ -150,13 +154,16 @@ export function TemplateLabPage() {
     const onFrame = (event: {detail: {frame: number}}) => {
       setCurrentFrame(event.detail.frame);
     };
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      setPlaybackState('playing');
+    };
     const onPause = () => {
       setPlaying(false);
-      updateState({frame: player.getCurrentFrame()});
     };
     const onEnded = () => {
       setPlaying(false);
+      setPlaybackState('paused');
       updateState({frame: player.getCurrentFrame()});
     };
     player.addEventListener('frameupdate', onFrame);
@@ -176,6 +183,58 @@ export function TemplateLabPage() {
     playerRef.current?.seekTo(clamped);
     setCurrentFrame(clamped);
     updateState({frame: clamped});
+  };
+
+  const pauseAtCurrentFrame = async () => {
+    const player = playerRef.current;
+    if (!player) return;
+    setPlaybackState('pausing');
+    player.pause();
+    let frozenFrame = player.getCurrentFrame();
+    player.seekTo(frozenFrame);
+
+    const animationBarrier = () =>
+      new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      });
+    await animationBarrier();
+
+    const committedFrame = player.getCurrentFrame();
+    if (committedFrame !== frozenFrame) {
+      frozenFrame = committedFrame;
+      player.seekTo(frozenFrame);
+      await animationBarrier();
+    }
+    updateState({frame: frozenFrame});
+    await animationBarrier();
+
+    const videos = Array.from(
+      playerFrameRef.current?.querySelectorAll('video') ?? [],
+    );
+    await Promise.all(
+      videos.map(
+        (video) =>
+          new Promise<void>((resolve) => {
+            video.pause();
+            const targetTime = video.currentTime;
+            let timeout = 0;
+            const finish = () => {
+              window.clearTimeout(timeout);
+              video.removeEventListener('seeked', finish);
+              resolve();
+            };
+            timeout = window.setTimeout(finish, 1_000);
+            video.addEventListener('seeked', finish, {once: true});
+            video.currentTime = targetTime;
+          }),
+      ),
+    );
+    await animationBarrier();
+
+    setCurrentFrame(frozenFrame);
+    setPlaybackState('paused');
   };
 
   const changeScene = (nextScene: TemplateLabState['scene']) => {
@@ -379,10 +438,11 @@ export function TemplateLabPage() {
               <button
                 className="icon-button"
                 type="button"
-                disabled={!fixtureResult.available}
+                data-testid="template-lab-play-pause"
+                disabled={!fixtureResult.available || playbackState === 'pausing'}
                 aria-label={playing ? '暂停' : '播放'}
                 onClick={() => {
-                  if (playing) playerRef.current?.pause();
+                  if (playing) void pauseAtCurrentFrame();
                   else playerRef.current?.play();
                 }}
               >
@@ -391,16 +451,16 @@ export function TemplateLabPage() {
               <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="首帧" onClick={() => seekTo(0)}>
                 <ChevronFirst size={17} />
               </button>
-              <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="上一帧" onClick={() => seekTo(currentFrame - 1)}>
+              <button className="icon-button" type="button" data-testid="template-lab-previous-frame" disabled={!fixtureResult.available} aria-label="上一帧" onClick={() => seekTo(currentFrame - 1)}>
                 <StepBack size={17} />
               </button>
-              <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="下一帧" onClick={() => seekTo(currentFrame + 1)}>
+              <button className="icon-button" type="button" data-testid="template-lab-next-frame" disabled={!fixtureResult.available} aria-label="下一帧" onClick={() => seekTo(currentFrame + 1)}>
                 <StepForward size={17} />
               </button>
               <button className="icon-button" type="button" disabled={!fixtureResult.available} aria-label="末帧" onClick={() => seekTo(durationInFrames - 1)}>
                 <ChevronLast size={17} />
               </button>
-              <span className="metadata">FRAME {currentFrame} / {durationInFrames - 1}</span>
+              <span className="metadata" data-testid="template-lab-current-frame">FRAME {currentFrame} / {durationInFrames - 1}</span>
             </div>
             <label className="template-lab-zoom">
               <span>缩放 {Math.round(state.zoom * 100)}%</span>
@@ -434,7 +494,10 @@ export function TemplateLabPage() {
           <div className="template-lab-canvas">
             {props && profile && fixtureResult.available ? (
               <div
+                ref={playerFrameRef}
                 className="template-lab-player-frame"
+                data-testid="template-lab-player-frame"
+                data-playback-state={playbackState}
                 style={{
                   width: `${Math.round(profile.width * state.zoom)}px`,
                   aspectRatio: `${profile.width} / ${profile.height}`,

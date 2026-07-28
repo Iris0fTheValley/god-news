@@ -55,8 +55,9 @@ class LocalLive2DHostRenderer:
         height: int,
         fps: int,
         motion_intensity: float = 0.35,
-        mouth_attack_ms: float = 45,
-        mouth_release_ms: float = 140,
+        mouth_attack_ms: float = 55,
+        mouth_release_ms: float = 160,
+        seed: int = 20260717,
         max_exact_duplicate_ratio: float = 0.15,
     ) -> None:
         self._profiles = profiles
@@ -82,6 +83,7 @@ class LocalLive2DHostRenderer:
         self._motion_intensity = motion_intensity
         self._mouth_attack_ms = mouth_attack_ms
         self._mouth_release_ms = mouth_release_ms
+        self._seed = seed
         self._max_exact_duplicate_ratio = max_exact_duplicate_ratio
 
     @property
@@ -153,12 +155,18 @@ class LocalLive2DHostRenderer:
             await asyncio.to_thread(resolved_batch_root.mkdir, parents=True, exist_ok=True)
             output = resolved_batch_root / f"{segment.sequence:03d}-{segment.segment_id}.webm"
             temporary = output.with_name(f"{output.stem}.partial.webm")
+            trace = output.with_suffix(".trace.jsonl")
+            temporary_trace = trace.with_name(f"{trace.stem}.partial.jsonl")
             await asyncio.to_thread(temporary.unlink, missing_ok=True)
+            await asyncio.to_thread(temporary_trace.unlink, missing_ok=True)
+            committed_output = False
+            committed_trace = False
             try:
                 diagnostics = await self._run_worker(
                     model_path=model_path,
                     audio_path=audio_path,
                     output_path=temporary,
+                    trace_path=temporary_trace,
                     duration_ms=clip.duration_ms,
                     emotion=segment.emotion.value,
                 )
@@ -175,10 +183,34 @@ class LocalLive2DHostRenderer:
                         "Live2D worker returned media outside its declared capability contract.",
                         retryable=False,
                     )
+                trace_size, trace_digest = await asyncio.to_thread(
+                    self._file_evidence,
+                    temporary_trace,
+                )
+                if (
+                    diagnostics.trace_path != str(temporary_trace)
+                    or diagnostics.trace_size_bytes != trace_size
+                    or diagnostics.trace_sha256 != trace_digest
+                ):
+                    raise VideoNarrationSynthesisError(
+                        "Live2D trace evidence does not match the worker diagnostic.",
+                        retryable=False,
+                    )
                 size_bytes, digest = await asyncio.to_thread(self._file_evidence, temporary)
+                await asyncio.to_thread(os.replace, temporary_trace, trace)
+                committed_trace = True
                 await asyncio.to_thread(os.replace, temporary, output)
+                committed_output = True
+                diagnostics = diagnostics.model_copy(
+                    update={"trace_path": str(trace)},
+                )
             except Exception:
                 await asyncio.to_thread(temporary.unlink, missing_ok=True)
+                await asyncio.to_thread(temporary_trace.unlink, missing_ok=True)
+                if committed_output:
+                    await asyncio.to_thread(output.unlink, missing_ok=True)
+                if committed_trace:
+                    await asyncio.to_thread(trace.unlink, missing_ok=True)
                 raise
             return RenderedHostVideo(
                 segment_id=segment.segment_id,
@@ -204,6 +236,7 @@ class LocalLive2DHostRenderer:
         model_path: Path,
         audio_path: Path,
         output_path: Path,
+        trace_path: Path,
         duration_ms: int,
         emotion: str,
     ) -> Live2DRenderDiagnostics:
@@ -216,6 +249,12 @@ class LocalLive2DHostRenderer:
             str(audio_path),
             "--output",
             str(output_path),
+            "--diagnostic-trace",
+            str(trace_path),
+            "--control-mode",
+            "final",
+            "--seed",
+            str(self._seed),
             "--emotion",
             emotion,
             "--duration-ms",
@@ -254,7 +293,7 @@ class LocalLive2DHostRenderer:
                 raise
         finally:
             await asyncio.to_thread(close_kill_on_close_job, job)
-        if len(stdout) > 16_384 or len(stderr) > 65_536:
+        if len(stdout) > 131_072 or len(stderr) > 65_536:
             raise VideoNarrationSynthesisError(
                 "Live2D worker exceeded its bounded diagnostic output.",
                 retryable=False,
@@ -278,6 +317,37 @@ class LocalLive2DHostRenderer:
             expected_frames = max(1, round(duration_ms * self._fps / 1_000))
             if diagnostic.frames != expected_frames or diagnostic.fps != self._fps:
                 raise ValueError
+            if diagnostic.control_mode != "final":
+                raise VideoNarrationSynthesisError(
+                    "Production Live2D rendering must use the final single-owner controller.",
+                    retryable=False,
+                )
+            if not diagnostic.quality_gate_passed or diagnostic.gate_findings:
+                raise VideoNarrationSynthesisError(
+                    "Live2D worker failed its parameter or image dynamic quality gate.",
+                    retryable=False,
+                )
+            required_owners = {
+                "PARAM_ANGLE_X": "motion_mixer",
+                "PARAM_ANGLE_Y": "motion_mixer",
+                "PARAM_ANGLE_Z": "motion_mixer",
+                "PARAM_BODY_ANGLE_X": "motion_mixer",
+                "PARAM_BREATH": "breath_controller",
+                "PARAM_EYE_BALL_X": "eye_gaze_mixer",
+                "PARAM_EYE_BALL_Y": "eye_gaze_mixer",
+                "PARAM_EYE_L_OPEN": "blink_controller",
+                "PARAM_EYE_R_OPEN": "blink_controller",
+                "PARAM_MOUTH_OPEN_Y": "lip_sync_controller",
+            }
+            if any(
+                diagnostic.parameter_owners.get(parameter) != required_owners[parameter]
+                for parameter in diagnostic.controlled_parameters
+                if parameter in required_owners
+            ):
+                raise VideoNarrationSynthesisError(
+                    "Live2D worker violated the production parameter ownership contract.",
+                    retryable=False,
+                )
             if diagnostic.exact_duplicate_pair_ratio > self._max_exact_duplicate_ratio:
                 raise VideoNarrationSynthesisError(
                     "Live2D worker produced too many exact duplicate frames.",
