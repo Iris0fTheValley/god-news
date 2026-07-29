@@ -3,7 +3,7 @@ import {TemplateDefinitionSchema, type TemplateDefinition} from '../schema';
 export const worldWarmthTemplate: TemplateDefinition =
   TemplateDefinitionSchema.parse({
     template_id: 'world_warmth',
-    template_version: '1.0.0',
+    template_version: '1.1.0',
     display_name: 'World Warmth Editorial',
     capabilities: {
       supported_profiles: ['douyin_vertical', 'bilibili_horizontal'],
@@ -11,6 +11,7 @@ export const worldWarmthTemplate: TemplateDefinition =
         'host_evidence',
         'evidence_fullscreen',
         'source_video',
+        'broll_video',
       ],
       supports_bilingual_captions: true,
       supports_live2d: true,
@@ -64,6 +65,16 @@ export const worldWarmthTemplate: TemplateDefinition =
         maximum_visual_assets: 1,
       },
       {
+        variant_id: 'host_only_editorial',
+        module_id: 'host_evidence',
+        display_name: 'Editorial host without evidence media',
+        supported_profiles: ['douyin_vertical', 'bilibili_horizontal'],
+        supported_host_slots: ['primary', 'corner'],
+        asset_requirements: [],
+        minimum_visual_assets: 0,
+        maximum_visual_assets: 0,
+      },
+      {
         variant_id: 'evidence_documentary',
         module_id: 'evidence_fullscreen',
         display_name: 'Documentary full-screen evidence',
@@ -94,11 +105,20 @@ export const worldWarmthTemplate: TemplateDefinition =
         supported_host_slots: [],
         asset_requirements: [],
       },
+      {
+        variant_id: 'broll_video_attributed',
+        module_id: 'broll_video',
+        display_name: 'Attributed muted B-roll video',
+        supported_profiles: ['douyin_vertical', 'bilibili_horizontal'],
+        supported_host_slots: [],
+        asset_requirements: [],
+      },
     ],
     default_scene_variants: {
       host_evidence: 'host_split_editorial',
       evidence_fullscreen: 'evidence_documentary',
       source_video: 'source_video_clean',
+      broll_video: 'broll_video_attributed',
     },
     layout_preset: {
       preset_id: 'world_warmth_responsive',

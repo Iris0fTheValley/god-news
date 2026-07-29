@@ -78,6 +78,11 @@ class Settings(BaseSettings):
         le=100 * 1024 * 1024,
     )
     visual_asset_max_pixels: int = Field(default=32_000_000, ge=1, le=100_000_000)
+    visual_discovery_dir: Path | None = None
+    visual_discovery_max_download_bytes: int = Field(default=250 * 1024 * 1024, ge=1024)
+    commons_user_agent: str = (
+        "god-news/0.1 (https://github.com/Iris0fTheValley/god-news; contact: repository issues)"
+    )
     source_media_dir: Path | None = None
     source_media_max_download_bytes: int = Field(
         default=512 * 1024 * 1024,
@@ -114,6 +119,7 @@ class Settings(BaseSettings):
     video_render_output_dir: Path | None = None
     video_node_command: str = "node"
     video_quality_ffmpeg_command: str | None = None
+    video_quality_max_freeze_seconds: float = Field(default=12.0, gt=1, le=60)
     video_render_timeout_seconds: float = Field(default=3_600, gt=0, le=14_400)
     video_render_max_parallel_batches: int = Field(default=1, ge=1, le=4)
     video_render_concurrency: int = Field(default=2, ge=1, le=8)
@@ -253,12 +259,14 @@ class Settings(BaseSettings):
     source_guardian_section: str | None = Field(default=None, max_length=100)
     source_guardian_collection_limit: int = Field(default=25, ge=1, le=50)
     source_pikabu_enabled: bool = True
-    source_pikabu_endpoint: str = (
-        "https://pikabu.ru/tag/%D0%94%D0%BE%D0%B1%D1%80%D0%BE%D1%82%D0%B0"
-    )
+    source_pikabu_endpoint: str = "https://pikabu.ru/tag/%D0%94%D0%BE%D0%B1%D1%80%D0%BE%D1%82%D0%B0"
     source_pikabu_public_page_use_authorized: bool = False
     source_pikabu_collection_limit: int = Field(default=10, ge=1, le=50)
     source_pikabu_allowed_host_suffixes: tuple[str, ...] = ("pikabu.ru",)
+    source_nasa_enabled: bool = True
+    source_nasa_feed_url: str = "https://www.nasa.gov/feed/"
+    source_nasa_collection_limit: int = Field(default=10, ge=1, le=100)
+    source_nasa_max_retries: int = Field(default=2, ge=0, le=5)
 
     tts_enabled: bool = True
     gpt_sovits_root: Path = Path("J:/AI friend/GPT-SoVITS-v2pro-20250604")
@@ -313,6 +321,14 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {sorted(allowed)}")
         return normalized
 
+    @field_validator("commons_user_agent")
+    @classmethod
+    def validate_commons_user_agent(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or len(normalized) > 500 or "\r" in normalized or "\n" in normalized:
+            raise ValueError("commons_user_agent must be a single non-blank HTTP header value")
+        return normalized
+
     @field_validator("allowed_source_ports")
     @classmethod
     def validate_ports(cls, value: tuple[int, ...]) -> tuple[int, ...]:
@@ -328,9 +344,7 @@ class Settings(BaseSettings):
             not normalized
             or len(normalized) != len(set(normalized))
             or any(
-                len(suffix) < 2
-                or not suffix.startswith(".")
-                or not suffix[1:].isalnum()
+                len(suffix) < 2 or not suffix.startswith(".") or not suffix[1:].isalnum()
                 for suffix in normalized
             )
         ):
@@ -391,6 +405,7 @@ class Settings(BaseSettings):
         "source_reddit_token_endpoint",
         "source_guardian_endpoint",
         "source_pikabu_endpoint",
+        "source_nasa_feed_url",
     )
     @classmethod
     def require_https_source_endpoint(cls, value: str) -> str:
@@ -412,6 +427,10 @@ class Settings(BaseSettings):
             "source_guardian_endpoint": (
                 self.source_guardian_endpoint,
                 {"content.guardianapis.com"},
+            ),
+            "source_nasa_feed_url": (
+                self.source_nasa_feed_url,
+                {"www.nasa.gov"},
             ),
         }
         for field_name, (value, allowed_hosts) in endpoints.items():
@@ -438,6 +457,7 @@ class Settings(BaseSettings):
         "tts_gpt_weights",
         "tts_sovits_weights",
         "visual_asset_dir",
+        "visual_discovery_dir",
         "source_media_dir",
         "video_render_output_dir",
         "video_live2d_python_executable",
@@ -519,6 +539,7 @@ class Settings(BaseSettings):
             raise ValueError("fetch_max_keepalive_connections cannot exceed fetch_max_connections")
         media_root = self.output_dir.expanduser().resolve(strict=False)
         visual_asset_root = self.visual_asset_root
+        visual_discovery_root = self.visual_discovery_root
         source_media_root = self.source_media_root
         upload_root = self.uploaded_video_dir.expanduser().resolve(strict=False)
         workspace_root = Path.cwd().resolve()
@@ -540,10 +561,16 @@ class Settings(BaseSettings):
             raise ValueError("output_dir and uploaded_video_dir must not overlap")
         if visual_asset_root == media_root or not visual_asset_root.is_relative_to(media_root):
             raise ValueError("visual_asset_dir must be a child directory of output_dir")
+        if visual_discovery_root == media_root or not visual_discovery_root.is_relative_to(
+            media_root
+        ):
+            raise ValueError("visual_discovery_dir must be a child directory of output_dir")
         if source_media_root == media_root or not source_media_root.is_relative_to(media_root):
             raise ValueError("source_media_dir must be a child directory of output_dir")
         if source_media_root == visual_asset_root:
             raise ValueError("source_media_dir and visual_asset_dir must be different")
+        if visual_discovery_root in {source_media_root, visual_asset_root}:
+            raise ValueError("visual_discovery_dir must be separate from source and editor media")
         video_render_root = self.video_render_root
         if video_render_root == media_root or not video_render_root.is_relative_to(media_root):
             raise ValueError("video_render_output_dir must be a child directory of output_dir")
@@ -581,6 +608,12 @@ class Settings(BaseSettings):
     def source_media_root(self) -> Path:
         configured = self.source_media_dir
         root = configured if configured is not None else self.output_dir / "source-media"
+        return root.expanduser().resolve(strict=False)
+
+    @property
+    def visual_discovery_root(self) -> Path:
+        configured = self.visual_discovery_dir
+        root = configured if configured is not None else self.output_dir / "visual-discovery"
         return root.expanduser().resolve(strict=False)
 
     @property

@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from god_news.domain.enums import AudioFormat, SceneTransition, SpeechEmotion
-from god_news.domain.models import CaptionVariant, ScriptDocument, SynthesisMetadata
+from god_news.domain.models import CaptionVariant, ScriptDocument, SourceRequest, SynthesisMetadata
 from god_news.domain.source_transcription import TimedCaptionCue, TranscriptReview
 from god_news.domain.video import (
     BatchNarrationFailure,
@@ -42,6 +42,18 @@ class ProblemDetail(ApiModel):
     message: str
     trace_id: str
     story_id: UUID | None = None
+
+
+class CreateStoryRequest(ApiModel):
+    """Minimal public ingest boundary.
+
+    Narration preferences deliberately belong to first review.  Internal source
+    adapters may still construct the richer domain ingest command, but the public
+    create endpoint accepts only source evidence and the translation target.
+    """
+
+    source: SourceRequest
+    target_language: str = Field(min_length=1)
 
 
 class PublicVideoRenderOutput(ApiModel):

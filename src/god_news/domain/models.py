@@ -87,7 +87,7 @@ class IngestRequest(DomainModel):
 
 
 class SourceItemIngestRequest(DomainModel):
-    """Trusted adapter boundary for one of the four fixed sources.
+    """Trusted adapter boundary for a registered source.
 
     Network-facing adapters must map their documented/authorized response into
     ``RawSourceItem`` before calling this boundary. The core never consumes an

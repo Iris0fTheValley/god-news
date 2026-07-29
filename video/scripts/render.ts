@@ -134,6 +134,12 @@ const stageProps = async (
       local_path: await stageAsset(asset.local_path, inputDirectory, publicDirectory),
     })),
   );
+  const brollVideos = await Promise.all(
+    props.broll_videos.map(async (asset) => ({
+      ...asset,
+      local_path: await stageAsset(asset.local_path, inputDirectory, publicDirectory),
+    })),
+  );
   const hostVideos = await Promise.all(
     props.visual_reservations.host_videos.map(async (asset) => ({
       ...asset,
@@ -151,6 +157,7 @@ const stageProps = async (
     ...props,
     visual_assets: visualAssets,
     source_videos: sourceVideos,
+    broll_videos: brollVideos,
     visual_reservations: {
       ...props.visual_reservations,
       host_videos: hostVideos,

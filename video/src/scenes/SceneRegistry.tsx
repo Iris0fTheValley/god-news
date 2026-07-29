@@ -1,8 +1,10 @@
 import {SceneModuleRegistry, TemplateRegistry} from '../templates/registry';
 import {worldWarmthTemplate} from '../templates/world-warmth';
+import {BrollVideoScene} from './BrollVideoScene';
 import {EvidenceFullscreenScene} from './EvidenceFullscreenScene';
 import {
   HostEvidenceFullBleedScene,
+  HostOnlyEditorialScene,
   HostEvidenceSplitScene,
 } from './HostEvidenceScene';
 import {SourceVideoScene} from './SourceVideoScene';
@@ -14,6 +16,7 @@ const sceneRegistry = new SceneModuleRegistry([
     variants: {
       host_split_editorial: HostEvidenceSplitScene,
       host_corner_full_bleed: HostEvidenceFullBleedScene,
+      host_only_editorial: HostOnlyEditorialScene,
     },
   },
   {
@@ -23,6 +26,10 @@ const sceneRegistry = new SceneModuleRegistry([
   {
     moduleId: 'source_video',
     variants: {source_video_clean: SourceVideoScene},
+  },
+  {
+    moduleId: 'broll_video',
+    variants: {broll_video_attributed: BrollVideoScene},
   },
 ]);
 export const templateRegistry = new TemplateRegistry(

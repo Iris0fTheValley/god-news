@@ -1,4 +1,5 @@
 import type {
+  BrollVideoRenderAsset,
   EpisodeScene,
   GodNewsVideoProps,
   SourceVideoRenderAsset,
@@ -33,6 +34,14 @@ export type SourceVideoTrack = Readonly<{
   asset: SourceVideoRenderAsset;
 }>;
 
+export type BrollVideoTrack = Readonly<{
+  kind: 'broll_video';
+  from: number;
+  durationInFrames: number;
+  scene: EpisodeScene;
+  asset: BrollVideoRenderAsset;
+}>;
+
 export type TransitionTrack = Readonly<{
   kind: 'transition';
   from: number;
@@ -41,7 +50,7 @@ export type TransitionTrack = Readonly<{
   transition_type: TimelineSegment['scene_transition'];
 }>;
 
-export type SceneTrack = SegmentTrack | SourceVideoTrack;
+export type SceneTrack = SegmentTrack | SourceVideoTrack | BrollVideoTrack;
 export type RenderTrack = IntroTrack | OutroTrack | SceneTrack | TransitionTrack;
 
 export type RenderPlan = Readonly<{
@@ -102,6 +111,9 @@ export const buildRenderPlan = (
   const sourceVideosById = new Map(
     props.source_videos.map((asset) => [asset.asset_id, asset]),
   );
+  const brollVideosById = new Map(
+    props.broll_videos.map((asset) => [asset.asset_id, asset]),
+  );
 
   scenes.forEach((scene, index) => {
     if (scene.module_id === 'source_video') {
@@ -116,6 +128,19 @@ export const buildRenderPlan = (
         fps,
       );
       tracks.push({kind: 'source_video', from: cursor, durationInFrames, scene, asset});
+      cursor += durationInFrames;
+    } else if (scene.module_id === 'broll_video') {
+      const asset = scene.broll_video_asset_id
+        ? brollVideosById.get(scene.broll_video_asset_id)
+        : undefined;
+      if (!asset) {
+        throw new Error(`B-roll video scene ${scene.scene_id} has no approved asset.`);
+      }
+      const durationInFrames = positiveMillisecondsToFrames(
+        asset.out_ms - asset.in_ms,
+        fps,
+      );
+      tracks.push({kind: 'broll_video', from: cursor, durationInFrames, scene, asset});
       cursor += durationInFrames;
     } else {
       const segment = scene.narration_segment_id

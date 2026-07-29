@@ -33,6 +33,7 @@ from god_news.domain.source_transcription import (
 )
 from god_news.domain.video import (
     BgmSelection,
+    BrollVideoRenderAsset,
     CreateVideoBatch,
     LegacyVideoRenderArtifact,
     NarrationReviewDecision,
@@ -82,6 +83,24 @@ class _StaticSourceVideoLibrary:
         return [self.asset] if self.asset.story_id in story_ids else []
 
 
+class _StaticBrollVideoLibrary:
+    def __init__(self, assets: Sequence[BrollVideoRenderAsset]) -> None:
+        self.assets = assets
+        self.calls = 0
+
+    async def approved_for_stories(
+        self,
+        story_ids: Sequence[UUID],
+    ) -> Sequence[BrollVideoRenderAsset]:
+        self.calls += 1
+        return [asset for asset in self.assets if asset.story_id in story_ids]
+
+
+class _EmptyVisualAssetLibrary:
+    async def approved_for_stories(self, stories):  # type: ignore[no-untyped-def]
+        return {story.story_id: () for story in stories}
+
+
 def _source_video_asset(tmp_path: Path, story_id: UUID) -> SourceVideoRenderAsset:
     path = tmp_path / "approved-source.mp4"
     payload = b"approved-original-video"
@@ -115,6 +134,36 @@ def _source_video_asset(tmp_path: Path, story_id: UUID) -> SourceVideoRenderAsse
                 ],
             )
         ],
+    )
+
+
+def _broll_video_asset(
+    tmp_path: Path,
+    story_id: UUID,
+    segment_id: UUID,
+    *,
+    declared_payload: bytes | None = None,
+) -> BrollVideoRenderAsset:
+    path = tmp_path / f"approved-broll-{segment_id}.webm"
+    payload = b"licensed-muted-broll"
+    path.write_bytes(payload)
+    snapshot = payload if declared_payload is None else declared_payload
+    return BrollVideoRenderAsset(
+        asset_id=uuid4(),
+        story_id=story_id,
+        segment_id=segment_id,
+        local_path=str(path),
+        sha256=hashlib.sha256(snapshot).hexdigest(),
+        size_bytes=len(snapshot),
+        duration_ms=8_000,
+        width=1_024,
+        height=768,
+        in_ms=1_000,
+        out_ms=4_000,
+        source_label="NASA on Wikimedia Commons",
+        source_url="https://commons.wikimedia.org/wiki/File:Example.webm",
+        license="Public domain",
+        attribution="NASA",
     )
 
 
@@ -377,6 +426,119 @@ async def test_approved_source_video_is_snapshotted_and_compiled_after_narration
     ]
     assert len(source_inputs) == 1
     assert source_inputs[0].sha256 == asset.sha256
+
+
+@pytest.mark.asyncio
+async def test_approved_broll_is_snapshotted_and_compiled_after_bound_segment(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    story = await _done_story(stack, "Public-domain footage illustrates a solar eclipse.")
+    segment_id = story.script.segments[0].segment_id
+    asset = _broll_video_asset(tmp_path, story.story_id, segment_id)
+    library = _StaticBrollVideoLibrary([asset])
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=InMemoryVideoBatchRepository(),
+        host_renderer=PlaceholderHostRenderer(),
+        program_director=DeterministicProgramDirector(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
+        broll_video_library=library,
+        visual_asset_library=_EmptyVisualAssetLibrary(),
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Licensed B-roll", story_ids=[story.story_id])
+    )
+
+    synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
+
+    assert library.calls == 1
+    assert synthesized.remotion_props is not None
+    assert synthesized.remotion_props.broll_videos == [asset]
+    assert synthesized.remotion_props.source_videos == []
+    assert synthesized.remotion_props.episode_plan is not None
+    assert [
+        (scene.module_id.value, scene.narration_segment_id, scene.broll_video_asset_id)
+        for scene in synthesized.remotion_props.episode_plan.scenes
+    ] == [
+        ("host_evidence", segment_id, None),
+        ("broll_video", None, asset.asset_id),
+    ]
+    broll_inputs = [
+        item for item in synthesized.input_assets if item.kind.value == "broll_video"
+    ]
+    assert len(broll_inputs) == 1
+    assert broll_inputs[0].sha256 == asset.sha256
+    assert asset.audio_mode == "muted"
+
+
+@pytest.mark.asyncio
+async def test_production_visual_library_rejects_a_batch_with_no_visual_evidence(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    story = await _done_story(stack, "A story cannot render without reviewed visual evidence.")
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=InMemoryVideoBatchRepository(),
+        host_renderer=PlaceholderHostRenderer(),
+        program_director=DeterministicProgramDirector(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
+        visual_asset_library=_EmptyVisualAssetLibrary(),
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Missing visuals", story_ids=[story.story_id])
+    )
+
+    with pytest.raises(VideoBatchConflictError, match="at least one reviewed visual"):
+        await _approve_and_synthesize(service, batch.batch_id, batch.version)
+
+
+@pytest.mark.asyncio
+async def test_broll_bytes_must_match_approved_rights_snapshot(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    story = await _done_story(stack, "Licensed footage has a frozen rights snapshot.")
+    asset = _broll_video_asset(
+        tmp_path,
+        story.story_id,
+        story.script.segments[0].segment_id,
+        declared_payload=b"different-approved-bytes",
+    )
+    repository = InMemoryVideoBatchRepository()
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=repository,
+        host_renderer=PlaceholderHostRenderer(),
+        program_director=DeterministicProgramDirector(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
+        broll_video_library=_StaticBrollVideoLibrary([asset]),
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Tampered B-roll", story_ids=[story.story_id])
+    )
+
+    with pytest.raises(VideoBatchConflictError, match="B-roll bytes no longer match"):
+        await _approve_and_synthesize(service, batch.batch_id, batch.version)
+    failed = await repository.get(batch.batch_id)
+
+    assert failed.status is VideoBatchStatus.PENDING_BATCH_TTS
+    assert failed.narration_failure is not None
+    assert "B-roll bytes no longer match" in failed.narration_failure.message
+    assert failed.remotion_props is None
 
 
 @pytest.mark.asyncio

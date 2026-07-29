@@ -1,11 +1,17 @@
-import type {EpisodeSceneModule, OutputProfileId} from '@god-news/video/player';
+import type {OutputProfileId} from '@god-news/video/player';
 
 export type TemplateLabTokenPreset = 'default' | 'high_contrast';
 
 export interface TemplateLabState {
   template: string;
   version: string;
-  scene: EpisodeSceneModule;
+  /**
+   * A scene module identifier intentionally remains open-ended. The production
+   * player owns the registered module union; this lab reads it from the
+   * template at runtime so a later `broll_video` module does not require a
+   * parallel frontend enum migration.
+   */
+  scene: string;
   variant: string;
   profile: OutputProfileId;
   fixture: string;
@@ -25,7 +31,7 @@ export interface TemplateLabState {
 
 export const DEFAULT_TEMPLATE_LAB_STATE: TemplateLabState = {
   template: 'world_warmth',
-  version: '1.0.0',
+  version: '1.1.0',
   scene: 'evidence_fullscreen',
   variant: 'evidence_documentary',
   profile: 'bilibili_horizontal',
@@ -70,12 +76,7 @@ export const readTemplateLabState = (
   return {
     template: params.get('template') ?? DEFAULT_TEMPLATE_LAB_STATE.template,
     version: params.get('version') ?? DEFAULT_TEMPLATE_LAB_STATE.version,
-    scene:
-      scene === 'host_evidence' ||
-      scene === 'evidence_fullscreen' ||
-      scene === 'source_video'
-        ? scene
-        : DEFAULT_TEMPLATE_LAB_STATE.scene,
+    scene: scene ?? DEFAULT_TEMPLATE_LAB_STATE.scene,
     variant: params.get('variant') ?? DEFAULT_TEMPLATE_LAB_STATE.variant,
     profile:
       profile === 'douyin_vertical' || profile === 'bilibili_horizontal'

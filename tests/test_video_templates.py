@@ -66,10 +66,10 @@ def _manifest(batch_id, segment_id) -> ProductionManifest:
 
 def test_default_template_registry_is_versioned_and_complete() -> None:
     registry = create_default_template_registry()
-    template = registry.resolve("world_warmth", "1.0.0")
+    template = registry.resolve("world_warmth", "1.1.0")
 
     assert template.template_id == "world_warmth"
-    assert template.template_version == "1.0.0"
+    assert template.template_version == "1.1.0"
     assert set(template.default_scene_variants) == set(
         template.capabilities.supported_modules
     )
@@ -78,9 +78,23 @@ def test_default_template_registry_is_versioned_and_complete() -> None:
     } >= {
         "host_split_editorial",
         "host_corner_full_bleed",
+        "host_only_editorial",
         "evidence_documentary",
         "source_video_clean",
     }
+
+
+def test_host_only_template_variant_is_explicitly_zero_asset() -> None:
+    template = world_warmth_template()
+    variant = next(
+        item
+        for item in template.scene_variants
+        if item.variant_id == "host_only_editorial"
+    )
+
+    assert variant.module_id is EpisodeSceneModule.HOST_EVIDENCE
+    assert variant.minimum_visual_assets == 0
+    assert variant.maximum_visual_assets == 0
 
 
 def test_template_registry_rejects_duplicate_identity() -> None:

@@ -21,7 +21,7 @@
 - `visual_reservations`：角色视觉资产引用；生产可绑定按段预渲染、带诊断与哈希的 Live2D VP9 WebM；
 - `runtime_assets`：CLI 生成的浏览器可读资产绑定，业务调用方不应手写。
 
-[`example/video-props.json`](./example/video-props.json) 是旧版最小契约示例，仅用于解释历史字段。旧快照可读取和审计，但生产渲染不会静默把它迁移到当前模板。正式可渲染输入应由后端冻结，或在前端 `/template-lab` 导出当前 `world_warmth@1.0.0` 的 validated props。
+[`example/video-props.json`](./example/video-props.json) 是旧版最小契约示例，仅用于解释历史字段。旧快照可读取和审计，但生产渲染不会静默把它迁移到当前模板。正式可渲染输入应由后端冻结，或在前端 `/template-lab` 导出当前 `world_warmth@1.1.0` 的 validated props。
 
 ## 使用
 

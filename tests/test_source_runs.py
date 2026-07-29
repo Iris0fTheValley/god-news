@@ -23,7 +23,7 @@ from god_news.sources.collectors.models import (
     SourceCollectionRun,
 )
 from god_news.sources.collectors.rate_limited import RateLimitedSourceCollectorGateway
-from god_news.sources.models import RawGuardianItem, SourceName
+from god_news.sources.models import SOURCE_ORDER, RawGuardianItem, SourceName
 from god_news.sources.run_models import SourceRun, SourceRunRequest, SourceRunStatus
 
 from .conftest import Stack
@@ -47,7 +47,7 @@ class StaticCollectorGateway:
         self.run = run
 
     def readiness(self) -> tuple[CollectorReadiness, ...]:
-        sources: tuple[SourceName, ...] = ("dazhong", "reddit", "guardian", "pikabu")
+        sources: tuple[SourceName, ...] = SOURCE_ORDER
         return tuple(
             CollectorReadiness(
                 source=source,
@@ -330,7 +330,7 @@ async def test_source_run_api_starts_and_reports_background_progress(stack: Stac
 
             readiness = await client.get("/api/v1/sources/collectors")
             assert readiness.status_code == 200
-            assert len(readiness.json()["collectors"]) == 4
+            assert len(readiness.json()["collectors"]) == len(SOURCE_ORDER)
 
             diagnostic = await client.post("/api/v1/sources/reddit/diagnostics")
             assert diagnostic.status_code == 200

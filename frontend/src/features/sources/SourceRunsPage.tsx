@@ -43,7 +43,7 @@ function formatElapsed(startedAt?: string | null, finishedAt?: string | null): s
 
 function initialRequest(): SourceRunRequest {
   return {
-    source: 'guardian',
+    source: 'nasa',
     limit: 10,
     target_language: 'zh-CN',
     style: 'clear, accurate short-video narration',
@@ -321,7 +321,7 @@ export function SourceRunsPage() {
         <dialog className="create-drawer" open onCancel={(event) => { event.preventDefault(); setStartOpen(false); }}>
           <div className="panel-header"><div><p className="eyebrow">START COLLECTION</p><h2>开始采集</h2></div><button className="icon-button" type="button" onClick={() => setStartOpen(false)} aria-label="关闭">✕</button></div>
           <form className="panel-body form-grid" onSubmit={(event) => { event.preventDefault(); startMutation.mutate(request); }}>
-            <label className="field"><span>来源</span><select className="select" value={request.source} onChange={(event) => setRequest({...request, source: event.target.value as SourceRunRequest['source']})}><option value="guardian">Guardian</option><option value="reddit">Reddit</option><option value="dazhong">大众网</option><option value="pikabu">Pikabu</option></select></label>
+            <label className="field"><span>来源</span><select className="select" value={request.source} onChange={(event) => setRequest({...request, source: event.target.value as SourceRunRequest['source']})}><option value="nasa">NASA Official RSS</option><option value="guardian">Guardian</option><option value="reddit">Reddit</option><option value="dazhong">大众网</option><option value="pikabu">Pikabu</option></select></label>
             <label className="field"><span>条数上限</span><input className="input" type="number" min={1} max={50} value={request.limit} onChange={(event) => setRequest({...request, limit: Number(event.target.value)})} /></label>
             <label className="field"><span>目标语言</span><input className="input" value={request.target_language} onChange={(event) => setRequest({...request, target_language: event.target.value})} /></label>
             <label className="field"><span>请求人</span><input className="input" value={request.requested_by} onChange={(event) => setRequest({...request, requested_by: event.target.value})} /></label>

@@ -15,7 +15,7 @@ from god_news.sources.collectors.rate_limited import (
     MIN_SOURCE_COLLECTION_INTERVAL_SECONDS,
     RateLimitedSourceCollectorGateway,
 )
-from god_news.sources.models import SourceName
+from god_news.sources.models import SOURCE_ORDER, SourceName
 
 
 @dataclass(slots=True)
@@ -37,7 +37,7 @@ class RecordingCollectorGateway:
         self.calls: list[tuple[SourceName, float | None]] = []
 
     def readiness(self) -> tuple[CollectorReadiness, ...]:
-        sources: tuple[SourceName, ...] = ("dazhong", "reddit", "guardian", "pikabu")
+        sources: tuple[SourceName, ...] = SOURCE_ORDER
         return tuple(
             CollectorReadiness(
                 source=source,

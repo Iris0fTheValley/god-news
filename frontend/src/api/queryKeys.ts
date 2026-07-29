@@ -1,10 +1,15 @@
 export const queryKeys = {
-  stories: (status?: string) => ['stories', status ?? 'all'] as const,
+  stories: (status?: string) => (
+    status === undefined ? ['stories'] as const : ['stories', {status}] as const
+  ),
   story: (storyId: string) => ['story', storyId] as const,
   reviews: (storyId: string) => ['story', storyId, 'reviews'] as const,
   transitions: (storyId: string) => ['story', storyId, 'transitions'] as const,
   manifest: (storyId: string) => ['story', storyId, 'manifest'] as const,
   visualAssets: (storyId: string) => ['story', storyId, 'visual-assets'] as const,
+  visualDiscoveryAssets: (storyId: string) => (
+    ['story', storyId, 'visual-discovery-assets'] as const
+  ),
   sourceMedia: (storyId: string) => ['story', storyId, 'source-media'] as const,
   sourceTranscriptions: (storyId: string, artifactId: string) => (
     ['story', storyId, 'source-media', artifactId, 'transcriptions'] as const

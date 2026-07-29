@@ -13,6 +13,7 @@ from god_news.sources.models import (
 from god_news.sources.normalizers import (
     DazhongSourceNormalizer,
     GuardianSourceNormalizer,
+    NasaSourceNormalizer,
     PikabuSourceNormalizer,
     RedditSourceNormalizer,
 )
@@ -75,4 +76,5 @@ def create_default_source_registry() -> SourceNormalizerRegistry:
     registry.register(RedditSourceNormalizer())
     registry.register(GuardianSourceNormalizer())
     registry.register(PikabuSourceNormalizer())
+    registry.register(NasaSourceNormalizer())
     return registry

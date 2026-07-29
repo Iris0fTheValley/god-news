@@ -69,6 +69,9 @@ class Database:
             source_transcription_repository as _source_transcription,  # noqa: F401
         )
         from god_news.infrastructure import video_repository as _video_repository  # noqa: F401
+        from god_news.infrastructure import (  # noqa: F401
+            visual_discovery_repository as _visual_discovery_repository,
+        )
         from god_news.infrastructure import visual_repository as _visual_repository  # noqa: F401
 
         async with self.engine.begin() as connection:
@@ -168,14 +171,18 @@ class Database:
             return
 
         legacy_rows = (
-            await connection.execute(
-                text(
-                    "SELECT story_id, version FROM stories "
-                    "WHERE status = :status AND script_json IS NOT NULL AND audio_json IS NULL"
-                ),
-                {"status": "PENDING_SECOND_REVIEW"},
+            (
+                await connection.execute(
+                    text(
+                        "SELECT story_id, version FROM stories "
+                        "WHERE status = :status AND script_json IS NOT NULL AND audio_json IS NULL"
+                    ),
+                    {"status": "PENDING_SECOND_REVIEW"},
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         if not legacy_rows:
             return
 
@@ -235,13 +242,17 @@ class Database:
             return
 
         rows = (
-            await connection.execute(
-                text(
-                    "SELECT story_id, status, preferences_json, script_json, audio_json "
-                    "FROM stories"
+            (
+                await connection.execute(
+                    text(
+                        "SELECT story_id, status, preferences_json, script_json, audio_json "
+                        "FROM stories"
+                    )
                 )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         now = datetime.now(UTC)
         for row in rows:
             preferences, preference_changes = Database._normalize_emotions_in_payload(

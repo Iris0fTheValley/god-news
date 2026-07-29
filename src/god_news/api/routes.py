@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse
 
 from god_news.api.dependencies import get_container
-from god_news.api.schemas import Liveness, ProblemDetail
+from god_news.api.schemas import CreateStoryRequest, Liveness, ProblemDetail
 from god_news.container import AppContainer
 from god_news.domain.enums import StoryStatus
 from god_news.domain.models import (
@@ -98,8 +98,9 @@ async def classification_metrics(container: ContainerDependency) -> Classificati
     operation_id="createStory",
     tags=["stories"],
 )
-async def ingest_story(request: IngestRequest, container: ContainerDependency) -> Story:
-    return await container.workflow.ingest(request, trace_id=UUID(trace_id_var.get()))
+async def ingest_story(request: CreateStoryRequest, container: ContainerDependency) -> Story:
+    command = IngestRequest(source=request.source, target_language=request.target_language)
+    return await container.workflow.ingest(command, trace_id=UUID(trace_id_var.get()))
 
 
 @router.post(

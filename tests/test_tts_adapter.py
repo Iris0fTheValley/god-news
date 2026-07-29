@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
@@ -424,6 +425,27 @@ def _response_wav_bytes() -> bytes:
 
 
 @pytest.mark.asyncio
+async def test_tts_vendor_runtime_forces_utf8_even_in_isolated_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    synthesizer = _make_synthesizer(tmp_path)
+    captured: tuple[str, ...] = ()
+
+    async def fake_create_subprocess_exec(*command: str, **_: Any) -> Any:
+        nonlocal captured
+        captured = command
+        raise OSError("expected test stop")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    with pytest.raises(ConfigurationError, match="runtime could not be started"):
+        await synthesizer._start_server(tmp_path / "runtime.yaml")
+
+    assert captured[1:4] == ("-I", "-X", "utf8")
+
+
+@pytest.mark.asyncio
 async def test_tts_rejection_reports_bounded_vendor_message_without_internal_exception(
     tmp_path: Path,
 ) -> None:
@@ -444,6 +466,7 @@ async def test_tts_rejection_reports_bounded_vendor_message_without_internal_exc
         )
 
     assert "Vendor message: text_lang is required" in str(caught.value)
+    assert "Vendor detail: <local-path>" in str(caught.value)
     assert "private" not in str(caught.value)
     assert "secret-value" not in str(caught.value)
 

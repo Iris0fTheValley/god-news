@@ -6,7 +6,7 @@ import {useNavigate} from 'react-router-dom';
 
 import {createStory} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
-import type {IngestRequest} from '../../api/types';
+import type {CreateStoryRequest} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 
 interface FormValues {
@@ -17,15 +17,6 @@ interface FormValues {
   language: string;
   targetLanguage: string;
 }
-
-const DEFAULT_INGEST_PREFERENCES = {
-  style: 'clear, accurate short-video narration',
-  target_duration_seconds: 20,
-  speaker_id: 'narrator',
-  emotion: 'happiness' as const,
-  speed: 1,
-  pitch: 0,
-};
 
 export function CreateStoryForm() {
   const [open, setOpen] = useState(false);
@@ -64,9 +55,8 @@ export function CreateStoryForm() {
   const submit = handleSubmit((values) => {
     const common = {
       target_language: values.targetLanguage,
-      ...DEFAULT_INGEST_PREFERENCES,
     };
-    const request: IngestRequest =
+    const request: CreateStoryRequest =
       values.kind === 'url'
         ? {source: {kind: 'url', url: values.url}, ...common}
         : {

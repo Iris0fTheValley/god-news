@@ -34,9 +34,9 @@ import {
 const templates = [worldWarmthTemplate] as const;
 const overlayOptions = [
   ['safeArea', '安全区'],
-  ['assetBounds', '素材边界'],
+  ['assetBounds', '视觉素材边界'],
   ['hostBounds', '主持人槽位'],
-  ['captionBounds', '字幕区域'],
+  ['captionBounds', '字幕安全区'],
 ] as const satisfies ReadonlyArray<
   readonly [
     'safeArea' | 'assetBounds' | 'hostBounds' | 'captionBounds',
@@ -58,7 +58,7 @@ const downloadJson = (props: GodNewsVideoProps): void => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `template-lab-${props.template?.template_id ?? 'fixture'}.json`;
+  anchor.download = `scene-visual-system-${props.template?.template_id ?? 'fixture'}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
 };
@@ -133,6 +133,20 @@ export function TemplateLabPage() {
   const layout = props && scene ? compileSceneLayout(props, scene) : null;
   const activeVariant = scene?.variant_id ?? null;
   const activeAsset = props?.visual_assets[0];
+  const activeVariantDefinition = template.scene_variants.find(
+    (variant) => variant.variant_id === activeVariant,
+  );
+  const activeProfileLayout = template.layout_preset.profiles.find(
+    (candidate) => candidate.profile_id === state.profile,
+  );
+  const visualAssetTypes = Array.from(
+    new Set(
+      template.scene_variants.flatMap((variant) =>
+        variant.asset_requirements.map((requirement) => requirement.asset_type),
+      ),
+    ),
+  );
+  const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
   const captionText =
     state.caption ||
     selectedFixture?.translatedCaption ||
@@ -241,7 +255,9 @@ export function TemplateLabPage() {
     const nextFixture = TEMPLATE_LAB_FIXTURES.find(
       (fixture) => fixture.moduleId === nextScene,
     );
-    const nextVariant = template.default_scene_variants[nextScene] ?? '';
+    const nextVariant = template.scene_variants.find(
+      (variant) => variant.module_id === nextScene,
+    )?.variant_id ?? '';
     updateState({
       scene: nextScene,
       variant: nextVariant,
@@ -296,9 +312,12 @@ export function TemplateLabPage() {
     <div className="page template-lab-page">
       <div className="page-heading template-lab-heading">
         <div>
-          <p className="eyebrow">PRODUCTION COMPONENT HARNESS</p>
-          <h1>模板实验室</h1>
-          <p>使用生产 Remotion Composition、模板快照、布局编译和场景注册表进行可复现验收。</p>
+          <p className="eyebrow">PRODUCTION SCENE SYSTEM INSPECTOR</p>
+          <h1>场景与视觉系统实验室</h1>
+          <p>
+            以生产 GodNewsShortVideo、模板注册表和布局编译器为唯一预览来源，
+            检查场景模块、输出比例、设计令牌、槽位与素材契约。
+          </p>
         </div>
         <div className="template-lab-heading-actions">
           <button
@@ -306,7 +325,7 @@ export function TemplateLabPage() {
             type="button"
             onClick={() => void copyUrl()}
           >
-            <Clipboard size={16} aria-hidden="true" /> 复制预览 URL
+            <Clipboard size={16} aria-hidden="true" /> 复制可复现 URL
           </button>
           <button
             className="button secondary"
@@ -316,7 +335,7 @@ export function TemplateLabPage() {
               if (props) downloadJson(props);
             }}
           >
-            <Download size={16} aria-hidden="true" /> 导出 validated props
+            <Download size={16} aria-hidden="true" /> 导出已校验 Props
           </button>
         </div>
       </div>
@@ -324,27 +343,27 @@ export function TemplateLabPage() {
       {notice ? <p className="pending-note" role="status">{notice}</p> : null}
 
       <div className="template-lab-grid">
-        <aside className="template-lab-panel template-lab-catalog" aria-label="模板目录">
+        <aside className="template-lab-panel template-lab-catalog" aria-label="场景系统目录">
           <p className="eyebrow">CATALOG</p>
-          <h2>选择器</h2>
+          <h2>场景与输出</h2>
           <label className="field">
-            <span>模板</span>
+            <span>视觉系统</span>
             <select className="select" value={state.template} disabled>
               <option value={template.template_id}>{template.display_name}</option>
             </select>
           </label>
           <label className="field">
-            <span>模板版本</span>
+            <span>系统版本</span>
             <select className="select" value={state.version} disabled>
               <option value={template.template_version}>{template.template_version}</option>
             </select>
           </label>
           <label className="field">
-            <span>场景模块</span>
+            <span>场景模块（生产注册表）</span>
             <select
               className="select"
               value={state.scene}
-              onChange={(event) => changeScene(event.target.value as TemplateLabState['scene'])}
+              onChange={(event) => changeScene(event.target.value)}
             >
               {template.capabilities.supported_modules.map((moduleId) => (
                 <option key={moduleId} value={moduleId}>{moduleId}</option>
@@ -352,7 +371,7 @@ export function TemplateLabPage() {
             </select>
           </label>
           <label className="field">
-            <span>场景变体</span>
+            <span>模块变体</span>
             <select
               className="select"
               value={state.variant}
@@ -372,7 +391,7 @@ export function TemplateLabPage() {
             </select>
           </label>
           <label className="field">
-            <span>输出比例</span>
+            <span>输出配置</span>
             <select
               className="select"
               value={state.profile}
@@ -386,7 +405,7 @@ export function TemplateLabPage() {
             </select>
           </label>
           <label className="field">
-            <span>Fixture</span>
+            <span>已校验素材样本</span>
             <select
               className="select"
               value={state.fixture}
@@ -427,12 +446,12 @@ export function TemplateLabPage() {
               })}
             >
               <option value="default">默认温暖编辑</option>
-              <option value="high_contrast">高对比验收</option>
+              <option value="high_contrast">高对比可读性验收</option>
             </select>
           </label>
         </aside>
 
-        <main className="template-lab-stage" aria-label="真实 Remotion 预览">
+        <main className="template-lab-stage" aria-label="生产 Remotion 场景预览">
           <div className="template-lab-stage-toolbar">
             <div className="template-lab-playback">
               <button
@@ -440,7 +459,7 @@ export function TemplateLabPage() {
                 type="button"
                 data-testid="template-lab-play-pause"
                 disabled={!fixtureResult.available || playbackState === 'pausing'}
-                aria-label={playing ? '暂停' : '播放'}
+                aria-label={playing ? '暂停预览' : '播放预览'}
                 onClick={() => {
                   if (playing) void pauseAtCurrentFrame();
                   else playerRef.current?.play();
@@ -463,7 +482,7 @@ export function TemplateLabPage() {
               <span className="metadata" data-testid="template-lab-current-frame">FRAME {currentFrame} / {durationInFrames - 1}</span>
             </div>
             <label className="template-lab-zoom">
-              <span>缩放 {Math.round(state.zoom * 100)}%</span>
+              <span>预览缩放 {Math.round(state.zoom * 100)}%</span>
               <input
                 type="range"
                 min="0.2"
@@ -475,7 +494,7 @@ export function TemplateLabPage() {
             </label>
           </div>
 
-          <div className="template-lab-keyframes" aria-label="关键帧">
+          <div className="template-lab-keyframes" aria-label="关键帧控制">
             {[0, Math.round((durationInFrames - 1) / 2), durationInFrames - 1].map(
               (frame, index) => (
                 <button
@@ -485,7 +504,7 @@ export function TemplateLabPage() {
                   disabled={!fixtureResult.available}
                   onClick={() => seekTo(frame)}
                 >
-                  {index === 0 ? '开始' : index === 1 ? '中点' : '结束'} · {frame}
+                  {index === 0 ? '开始帧' : index === 1 ? '中间帧' : '结束帧'} · {frame}
                 </button>
               ),
             )}
@@ -521,7 +540,7 @@ export function TemplateLabPage() {
                   errorFallback={({error}: {error: Error}) => (
                     <div className="template-lab-player-error" role="alert">
                       <AlertTriangle size={24} />
-                      <strong>生产组件渲染失败</strong>
+                      <strong>生产场景渲染失败</strong>
                       <span>{error.message}</span>
                     </div>
                   )}
@@ -538,7 +557,7 @@ export function TemplateLabPage() {
             ) : (
               <div className="template-lab-unavailable" role="status">
                 <AlertTriangle size={28} />
-                <h3>该状态不可预览</h3>
+                <h3>该场景状态不可预览</h3>
                 {fixtureResult.diagnostics.map((diagnostic) => (
                   <p key={diagnostic}>{diagnostic}</p>
                 ))}
@@ -547,11 +566,11 @@ export function TemplateLabPage() {
           </div>
         </main>
 
-        <aside className="template-lab-panel template-lab-inspector" aria-label="属性和诊断">
+        <aside className="template-lab-panel template-lab-inspector" aria-label="场景契约与诊断">
           <p className="eyebrow">INSPECTOR</p>
-          <h2>属性与诊断</h2>
+          <h2>场景契约与诊断</h2>
           <label className="field">
-            <span>节目标题</span>
+            <span>场景标题文本</span>
             <textarea
               className="textarea compact"
               value={titleText}
@@ -560,7 +579,7 @@ export function TemplateLabPage() {
             />
           </label>
           <label className="field">
-            <span>中文字幕</span>
+            <span>翻译字幕</span>
             <textarea
               className="textarea"
               value={captionText}
@@ -584,14 +603,14 @@ export function TemplateLabPage() {
                 }
               }}
             />
-            <span>显示真实主持人</span>
+            <span>显示已预渲染主持人</span>
           </label>
           <label className="field">
-            <span>Live2D 预渲染浏览器 URL</span>
+            <span>Live2D 预渲染媒体 URL</span>
             <input
               className="input"
               type="url"
-              placeholder="未提供时主持人 fixture 明确不可用"
+              placeholder="未提供时，主持人场景明确标记为不可用"
               value={state.hostVideoUrl}
               disabled={!state.hostVisible}
               onChange={(event) => updateState({hostVideoUrl: event.target.value})}
@@ -599,7 +618,7 @@ export function TemplateLabPage() {
           </label>
 
           <fieldset className="template-lab-overlay-controls">
-            <legend>诊断覆盖层</legend>
+            <legend>布局诊断覆盖层</legend>
             {overlayOptions.map(([key, label]) => (
               <label className="checkbox-field" key={key}>
                 <input
@@ -615,14 +634,19 @@ export function TemplateLabPage() {
           </fieldset>
 
           <dl className="template-lab-diagnostics">
-            <div><dt>模板</dt><dd>{template.template_id}@{template.template_version}</dd></div>
+            <div><dt>视觉系统</dt><dd>{template.template_id}@{template.template_version}</dd></div>
             <div><dt>场景模块</dt><dd>{scene?.module_id ?? state.scene}</dd></div>
-            <div><dt>场景变体</dt><dd>{activeVariant ?? state.variant}</dd></div>
+            <div><dt>模块变体</dt><dd>{activeVariant ?? state.variant}</dd></div>
             <div><dt>输出配置</dt><dd>{state.profile}</dd></div>
             <div><dt>分辨率</dt><dd>{profile ? `${profile.width}×${profile.height}` : '不可用'}</dd></div>
             <div><dt>FPS</dt><dd>{profile?.fps ?? '—'}</dd></div>
-            <div><dt>素材 ID</dt><dd>{activeAsset?.asset_id ?? '不可用'}</dd></div>
-            <div><dt>素材类型</dt><dd>{activeAsset?.asset_type ?? '不可用'}</dd></div>
+            <div><dt>安全区</dt><dd>{layout ? `${formatPercent(layout.safeArea.width)} × ${formatPercent(layout.safeArea.height)}` : '等待布局编译'}</dd></div>
+            <div><dt>主持人槽位</dt><dd>{activeVariantDefinition?.supported_host_slots.join(', ') || '此变体不支持主持人'}</dd></div>
+            <div><dt>视觉素材类型</dt><dd>{visualAssetTypes.join(', ') || '该模块不读取静态视觉素材'}</dd></div>
+            <div><dt>当前素材</dt><dd>{activeAsset ? `${activeAsset.asset_type} · ${activeAsset.asset_id}` : '不可用'}</dd></div>
+            <div><dt>媒体适配</dt><dd>{layout?.mediaFit ?? '等待布局编译'}</dd></div>
+            <div><dt>设计令牌</dt><dd>{template.design_tokens.background} / {template.design_tokens.foreground} / {template.design_tokens.accent}</dd></div>
+            <div><dt>配置安全边距</dt><dd>{activeProfileLayout ? `上 ${formatPercent(activeProfileLayout.safe_area_top)} · 右 ${formatPercent(activeProfileLayout.safe_area_right)} · 下 ${formatPercent(activeProfileLayout.safe_area_bottom)} · 左 ${formatPercent(activeProfileLayout.safe_area_left)}` : '不可用'}</dd></div>
             <div><dt>当前帧</dt><dd>{currentFrame}</dd></div>
           </dl>
 
@@ -632,7 +656,7 @@ export function TemplateLabPage() {
                 <p key={diagnostic}><AlertTriangle size={15} /> {diagnostic}</p>
               ))}
             </div>
-          ) : <p className="template-lab-ready">生产 Schema 与模板能力检查通过。</p>}
+          ) : <p className="template-lab-ready">生产 Schema、场景注册表与布局能力检查通过。</p>}
 
           <div className="template-lab-dev-actions">
             <button
@@ -641,7 +665,7 @@ export function TemplateLabPage() {
               onClick={() => {
                 const encodedUrl = window.btoa(window.location.href);
                 void copyDevelopmentCommand(
-                  `pnpm --dir frontend capture:template-lab -- --url-base64 "${encodedUrl}" --output "../outputs/template-lab/manual-frame-${currentFrame}.png"`,
+                  `pnpm --dir frontend capture:template-lab -- --url-base64 "${encodedUrl}" --output "../outputs/template-lab/scene-frame-${currentFrame}.png"`,
                   '真实 Edge 截图命令已复制。',
                 );
               }}
@@ -660,7 +684,7 @@ export function TemplateLabPage() {
             >
               <ScanLine size={16} /> 复制视觉回归命令
             </button>
-            <p className="field-hint">命令使用 Microsoft Edge 加载当前生产 Remotion Player；浏览器错误、媒体解码失败或字幕实际溢出会使视觉回归失败。</p>
+            <p className="field-hint">命令使用 Microsoft Edge 加载当前生产 Remotion Player；浏览器错误、媒体解码失败或字幕实际溢出都会使视觉回归失败。未注册的未来模块（例如 broll_video）会保留在 URL 中，并在生产注册表提供 fixture 后自动可选。</p>
           </div>
         </aside>
       </div>

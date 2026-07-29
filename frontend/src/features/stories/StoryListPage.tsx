@@ -41,7 +41,7 @@ export function StoryListPage() {
     queryFn: () => listStories(status),
     refetchInterval: (state) => {
       const items = state.state.data;
-      return items?.some((story) => ['PROCESSING_SCRIPT', 'SCRIPT_READY'].includes(story.status))
+      return items?.some((story) => ['PROCESSING_SCRIPT', 'PROCESSING_TTS'].includes(story.status))
         ? 2_000
         : false;
     },
@@ -49,6 +49,17 @@ export function StoryListPage() {
   const metricsQuery = useQuery({
     queryKey: queryKeys.classificationMetrics(),
     queryFn: getClassificationMetrics,
+  });
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const visibleStories = query.data?.filter((story) => {
+    if (normalizedSearch === '') return true;
+    return [
+      story.title,
+      story.source.title,
+      story.source.source_uri,
+      story.provenance?.source,
+      story.translation?.summary,
+    ].some((value) => value?.toLocaleLowerCase().includes(normalizedSearch) === true);
   });
 
   return (
@@ -94,7 +105,13 @@ export function StoryListPage() {
           />
         </div>
         <div className="queue-count metadata">
-          <span>{query.data === undefined ? '—' : String(query.data.length)} 条</span>
+          <span>
+            {visibleStories === undefined
+              ? '—'
+              : normalizedSearch === ''
+                ? `${String(visibleStories.length)} 条`
+                : `${String(visibleStories.length)} / ${String(query.data?.length ?? 0)} 条`}
+          </span>
           <span>
             AI 分类接受率{' '}
             {metricsQuery.data?.accuracy == null
@@ -115,14 +132,18 @@ export function StoryListPage() {
         </div>
       ) : query.error !== null ? (
         <ApiErrorNotice error={query.error} onRetry={() => void query.refetch()} />
-      ) : query.data?.length === 0 ? (
+      ) : visibleStories?.length === 0 ? (
         <div className="empty-state">
-          <h2>这个筛选下还没有故事</h2>
-          <p>新建一条 URL 或文本，系统会把它送到人工初审门前。</p>
+          <h2>{normalizedSearch === '' ? '这个筛选下还没有故事' : '没有匹配的故事'}</h2>
+          <p>
+            {normalizedSearch === ''
+              ? '新建一条 URL 或文本，系统会把它送到人工初审门前。'
+              : '尝试搜索标题、来源、来源 URL 或摘要中的其他关键词。'}
+          </p>
         </div>
       ) : (
         <div className="story-list">
-          {query.data?.map((story) => (
+          {visibleStories?.map((story) => (
             <StoryCard
               key={story.story_id ?? story.trace_id}
               story={story}

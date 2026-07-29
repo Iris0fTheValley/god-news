@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   {to: '/source-runs', label: '采集记录', icon: FolderOpen},
   {to: '/bgm', label: 'BGM', icon: Music},
   {to: '/ops', label: '运维日志', icon: Wrench},
-  {to: '/template-lab', label: '模板实验室', icon: LayoutTemplate},
+  {to: '/template-lab', label: '场景与视觉系统', icon: LayoutTemplate},
 ];
 
 function Shell() {

@@ -1,20 +1,6 @@
-from god_news.sources.collectors.factory import SourceCollectorRegistry, create_source_collectors
-from god_news.sources.collectors.models import (
-    CollectionAttempt,
-    CollectionErrorEvidence,
-    CollectorReadiness,
-    SourceCollectionRun,
-)
-from god_news.sources.collectors.protocols import SourceCollector
-from god_news.sources.collectors.rate_limited import RateLimitedSourceCollectorGateway
+"""Network collection adapters.
 
-__all__ = [
-    "CollectionAttempt",
-    "CollectionErrorEvidence",
-    "CollectorReadiness",
-    "RateLimitedSourceCollectorGateway",
-    "SourceCollectionRun",
-    "SourceCollector",
-    "SourceCollectorRegistry",
-    "create_source_collectors",
-]
+Import concrete adapters from their defining modules. Keeping this package
+initializer side-effect free prevents the connector and compatibility layers
+from forming an import cycle.
+"""

@@ -6,6 +6,7 @@ import httpx
 
 from god_news.config import Settings
 from god_news.infrastructure.fetchers.chain import FetcherChain
+from god_news.sources.collectors.connector_adapter import NasaConnectorCollectorAdapter
 from god_news.sources.collectors.guardian import GuardianContentAPICollector
 from god_news.sources.collectors.models import (
     CollectorDiagnostic,
@@ -18,7 +19,9 @@ from god_news.sources.collectors.public_pages import (
     PikabuPublicPageCollector,
 )
 from god_news.sources.collectors.reddit import RedditOAuthCollector
-from god_news.sources.models import SourceName
+from god_news.sources.connectors.nasa import NasaRssConnector
+from god_news.sources.connectors.registry import SourceConnectorRegistry
+from god_news.sources.models import SOURCE_ORDER, SourceName
 
 
 class SourceCollectorRegistry:
@@ -28,13 +31,12 @@ class SourceCollectorRegistry:
             if collector.source in self._collectors:
                 raise ValueError(f"collector already registered for {collector.source!r}")
             self._collectors[collector.source] = collector
-        expected: set[SourceName] = {"dazhong", "reddit", "guardian", "pikabu"}
+        expected = set(SOURCE_ORDER)
         if set(self._collectors) != expected:
-            raise ValueError("collector registry requires each fixed source exactly once")
+            raise ValueError("collector registry requires every registered source exactly once")
 
     def readiness(self) -> tuple[CollectorReadiness, ...]:
-        order: tuple[SourceName, ...] = ("dazhong", "reddit", "guardian", "pikabu")
-        return tuple(self._collectors[source].readiness() for source in order)
+        return tuple(self._collectors[source].readiness() for source in SOURCE_ORDER)
 
     async def collect(
         self,
@@ -57,6 +59,7 @@ def create_source_collectors(
     client: httpx.AsyncClient,
     fetcher: FetcherChain,
 ) -> SourceCollectorRegistry:
+    connectors = create_source_connector_registry(settings=settings, client=client)
     return SourceCollectorRegistry(
         (
             DazhongPublicPageCollector(
@@ -98,6 +101,29 @@ def create_source_collectors(
                 public_page_use_authorized=settings.source_pikabu_public_page_use_authorized,
                 default_limit=settings.source_pikabu_collection_limit,
                 allowed_host_suffixes=settings.source_pikabu_allowed_host_suffixes,
+            ),
+            NasaConnectorCollectorAdapter(
+                connectors.connector("nasa"),
+                default_limit=settings.source_nasa_collection_limit,
+            ),
+        )
+    )
+
+
+def create_source_connector_registry(
+    *,
+    settings: Settings,
+    client: httpx.AsyncClient,
+) -> SourceConnectorRegistry:
+    """Build formal discovery connectors independently from ingestion adapters."""
+
+    return SourceConnectorRegistry(
+        (
+            NasaRssConnector(
+                client=client,
+                endpoint=settings.source_nasa_feed_url,
+                enabled=settings.source_nasa_enabled,
+                max_retries=settings.source_nasa_max_retries,
             ),
         )
     )

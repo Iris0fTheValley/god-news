@@ -21,7 +21,14 @@ NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 Sha256Hex = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 
 
-SourceName = Literal["dazhong", "reddit", "guardian", "pikabu"]
+SourceName = Literal["dazhong", "reddit", "guardian", "pikabu", "nasa"]
+SOURCE_ORDER: tuple[SourceName, ...] = (
+    "dazhong",
+    "reddit",
+    "guardian",
+    "pikabu",
+    "nasa",
+)
 
 
 class SourcePlatform:
@@ -35,6 +42,7 @@ class SourcePlatform:
     REDDIT = "reddit"
     GUARDIAN = "guardian"
     PIKABU = "pikabu"
+    NASA = "nasa"
 
 
 class StrictSourceModel(BaseModel):
@@ -259,8 +267,46 @@ class RawPikabuItem(RawSourceBase):
     publisher: NonBlankStr = "Pikabu"
 
 
+class RawNasaImage(StrictSourceModel):
+    kind: Literal["image"] = "image"
+    url: AnyHttpUrl
+    role: Literal["main", "body", "thumbnail"] = "body"
+    alt_text: str | None = None
+    credit: str | None = None
+    width: int | None = Field(default=None, gt=0)
+    height: int | None = Field(default=None, gt=0)
+
+
+class RawNasaVideo(StrictSourceModel):
+    kind: Literal["video"] = "video"
+    url: AnyHttpUrl
+    poster_url: AnyHttpUrl | None = None
+    caption: str | None = None
+    credit: str | None = None
+    duration_ms: int | None = Field(default=None, gt=0)
+
+
+RawNasaMedia = Annotated[RawNasaImage | RawNasaVideo, Field(discriminator="kind")]
+
+
+class RawNasaItem(RawSourceBase):
+    """Typed compatibility contract emitted by the NASA RSS connector adapter."""
+
+    source: Literal["nasa"] = "nasa"
+    article_id: NonBlankStr
+    url: AnyHttpUrl
+    title: NonBlankStr
+    body: NonBlankStr
+    author: str | None = None
+    published_at: AwareDatetime
+    categories: list[NonBlankStr] = Field(default_factory=list, max_length=100)
+    media: list[RawNasaMedia] = Field(default_factory=list, max_length=100)
+    language: NonBlankStr = "en-US"
+    publisher: NonBlankStr = "NASA"
+
+
 RawSourceItem = Annotated[
-    RawDazhongItem | RawRedditItem | RawGuardianItem | RawPikabuItem,
+    RawDazhongItem | RawRedditItem | RawGuardianItem | RawPikabuItem | RawNasaItem,
     Field(discriminator="source"),
 ]
 RAW_SOURCE_ITEM_ADAPTER: TypeAdapter[RawSourceItem] = TypeAdapter(RawSourceItem)
@@ -372,8 +418,18 @@ class PikabuSourceFields(StrictSourceModel):
     block_count: int = Field(ge=1)
 
 
+class NasaSourceFields(StrictSourceModel):
+    source: Literal["nasa"] = "nasa"
+    article_id: NonBlankStr
+    categories: list[NonBlankStr] = Field(default_factory=list, max_length=100)
+
+
 SourceSpecificFields = Annotated[
-    DazhongSourceFields | RedditSourceFields | GuardianSourceFields | PikabuSourceFields,
+    DazhongSourceFields
+    | RedditSourceFields
+    | GuardianSourceFields
+    | PikabuSourceFields
+    | NasaSourceFields,
     Field(discriminator="source"),
 ]
 

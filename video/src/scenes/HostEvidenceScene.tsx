@@ -134,3 +134,90 @@ export const HostEvidenceSplitScene = (props: EpisodeSceneRendererProps) => (
 export const HostEvidenceFullBleedScene = (
   props: EpisodeSceneRendererProps,
 ) => <HostEvidenceBase {...props} fullBleed />;
+
+export const HostOnlyEditorialScene = ({
+  props,
+  track,
+}: EpisodeSceneRendererProps) => {
+  if (track.kind !== 'segment') {
+    throw new Error('host_only_editorial requires a narration segment track');
+  }
+  const {width, height} = useVideoConfig();
+  const horizontal = width > height;
+  const template = props.template;
+  if (!template) {
+    throw new Error('host_only_editorial requires a versioned template.');
+  }
+  const tokens = template.design_tokens;
+  const layout = compileSceneLayout(props, track.scene);
+  const captionFont = Math.round(
+    (horizontal ? 39 : 49) * tokens.caption_scale,
+  );
+
+  return (
+    <AbsoluteFill
+      data-scene-module="host_evidence"
+      data-scene-variant={layout.variant.variant_id}
+      style={{
+        background: [
+          `radial-gradient(circle at 70% 18%, ${tokens.accent}30, transparent 34%)`,
+          `radial-gradient(circle at 20% 82%, ${tokens.signal}1f, transparent 30%)`,
+          tokens.background,
+        ].join(', '),
+        color: tokens.foreground,
+        fontFamily: tokens.body_font_family,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: horizontal ? '8% 5% 18% 38%' : '7% 7% 38% 7%',
+          border: `${tokens.border_width}px solid ${tokens.accent}38`,
+          borderRadius: tokens.corner_radius,
+          background: `linear-gradient(135deg, ${tokens.panel}d9, ${tokens.background}99)`,
+          boxShadow: `0 24px ${tokens.shadow_blur}px ${tokens.background}`,
+        }}
+      />
+
+      {layout.host ? (
+        <div
+          data-host-slot={track.scene.host_slot}
+          style={{
+            position: 'absolute',
+            ...rectStyle(layout.host),
+            zIndex: 3,
+            filter: `drop-shadow(0 18px ${tokens.shadow_blur}px ${tokens.background})`,
+          }}
+        >
+          <HostRenderer props={props} track={track} />
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          position: 'absolute',
+          ...rectStyle(layout.caption),
+          alignItems: 'center',
+          display: 'flex',
+          justifyContent: 'center',
+          padding: `${tokens.spacing_unit}px ${tokens.spacing_unit * 2}px`,
+          zIndex: 4,
+        }}
+      >
+        <CaptionRenderer
+          segment={track.segment}
+          fontSize={captionFont}
+          maxLines={tokens.caption_max_lines}
+          color={tokens.foreground}
+          fontFamily={tokens.caption_font_family}
+          fontWeight={tokens.caption_weight}
+          lineHeight={tokens.line_height}
+          presetId={template.caption_preset}
+          charactersPerLine={horizontal ? 28 : 16}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+};

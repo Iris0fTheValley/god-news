@@ -24,7 +24,7 @@ def world_warmth_template() -> TemplateDefinition:
     ]
     return TemplateDefinition(
         template_id="world_warmth",
-        template_version="1.0.0",
+        template_version="1.1.0",
         display_name="World Warmth Editorial",
         capabilities=TemplateCapabilities(
             supported_profiles=profiles,
@@ -32,6 +32,7 @@ def world_warmth_template() -> TemplateDefinition:
                 EpisodeSceneModule.HOST_EVIDENCE,
                 EpisodeSceneModule.EVIDENCE_FULLSCREEN,
                 EpisodeSceneModule.SOURCE_VIDEO,
+                EpisodeSceneModule.BROLL_VIDEO,
             ],
         ),
         scene_variants=[
@@ -85,6 +86,18 @@ def world_warmth_template() -> TemplateDefinition:
                 maximum_visual_assets=1,
             ),
             SceneVariantDefinition(
+                variant_id="host_only_editorial",
+                module_id=EpisodeSceneModule.HOST_EVIDENCE,
+                display_name="Editorial host without evidence media",
+                supported_profiles=profiles,
+                supported_host_slots=[
+                    EpisodeHostSlot.PRIMARY,
+                    EpisodeHostSlot.CORNER,
+                ],
+                minimum_visual_assets=0,
+                maximum_visual_assets=0,
+            ),
+            SceneVariantDefinition(
                 variant_id="evidence_documentary",
                 module_id=EpisodeSceneModule.EVIDENCE_FULLSCREEN,
                 display_name="Documentary full-screen evidence",
@@ -112,11 +125,18 @@ def world_warmth_template() -> TemplateDefinition:
                 display_name="Clean reviewed source video",
                 supported_profiles=profiles,
             ),
+            SceneVariantDefinition(
+                variant_id="broll_video_attributed",
+                module_id=EpisodeSceneModule.BROLL_VIDEO,
+                display_name="Attributed muted B-roll video",
+                supported_profiles=profiles,
+            ),
         ],
         default_scene_variants={
             EpisodeSceneModule.HOST_EVIDENCE: "host_split_editorial",
             EpisodeSceneModule.EVIDENCE_FULLSCREEN: "evidence_documentary",
             EpisodeSceneModule.SOURCE_VIDEO: "source_video_clean",
+            EpisodeSceneModule.BROLL_VIDEO: "broll_video_attributed",
         },
         layout_preset=LayoutPreset(
             preset_id="world_warmth_responsive",

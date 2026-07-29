@@ -147,6 +147,7 @@ async def test_source_contract_and_health_are_exposed_by_api(stack: Stack) -> No
         "reddit",
         "guardian",
         "pikabu",
+        "nasa",
     ]
     assert all(item["contract_ok"] for item in report["sources"])
     assert all(item["reachable"] is None for item in report["sources"])

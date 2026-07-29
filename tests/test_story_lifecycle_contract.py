@@ -185,8 +185,7 @@ async def test_story_lifecycle_contract_is_exposed_over_http(stack: Stack) -> No
                         "language": "en",
                         "text": "A community center returned donated books to local children.",
                     },
-                    "style": "accurate narration",
-                    "target_duration_seconds": 60,
+                    "target_language": "zh-CN",
                 },
             )
             assert created.status_code == 201

@@ -158,7 +158,13 @@ def test_registry_rejects_duplicate_normalizer() -> None:
     with pytest.raises(ValueError, match="already registered"):
         registry.register(DazhongSourceNormalizer())
 
-    assert registry.registered_sources == {"dazhong", "reddit", "guardian", "pikabu"}
+    assert registry.registered_sources == {
+        "dazhong",
+        "reddit",
+        "guardian",
+        "pikabu",
+        "nasa",
+    }
 
 
 def test_empty_registry_reports_missing_registration() -> None:

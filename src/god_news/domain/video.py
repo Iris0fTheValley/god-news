@@ -100,6 +100,14 @@ def _require_local_path(value: str) -> str:
     return candidate
 
 
+def _require_http_url(value: str) -> str:
+    candidate = value.strip()
+    parsed = urlsplit(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("source URL must be an absolute HTTP(S) URL")
+    return candidate
+
+
 class BgmTrack(DomainModel):
     track_id: Sha256
     relative_path: NonBlankStr
@@ -142,6 +150,7 @@ class VideoInputAssetKind(StrEnum):
     BGM = "bgm"
     HOST_VIDEO = "host_video"
     SOURCE_VIDEO = "source_video"
+    BROLL_VIDEO = "broll_video"
     IMAGE = "image"
     SOURCE_SCREENSHOT = "source_screenshot"
 
@@ -516,6 +525,7 @@ class EpisodeSceneModule(StrEnum):
     HOST_EVIDENCE = "host_evidence"
     EVIDENCE_FULLSCREEN = "evidence_fullscreen"
     SOURCE_VIDEO = "source_video"
+    BROLL_VIDEO = "broll_video"
 
 
 class EpisodeHostSlot(StrEnum):
@@ -668,12 +678,56 @@ class SourceVideoRenderAsset(DomainModel):
         return self
 
 
+class BrollVideoRenderAsset(DomainModel):
+    """Immutable, publishable supplemental video with frozen rights evidence.
+
+    B-roll is independent from original story media: it has no transcription,
+    no captions, and no original-audio semantics. The first renderer contract
+    is deliberately muted so supplemental footage cannot smuggle unreviewed
+    speech or music into the published mix.
+    """
+
+    asset_id: UUID
+    story_id: UUID
+    segment_id: UUID
+    local_path: NonBlankStr
+    sha256: Sha256
+    size_bytes: int = Field(gt=0)
+    duration_ms: int = Field(gt=0)
+    width: int = Field(gt=0, le=16_384)
+    height: int = Field(gt=0, le=16_384)
+    in_ms: int = Field(default=0, ge=0)
+    out_ms: int = Field(gt=0)
+    audio_mode: Literal["muted"] = "muted"
+    source_label: NonBlankStr
+    source_url: NonBlankStr
+    license: NonBlankStr
+    attribution: NonBlankStr
+
+    @field_validator("local_path")
+    @classmethod
+    def require_local_path(cls, value: str) -> str:
+        return _require_local_path(value)
+
+    @field_validator("source_url")
+    @classmethod
+    def require_source_url(cls, value: str) -> str:
+        return _require_http_url(value)
+
+    @model_validator(mode="after")
+    def validate_selected_range(self) -> BrollVideoRenderAsset:
+        if self.out_ms <= self.in_ms or self.out_ms > self.duration_ms:
+            raise ValueError("B-roll selection must stay inside the verified media duration")
+        return self
+
+
 class EpisodeScene(DomainModel):
     scene_id: UUID = Field(default_factory=uuid4)
     sequence: int = Field(ge=0, le=99)
     module_id: EpisodeSceneModule
     narration_segment_id: UUID | None = None
     source_video_asset_id: UUID | None = None
+    broll_video_asset_id: UUID | None = None
     speaker_id: NonBlankStr | None = None
     host_visibility: EpisodeHostVisibility
     host_slot: EpisodeHostSlot | None = None
@@ -703,13 +757,29 @@ class EpisodeScene(DomainModel):
         if self.module_id is EpisodeSceneModule.SOURCE_VIDEO:
             if self.host_visibility is not EpisodeHostVisibility.HIDDEN:
                 raise ValueError("source_video scenes require the host to leave the frame")
-            if self.narration_segment_id is not None or self.source_video_asset_id is None:
+            if (
+                self.narration_segment_id is not None
+                or self.source_video_asset_id is None
+                or self.broll_video_asset_id is not None
+            ):
                 raise ValueError("source_video scenes require only a source video asset")
             if self.speaker_id is not None:
                 raise ValueError("source_video scenes cannot claim a narration speaker")
+        elif self.module_id is EpisodeSceneModule.BROLL_VIDEO:
+            if self.host_visibility is not EpisodeHostVisibility.HIDDEN:
+                raise ValueError("broll_video scenes require the host to leave the frame")
+            if (
+                self.narration_segment_id is not None
+                or self.source_video_asset_id is not None
+                or self.broll_video_asset_id is None
+            ):
+                raise ValueError("broll_video scenes require only a B-roll video asset")
+            if self.speaker_id is not None:
+                raise ValueError("broll_video scenes cannot claim a narration speaker")
         elif (
             self.narration_segment_id is None
             or self.source_video_asset_id is not None
+            or self.broll_video_asset_id is not None
             or self.speaker_id is None
         ):
             raise ValueError("narration scenes require one segment and one speaker")
@@ -720,8 +790,11 @@ class EpisodeScene(DomainModel):
             and self.primary_visual_asset_id not in self.visual_asset_ids
         ):
             raise ValueError("primary visual asset must belong to the scene visual asset set")
-        if self.module_id is EpisodeSceneModule.SOURCE_VIDEO and self.visual_asset_ids:
-            raise ValueError("source_video scenes use their typed source video asset only")
+        if self.module_id in {
+            EpisodeSceneModule.SOURCE_VIDEO,
+            EpisodeSceneModule.BROLL_VIDEO,
+        } and self.visual_asset_ids:
+            raise ValueError("video scenes use their dedicated typed video asset only")
         return self
 
 
@@ -931,6 +1004,7 @@ class RemotionVideoProps(DomainModel):
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
     episode_plan: EpisodePlan | None = None
     source_videos: list[SourceVideoRenderAsset] = Field(default_factory=list, max_length=100)
+    broll_videos: list[BrollVideoRenderAsset] = Field(default_factory=list, max_length=100)
     visual_assets: list[VisualRenderAsset] = Field(default_factory=list, max_length=1_200)
     template: TemplateDefinition | None = None
     output_profiles: list[VideoOutputProfile] = Field(
@@ -988,6 +1062,26 @@ class RemotionVideoProps(DomainModel):
             }
             if referenced_asset_ids != set(asset_ids):
                 raise ValueError("episode source video scenes must match the approved asset set")
+            broll_asset_ids = [asset.asset_id for asset in self.broll_videos]
+            if len(broll_asset_ids) != len(set(broll_asset_ids)):
+                raise ValueError("B-roll video asset IDs must be unique")
+            referenced_broll_ids = {
+                scene.broll_video_asset_id
+                for scene in self.episode_plan.scenes
+                if scene.broll_video_asset_id is not None
+            }
+            if referenced_broll_ids != set(broll_asset_ids):
+                raise ValueError("episode B-roll scenes must match the approved asset set")
+            broll_by_id = {asset.asset_id: asset for asset in self.broll_videos}
+            for index, scene in enumerate(self.episode_plan.scenes):
+                if scene.broll_video_asset_id is None:
+                    continue
+                broll = broll_by_id[scene.broll_video_asset_id]
+                previous = self.episode_plan.scenes[index - 1] if index > 0 else None
+                if previous is None or previous.narration_segment_id != broll.segment_id:
+                    raise ValueError(
+                        "episode B-roll scenes must immediately follow their bound segment"
+                    )
             visual_asset_ids = [asset.asset_id for asset in self.visual_assets]
             if len(visual_asset_ids) != len(set(visual_asset_ids)):
                 raise ValueError("render visual asset IDs must be unique")
@@ -1031,7 +1125,7 @@ class RemotionVideoProps(DomainModel):
                         count = counts.get(requirement.asset_type, 0)
                         if count < requirement.minimum or count > requirement.maximum:
                             raise ValueError("episode scene violates template asset requirements")
-        elif self.source_videos:
+        elif self.source_videos or self.broll_videos:
             raise ValueError("source video assets require a typed episode plan")
         elif self.visual_assets:
             raise ValueError("visual assets require a typed episode plan")
@@ -1350,7 +1444,7 @@ class VideoBatch(DomainModel):
     bgm: BgmSelection | None = None
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
     remotion_props: RemotionVideoProps | None = None
-    input_assets: list[VideoInputAsset] = Field(default_factory=list, max_length=1_301)
+    input_assets: list[VideoInputAsset] = Field(default_factory=list, max_length=1_601)
     render_input_sha256: Sha256 | None = None
     narration_reviews: list[NarrationReview] = Field(default_factory=list, max_length=100)
     timeline_review: TimelineReview | None = None
@@ -1522,6 +1616,25 @@ class VideoBatch(DomainModel):
             raise ValueError("host video input evidence must match visual reservations")
         if recorded_source_video_paths != expected_source_video_paths:
             raise ValueError("source video input evidence must match approved render assets")
+        recorded_broll_video_paths = {
+            asset.local_path
+            for asset in self.input_assets
+            if asset.kind is VideoInputAssetKind.BROLL_VIDEO
+        }
+        expected_broll_video_paths = {
+            asset.local_path for asset in self.remotion_props.broll_videos
+        }
+        if recorded_broll_video_paths != expected_broll_video_paths:
+            raise ValueError("B-roll input evidence must match approved render assets")
+        input_by_path = {asset.local_path: asset for asset in self.input_assets}
+        for broll in self.remotion_props.broll_videos:
+            snapshot = input_by_path.get(broll.local_path)
+            if (
+                snapshot is None
+                or snapshot.sha256 != broll.sha256
+                or snapshot.size_bytes != broll.size_bytes
+            ):
+                raise ValueError("B-roll bytes must match the approved rights snapshot")
         if self.render_input_sha256 != render_input_sha256(self.remotion_props, self.input_assets):
             raise ValueError("render_input_sha256 does not match props and input assets")
 
@@ -1646,7 +1759,7 @@ class CreateVideoBatch(DomainModel):
     bgm_volume: float = Field(default=0.12, ge=0, le=1)
     bgm_loop: bool = True
     template_id: TemplateId = "world_warmth"
-    template_version: TemplateVersion = "1.0.0"
+    template_version: TemplateVersion = "1.1.0"
 
     @model_validator(mode="after")
     def validate_story_selection(self) -> CreateVideoBatch:

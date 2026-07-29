@@ -9,7 +9,7 @@ from god_news.sources.collectors.models import (
     CollectorReadiness,
     SourceCollectionRun,
 )
-from god_news.sources.models import SourceName
+from god_news.sources.models import SOURCE_ORDER, SourceName
 from god_news.sources.run_ports import SourceCollectorGateway
 
 # These are deliberate backend safety policies, not operator-facing knobs.
@@ -18,7 +18,6 @@ from god_news.sources.run_ports import SourceCollectorGateway
 MIN_SOURCE_COLLECTION_INTERVAL_SECONDS = 30.0
 MAX_CONCURRENT_SOURCE_COLLECTIONS = 2
 
-_SOURCES: tuple[SourceName, ...] = ("dazhong", "reddit", "guardian", "pikabu")
 _Clock = Callable[[], float]
 _Sleeper = Callable[[float], Awaitable[None]]
 
@@ -42,7 +41,7 @@ class RateLimitedSourceCollectorGateway:
         self._clock = clock
         self._sleeper = sleeper
         self._source_locks: dict[SourceName, asyncio.Lock] = {
-            source: asyncio.Lock() for source in _SOURCES
+            source: asyncio.Lock() for source in SOURCE_ORDER
         }
         self._collection_slots = asyncio.Semaphore(MAX_CONCURRENT_SOURCE_COLLECTIONS)
         self._last_network_completion: dict[SourceName, float] = {}

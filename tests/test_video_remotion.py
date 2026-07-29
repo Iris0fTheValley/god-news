@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -19,6 +20,7 @@ from god_news.domain.source_transcription import (
     TranscriptReviewDecision,
 )
 from god_news.domain.video import (
+    BrollVideoRenderAsset,
     EpisodeHostVisibility,
     EpisodePlan,
     EpisodeScene,
@@ -114,6 +116,43 @@ def test_media_worker_diagnostic_redacts_local_paths_and_keeps_error_tail(
     assert str(tmp_path) not in diagnostic
     assert "/home/runner" not in diagnostic
     assert "Closing card failed to render" in diagnostic
+
+
+def test_discovers_current_pnpm_remotion_compositor_tools(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable_suffix = ".exe" if os.name == "nt" else ""
+    compositor = (
+        tmp_path
+        / "node_modules"
+        / ".pnpm"
+        / "@remotion+compositor-test-platform@4.0.487"
+        / "node_modules"
+        / "@remotion"
+        / "compositor-test-platform"
+    )
+    compositor.mkdir(parents=True)
+    ffmpeg = compositor / f"ffmpeg{executable_suffix}"
+    ffprobe = compositor / f"ffprobe{executable_suffix}"
+    ffmpeg.touch()
+    ffprobe.touch()
+    monkeypatch.setattr(shutil, "which", lambda _command: None)
+
+    assert (
+        LocalRemotionBatchVideoRenderer._discover_remotion_executable(
+            tmp_path,
+            "ffmpeg",
+        )
+        == ffmpeg.resolve()
+    )
+    assert (
+        LocalRemotionBatchVideoRenderer._discover_remotion_executable(
+            tmp_path,
+            "ffprobe",
+        )
+        == ffprobe.resolve()
+    )
 
 
 def test_zero_outro_preserves_pre_outro_render_hash_shape(tmp_path: Path) -> None:
@@ -243,6 +282,79 @@ def test_source_video_scene_requires_matching_approved_asset(tmp_path: Path) -> 
         RemotionVideoProps.model_validate(
             props.model_copy(update={"episode_plan": plan}).model_dump()
         )
+
+
+def test_broll_video_is_staged_from_the_verified_input_snapshot(tmp_path: Path) -> None:
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"RIFF-fixture")
+    broll_path = tmp_path / "broll.webm"
+    broll_payload = b"licensed-broll"
+    broll_path.write_bytes(broll_payload)
+    props = _props(audio)
+    segment = props.manifest.timeline[0]
+    broll = BrollVideoRenderAsset(
+        asset_id=uuid4(),
+        story_id=props.manifest.story_id,
+        segment_id=segment.segment_id,
+        local_path=str(broll_path),
+        sha256=hashlib.sha256(broll_payload).hexdigest(),
+        size_bytes=len(broll_payload),
+        duration_ms=5_000,
+        width=1_024,
+        height=768,
+        out_ms=3_000,
+        source_label="Wikimedia Commons",
+        source_url="https://commons.wikimedia.org/wiki/File:Example.webm",
+        license="Public domain",
+        attribution="NASA",
+    )
+    plan = EpisodePlan(
+        batch_id=props.manifest.story_id,
+        scenes=[
+            EpisodeScene(
+                sequence=0,
+                module_id=EpisodeSceneModule.HOST_EVIDENCE,
+                narration_segment_id=segment.segment_id,
+                speaker_id=segment.speaker_id,
+                host_visibility=EpisodeHostVisibility.VISIBLE,
+                host_slot="primary",
+                transition_type=segment.scene_transition,
+            ),
+            EpisodeScene(
+                sequence=1,
+                module_id=EpisodeSceneModule.BROLL_VIDEO,
+                broll_video_asset_id=broll.asset_id,
+                host_visibility=EpisodeHostVisibility.HIDDEN,
+            ),
+        ],
+    )
+    props = RemotionVideoProps.model_validate(
+        props.model_copy(
+            update={"episode_plan": plan, "broll_videos": [broll]}
+        ).model_dump()
+    )
+    input_assets = _input_assets(audio)
+    input_assets.append(
+        VideoInputAsset(
+            kind=VideoInputAssetKind.BROLL_VIDEO,
+            local_path=str(broll_path.resolve()),
+            sha256=broll.sha256,
+            size_bytes=broll.size_bytes,
+        )
+    )
+    attempt = tmp_path / "attempt"
+    attempt.mkdir()
+
+    staged = LocalRemotionBatchVideoRenderer._stage_verified_inputs(
+        attempt,
+        props,
+        input_assets,
+    )
+
+    assert staged.broll_videos[0].local_path != broll.local_path
+    assert Path(staged.broll_videos[0].local_path).read_bytes() == broll_payload
+    assert staged.broll_videos[0].source_url == broll.source_url
+    assert staged.broll_videos[0].license == "Public domain"
 
 
 @pytest.mark.asyncio
@@ -431,6 +543,7 @@ async def test_local_remotion_renderer_rejects_long_visual_freeze(
         package_dir=tmp_path / "video",
         output_dir=tmp_path / "renders",
         node_command="node",
+        max_freeze_seconds=12,
         timeout_seconds=30,
         max_parallel_batches=1,
         concurrency=1,
@@ -439,14 +552,14 @@ async def test_local_remotion_renderer_rejects_long_visual_freeze(
 
     async def frozen_diagnostic(command: list[str], *, cwd: Path) -> str:
         del command, cwd
-        return "freeze_start: 1.000\nfreeze_end: 7.500"
+        return "freeze_start: 1.000\nfreeze_end: 14.500"
 
     monkeypatch.setattr(renderer, "_run_diagnostic", frozen_diagnostic)
 
     with pytest.raises(VideoRenderingError, match="long-freeze"):
         await renderer._inspect_visual_quality(
             tmp_path / "output.mp4",
-            duration_seconds=10,
+            duration_seconds=20,
         )
 
 

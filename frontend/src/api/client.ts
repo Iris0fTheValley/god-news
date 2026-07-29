@@ -4,9 +4,9 @@ import type {paths} from './generated';
 import type {
   AcquireSourceMediaRequest,
   BgmTrack,
+  CreateStoryRequest,
   CreateVideoBatch,
   FirstReviewSubmission,
-  IngestRequest,
   OperationRun,
   ProblemDetail,
   RenderVideoBatch,
@@ -17,6 +17,7 @@ import type {
   ScheduleSnapshot,
   ScriptReviewSubmission,
   SecondReviewSubmission,
+  StageCommonsVisualRequest,
   SourceRunRequest,
   SourceRunStatus,
   StartSourceTranscriptionRequest,
@@ -29,6 +30,7 @@ import type {
   SubmitTimelineReview,
   VideoBatchStatus,
   VisualAssetMutation,
+  VisualDiscoveryReviewRequest,
 } from './types';
 
 export interface SourceRunListParams {
@@ -89,7 +91,7 @@ export async function getStory(storyId: string) {
   return result.data;
 }
 
-export async function createStory(body: IngestRequest) {
+export async function createStory(body: CreateStoryRequest) {
   const result = await api.POST('/api/v1/stories', {body});
   if (result.error !== undefined) throwProblem(result.error, result.response);
   return result.data;
@@ -338,6 +340,58 @@ export async function deleteSegmentVisualAsset(
     },
   });
   if (result.error !== undefined) throwProblem(result.error, result.response);
+}
+
+/* ── Rights-aware visual discovery ── */
+
+export async function searchCommonsVisuals(query: string, limit = 10) {
+  const result = await api.GET('/api/v1/visual-discovery/commons', {
+    params: {query: {query, limit}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function stageCommonsVisual(body: StageCommonsVisualRequest) {
+  const result = await api.POST('/api/v1/visual-discovery/commons/stage', {body});
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function listStoryVisualDiscoveryAssets(storyId: string) {
+  const result = await api.GET('/api/v1/stories/{story_id}/visual-discovery-assets', {
+    params: {path: {story_id: storyId}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function approveVisualDiscoveryAsset(
+  assetId: string,
+  body: VisualDiscoveryReviewRequest,
+) {
+  const result = await api.POST('/api/v1/visual-discovery-assets/{asset_id}/approve', {
+    params: {path: {asset_id: assetId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function rejectVisualDiscoveryAsset(
+  assetId: string,
+  body: VisualDiscoveryReviewRequest,
+) {
+  const result = await api.POST('/api/v1/visual-discovery-assets/{asset_id}/reject', {
+    params: {path: {asset_id: assetId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export function visualDiscoveryAssetContentUrl(assetId: string): string {
+  return `/api/v1/visual-discovery-assets/${encodeURIComponent(assetId)}/content`;
 }
 
 /* ── Roles ── */

@@ -83,6 +83,7 @@ describe('buildRenderPlan', () => {
       'host_evidence',
       'evidence_fullscreen',
       'source_video',
+      'broll_video',
     ]);
   });
 
@@ -143,5 +144,52 @@ describe('buildRenderPlan', () => {
     expect(sourceTrack?.durationInFrames).toBe(75);
     expect(sourceTrack?.asset.asset_id).toBe(assetId);
     expect(plan.durationInFrames).toBe(177);
+  });
+
+  it('derives muted B-roll duration from its independently approved range', () => {
+    const props = structuredClone(validProps);
+    const assetId = 'dd1ac1b4-34ed-4ab9-8432-42e9dc046ad9';
+    props.broll_videos = [
+      {
+        asset_id: assetId,
+        story_id: props.manifest.story_id,
+        segment_id: props.manifest.timeline[1]!.segment_id,
+        local_path: 'video/broll.webm',
+        sha256: 'b'.repeat(64),
+        size_bytes: 4096,
+        duration_ms: 6000,
+        width: 1024,
+        height: 768,
+        in_ms: 1500,
+        out_ms: 3500,
+        audio_mode: 'muted',
+        source_label: 'NASA on Wikimedia Commons',
+        source_url: 'https://commons.wikimedia.org/wiki/File:Example.webm',
+        license: 'Public domain',
+        attribution: 'NASA',
+      },
+    ];
+    props.episode_plan!.scenes.push({
+      scene_id: 'e968504a-b38c-49e3-a9db-ec88a7ea14b3',
+      sequence: 2,
+      module_id: 'broll_video',
+      narration_segment_id: null,
+      source_video_asset_id: null,
+      broll_video_asset_id: assetId,
+      speaker_id: null,
+      host_visibility: 'hidden',
+      host_slot: null,
+      host_enter: false,
+      host_exit: false,
+      transition_type: 'crossfade',
+      variant_id: 'broll_video_attributed',
+      visual_asset_ids: [],
+    });
+
+    const plan = buildRenderPlan(props, 30);
+    const brollTrack = plan.tracks.find((track) => track.kind === 'broll_video');
+    expect(brollTrack?.durationInFrames).toBe(60);
+    expect(brollTrack?.asset.audio_mode).toBe('muted');
+    expect(plan.durationInFrames).toBe(162);
   });
 });

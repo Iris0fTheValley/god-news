@@ -144,6 +144,41 @@ export const SourceVideoRenderAssetSchema = z
     }
   });
 
+export const BrollVideoRenderAssetSchema = z
+  .object({
+    asset_id: z.string().uuid(),
+    story_id: z.string().uuid(),
+    segment_id: z.string().uuid(),
+    local_path: localPath,
+    sha256,
+    size_bytes: z.number().int().positive(),
+    duration_ms: z.number().int().positive(),
+    width: z.number().int().positive().max(16_384),
+    height: z.number().int().positive().max(16_384),
+    in_ms: z.number().int().nonnegative().default(0),
+    out_ms: z.number().int().positive(),
+    audio_mode: z.literal('muted').default('muted'),
+    source_label: nonBlank,
+    source_url: z
+      .string()
+      .url()
+      .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+        message: 'source_url must use HTTP(S)',
+      }),
+    license: nonBlank,
+    attribution: nonBlank,
+  })
+  .strict()
+  .superRefine((asset, context) => {
+    if (asset.out_ms <= asset.in_ms || asset.out_ms > asset.duration_ms) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'B-roll selection must stay inside verified duration',
+        path: ['out_ms'],
+      });
+    }
+  });
+
 export const VisualAssetTypeSchema = z.enum([
   'image',
   'source_screenshot',
@@ -302,6 +337,7 @@ export const EpisodeSceneModuleSchema = z.enum([
   'host_evidence',
   'evidence_fullscreen',
   'source_video',
+  'broll_video',
 ]);
 
 export const EpisodeSceneSchema = z
@@ -311,6 +347,7 @@ export const EpisodeSceneSchema = z
     module_id: EpisodeSceneModuleSchema,
     narration_segment_id: z.string().uuid().nullable().optional(),
     source_video_asset_id: z.string().uuid().nullable().optional(),
+    broll_video_asset_id: z.string().uuid().nullable().optional(),
     speaker_id: nonBlank.nullable().optional(),
     host_visibility: z.enum(['visible', 'hidden']),
     host_slot: z.enum(['primary', 'corner']).nullable().optional(),
@@ -359,16 +396,42 @@ export const EpisodeSceneSchema = z
           path: ['host_visibility'],
         });
       }
-      if (scene.narration_segment_id || !scene.source_video_asset_id || scene.speaker_id) {
+      if (
+        scene.narration_segment_id ||
+        !scene.source_video_asset_id ||
+        scene.broll_video_asset_id ||
+        scene.speaker_id
+      ) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'source_video requires only a source video asset',
           path: ['source_video_asset_id'],
         });
       }
+    } else if (scene.module_id === 'broll_video') {
+      if (scene.host_visibility !== 'hidden') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'broll_video requires a hidden host',
+          path: ['host_visibility'],
+        });
+      }
+      if (
+        scene.narration_segment_id ||
+        scene.source_video_asset_id ||
+        !scene.broll_video_asset_id ||
+        scene.speaker_id
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'broll_video requires only a B-roll video asset',
+          path: ['broll_video_asset_id'],
+        });
+      }
     } else if (
       !scene.narration_segment_id ||
       scene.source_video_asset_id ||
+      scene.broll_video_asset_id ||
       !scene.speaker_id
     ) {
       context.addIssue({
@@ -394,10 +457,13 @@ export const EpisodeSceneSchema = z
         path: ['primary_visual_asset_id'],
       });
     }
-    if (scene.module_id === 'source_video' && scene.visual_asset_ids.length > 0) {
+    if (
+      (scene.module_id === 'source_video' || scene.module_id === 'broll_video') &&
+      scene.visual_asset_ids.length > 0
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'source_video scenes use only their source video asset',
+        message: 'video scenes use only their dedicated typed video asset',
         path: ['visual_asset_ids'],
       });
     }
@@ -944,6 +1010,7 @@ export const GodNewsVideoPropsSchema = z
     }),
     episode_plan: EpisodePlanSchema.nullable().optional(),
     source_videos: z.array(SourceVideoRenderAssetSchema).max(100).default([]),
+    broll_videos: z.array(BrollVideoRenderAssetSchema).max(100).default([]),
     visual_assets: z.array(VisualRenderAssetSchema).max(1200).default([]),
     template: TemplateDefinitionSchema.nullable().optional(),
     output_profiles: z.array(OutputProfileSchema).min(1).max(8).default(defaultOutputProfiles),
@@ -1108,6 +1175,44 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
           path: ['source_videos'],
         });
       }
+      const brollAssetIds = props.broll_videos.map((asset) => asset.asset_id);
+      if (new Set(brollAssetIds).size !== brollAssetIds.length) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'B-roll video asset IDs must be unique',
+          path: ['broll_videos'],
+        });
+      }
+      const referencedBrollAssetIds = new Set(
+        props.episode_plan.scenes.flatMap((scene) =>
+          scene.broll_video_asset_id ? [scene.broll_video_asset_id] : [],
+        ),
+      );
+      if (
+        referencedBrollAssetIds.size !== brollAssetIds.length ||
+        brollAssetIds.some((assetId) => !referencedBrollAssetIds.has(assetId))
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'episode B-roll video scenes must match approved assets',
+          path: ['broll_videos'],
+        });
+      }
+      const brollById = new Map(
+        props.broll_videos.map((asset) => [asset.asset_id, asset]),
+      );
+      props.episode_plan.scenes.forEach((scene, index) => {
+        if (!scene.broll_video_asset_id) return;
+        const broll = brollById.get(scene.broll_video_asset_id);
+        const previous = index > 0 ? props.episode_plan!.scenes[index - 1] : undefined;
+        if (broll && previous?.narration_segment_id !== broll.segment_id) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'episode B-roll scenes must immediately follow their bound segment',
+            path: ['episode_plan', 'scenes', index],
+          });
+        }
+      });
       const referencedVisualIds = new Set(
         props.episode_plan.scenes.flatMap((scene) => scene.visual_asset_ids),
       );
@@ -1195,7 +1300,7 @@ const ValidatedGodNewsVideoPropsSchema = GodNewsVideoPropsSchema
           }
         }
       }
-    } else if (props.source_videos.length > 0) {
+    } else if (props.source_videos.length > 0 || props.broll_videos.length > 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'source video assets require a typed episode plan',
@@ -1223,6 +1328,7 @@ export type EpisodePlan = z.infer<typeof EpisodePlanSchema>;
 export type EpisodeScene = z.infer<typeof EpisodeSceneSchema>;
 export type EpisodeSceneModule = z.infer<typeof EpisodeSceneModuleSchema>;
 export type SourceVideoRenderAsset = z.infer<typeof SourceVideoRenderAssetSchema>;
+export type BrollVideoRenderAsset = z.infer<typeof BrollVideoRenderAssetSchema>;
 export type VisualRenderAsset = z.infer<typeof VisualRenderAssetSchema>;
 export type VisualAssetType = z.infer<typeof VisualAssetTypeSchema>;
 export type TemplateDefinition = z.infer<typeof TemplateDefinitionSchema>;

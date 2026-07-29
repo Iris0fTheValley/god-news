@@ -702,6 +702,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stories/{story_id}/visual-discovery-assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Story Visual Discovery Assets */
+        get: operations["listStoryVisualDiscoveryAssets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/video/batches": {
         parameters: {
             query?: never;
@@ -884,6 +901,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/visual-discovery-assets/{asset_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Visual Discovery Asset */
+        post: operations["approveVisualDiscoveryAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visual-discovery-assets/{asset_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Visual Discovery Asset Content */
+        get: operations["getVisualDiscoveryAssetContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visual-discovery-assets/{asset_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Visual Discovery Asset */
+        post: operations["rejectVisualDiscoveryAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visual-discovery/commons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Commons Visuals */
+        get: operations["searchCommonsVisuals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visual-discovery/commons/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stage Commons Visual */
+        post: operations["stageCommonsVisual"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -908,7 +1010,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
             status: components["schemas"]["SourceRunStatus"];
         };
         /** Attribution */
@@ -928,7 +1030,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
         };
         /** AudioBundle */
         AudioBundle: {
@@ -1130,7 +1232,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
         };
         /** CollectorReadiness */
         CollectorReadiness: {
@@ -1146,12 +1248,133 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
             /**
              * State
              * @enum {string}
              */
             state: "disabled" | "unconfigured" | "unauthorized" | "ready";
+        };
+        /**
+         * CommonsAttribution
+         * @description Human-readable facts needed to make a later attribution card.
+         */
+        CommonsAttribution: {
+            /** Attribution Text */
+            attribution_text: string;
+            /** Author */
+            author?: string | null;
+            /** Credit */
+            credit?: string | null;
+        };
+        /**
+         * CommonsDiscoveryRequest
+         * @description A client may name a Commons file, page id, or search query -- nothing else.
+         */
+        CommonsDiscoveryRequest: {
+            /** File Title */
+            file_title?: string | null;
+            /**
+             * Limit
+             * @default 10
+             */
+            limit: number;
+            /** Page Id */
+            page_id?: number | null;
+            /** Query */
+            query?: string | null;
+        };
+        /** CommonsDiscoveryResult */
+        CommonsDiscoveryResult: {
+            /** Candidates */
+            candidates?: components["schemas"]["CommonsVisualCandidate"][];
+            request: components["schemas"]["CommonsDiscoveryRequest"];
+        };
+        /**
+         * CommonsLicense
+         * @description The deliberately small publication allowlist understood by this product.
+         * @enum {string}
+         */
+        CommonsLicense: "public_domain" | "cc0" | "cc_by" | "cc_by_sa" | "unknown";
+        /**
+         * CommonsMediaKind
+         * @enum {string}
+         */
+        CommonsMediaKind: "image" | "video";
+        /**
+         * CommonsRights
+         * @description A licence assessment derived only from metadata supplied by Commons.
+         */
+        CommonsRights: {
+            /** Allows Commercial Use */
+            allows_commercial_use: boolean;
+            /** Allows Derivatives */
+            allows_derivatives: boolean;
+            license: components["schemas"]["CommonsLicense"];
+            /** License Url */
+            license_url?: string | null;
+            /** Requires Attribution */
+            requires_attribution: boolean;
+            /** Requires Human Review */
+            requires_human_review: boolean;
+            /** Source License Label */
+            source_license_label?: string | null;
+        };
+        /**
+         * CommonsVideoDerivative
+         * @description One official transcoding offered by TimedMediaHandler.
+         */
+        CommonsVideoDerivative: {
+            /** Bandwidth */
+            bandwidth?: number | null;
+            /** Height */
+            height: number;
+            /** Mime Type */
+            mime_type: string;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+            /** Width */
+            width: number;
+        };
+        /**
+         * CommonsVisualCandidate
+         * @description One typed and rights-assessed result from the official Commons API.
+         */
+        CommonsVisualCandidate: {
+            attribution: components["schemas"]["CommonsAttribution"];
+            /**
+             * Canonical Page Url
+             * Format: uri
+             */
+            canonical_page_url: string;
+            /**
+             * Direct Download Url
+             * Format: uri
+             */
+            direct_download_url: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** File Title */
+            file_title: string;
+            /** Height */
+            height: number;
+            kind: components["schemas"]["CommonsMediaKind"];
+            /** Mime Type */
+            mime_type: string;
+            /** Page Id */
+            page_id: number;
+            rights: components["schemas"]["CommonsRights"];
+            /** Sha1 */
+            sha1: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Video Derivatives */
+            video_derivatives?: components["schemas"]["CommonsVideoDerivative"][];
+            /** Width */
+            width: number;
         };
         /**
          * ContentCategory
@@ -1193,6 +1416,20 @@ export interface components {
              */
             requires_rights_review: boolean;
         };
+        /**
+         * CreateStoryRequest
+         * @description Minimal public ingest boundary.
+         *
+         *     Narration preferences deliberately belong to first review.  Internal source
+         *     adapters may still construct the richer domain ingest command, but the public
+         *     create endpoint accepts only source evidence and the translation target.
+         */
+        CreateStoryRequest: {
+            /** Source */
+            source: components["schemas"]["UrlSource"] | components["schemas"]["TextSource"];
+            /** Target Language */
+            target_language: string;
+        };
         /** CreateVideoBatch */
         CreateVideoBatch: {
             /**
@@ -1224,7 +1461,7 @@ export interface components {
             template_id: string;
             /**
              * Template Version
-             * @default 1.0.0
+             * @default 1.1.0
              */
             template_version: string;
             /** Title */
@@ -1470,6 +1707,8 @@ export interface components {
         };
         /** EpisodeScene */
         EpisodeScene: {
+            /** Broll Video Asset Id */
+            broll_video_asset_id?: string | null;
             /**
              * Host Enter
              * @default false
@@ -1510,7 +1749,7 @@ export interface components {
          * @description Versioned semantic scene modules understood by deterministic renderers.
          * @enum {string}
          */
-        EpisodeSceneModule: "host_evidence" | "evidence_fullscreen" | "source_video";
+        EpisodeSceneModule: "host_evidence" | "evidence_fullscreen" | "source_video" | "broll_video";
         /** FirstReviewSubmission */
         FirstReviewSubmission: {
             /** Corrected Candidate Recommendation */
@@ -1598,43 +1837,6 @@ export interface components {
             url: string;
             /** Width */
             width?: number | null;
-        };
-        /** IngestRequest */
-        IngestRequest: {
-            /** @default happiness */
-            emotion: components["schemas"]["SpeechEmotion"];
-            /**
-             * Pitch
-             * @default 0
-             */
-            pitch: number;
-            /** Source */
-            source: components["schemas"]["UrlSource"] | components["schemas"]["TextSource"];
-            /**
-             * Speaker Id
-             * @default narrator
-             */
-            speaker_id: string;
-            /**
-             * Speed
-             * @default 1
-             */
-            speed: number;
-            /**
-             * Style
-             * @default clear, accurate short-video narration
-             */
-            style: string;
-            /**
-             * Target Duration Seconds
-             * @default 20
-             */
-            target_duration_seconds: number;
-            /**
-             * Target Language
-             * @default zh-CN
-             */
-            target_language: string;
         };
         /** LayoutPreset */
         LayoutPreset: {
@@ -1882,6 +2084,18 @@ export interface components {
          * @enum {string}
          */
         NarrationReviewDecision: "approve" | "revise" | "reject";
+        /** NasaSourceFields */
+        NasaSourceFields: {
+            /** Article Id */
+            article_id: string;
+            /** Categories */
+            categories?: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "nasa";
+        };
         /** NormalizedSourceItem */
         NormalizedSourceItem: {
             attribution: components["schemas"]["Attribution"];
@@ -1919,9 +2133,9 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
             /** Source Fields */
-            source_fields: components["schemas"]["DazhongSourceFields"] | components["schemas"]["RedditSourceFields"] | components["schemas"]["GuardianSourceFields"] | components["schemas"]["PikabuSourceFields"];
+            source_fields: components["schemas"]["DazhongSourceFields"] | components["schemas"]["RedditSourceFields"] | components["schemas"]["GuardianSourceFields"] | components["schemas"]["PikabuSourceFields"] | components["schemas"]["NasaSourceFields"];
             /** Title */
             title: string;
         };
@@ -2796,6 +3010,98 @@ export interface components {
              */
             url: string;
         };
+        /** RawNasaImage */
+        RawNasaImage: {
+            /** Alt Text */
+            alt_text?: string | null;
+            /** Credit */
+            credit?: string | null;
+            /** Height */
+            height?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "image";
+            /**
+             * Role
+             * @default body
+             * @enum {string}
+             */
+            role: "main" | "body" | "thumbnail";
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+            /** Width */
+            width?: number | null;
+        };
+        /**
+         * RawNasaItem
+         * @description Typed compatibility contract emitted by the NASA RSS connector adapter.
+         */
+        RawNasaItem: {
+            /** Article Id */
+            article_id: string;
+            /** Author */
+            author?: string | null;
+            /** Body */
+            body: string;
+            /** Categories */
+            categories?: string[];
+            /**
+             * Language
+             * @default en-US
+             */
+            language: string;
+            /** Media */
+            media?: (components["schemas"]["RawNasaImage"] | components["schemas"]["RawNasaVideo"])[];
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /**
+             * Publisher
+             * @default NASA
+             */
+            publisher: string;
+            rights?: components["schemas"]["RawRightsDeclaration"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source: "nasa";
+            /** Title */
+            title: string;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+        };
+        /** RawNasaVideo */
+        RawNasaVideo: {
+            /** Caption */
+            caption?: string | null;
+            /** Credit */
+            credit?: string | null;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "video";
+            /** Poster Url */
+            poster_url?: string | null;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+        };
         /** RawPikabuItem */
         RawPikabuItem: {
             /** Author Username */
@@ -3581,7 +3887,7 @@ export interface components {
              * Access Method
              * @enum {string}
              */
-            access_method: "official_api" | "authorized_public_page" | "typed_contract_only";
+            access_method: "official_api" | "official_feed" | "authorized_public_page" | "typed_contract_only";
             /** Authorized */
             authorized: boolean;
             /** Configured */
@@ -3598,7 +3904,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
         };
         /** SourceHealthReport */
         SourceHealthReport: {
@@ -3614,7 +3920,7 @@ export interface components {
         };
         /**
          * SourceItemIngestRequest
-         * @description Trusted adapter boundary for one of the four fixed sources.
+         * @description Trusted adapter boundary for a registered source.
          *
          *     Network-facing adapters must map their documented/authorized response into
          *     ``RawSourceItem`` before calling this boundary. The core never consumes an
@@ -3624,7 +3930,7 @@ export interface components {
             /** @default happiness */
             emotion: components["schemas"]["SpeechEmotion"];
             /** Item */
-            item: components["schemas"]["RawDazhongItem"] | components["schemas"]["RawRedditItem"] | components["schemas"]["RawGuardianItem"] | components["schemas"]["RawPikabuItem"];
+            item: components["schemas"]["RawDazhongItem"] | components["schemas"]["RawRedditItem"] | components["schemas"]["RawGuardianItem"] | components["schemas"]["RawPikabuItem"] | components["schemas"]["RawNasaItem"];
             /**
              * Pitch
              * @default 0
@@ -3720,7 +4026,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
             /**
              * Source Url
              * Format: uri
@@ -3887,7 +4193,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
             /**
              * Speaker Id
              * @default narrator
@@ -3937,7 +4243,7 @@ export interface components {
             /** Next Run At */
             next_run_at: string | null;
             /** Ready Sources */
-            ready_sources: ("dazhong" | "reddit" | "guardian" | "pikabu")[];
+            ready_sources: ("dazhong" | "reddit" | "guardian" | "pikabu" | "nasa")[];
             /** Schedule Id */
             schedule_id: string;
             /**
@@ -4024,6 +4330,30 @@ export interface components {
          * @enum {string}
          */
         SpeechEmotion: "happiness" | "sadness" | "anger" | "disgust" | "like" | "surprise" | "fear";
+        /**
+         * StageCommonsVisualRequest
+         * @description Only stable Commons identity and the target script segment cross the API.
+         */
+        StageCommonsVisualRequest: {
+            /** Expected Script Revision */
+            expected_script_revision: number;
+            /** Expected Story Version */
+            expected_story_version: number;
+            /** File Title */
+            file_title?: string | null;
+            /** Page Id */
+            page_id?: number | null;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+        };
         /** StartSourceTranscriptionRequest */
         StartSourceTranscriptionRequest: {
             /** Expected Story Version */
@@ -4609,6 +4939,59 @@ export interface components {
          * @enum {string}
          */
         VisualAssetType: "image" | "source_screenshot" | "web_evidence" | "source_video" | "map" | "chart" | "document" | "host_video" | "background_video" | "decorative_overlay";
+        /**
+         * VisualDiscoveryAssetView
+         * @description Public view intentionally excludes the protected local storage key.
+         */
+        VisualDiscoveryAssetView: {
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id: string;
+            candidate: components["schemas"]["CommonsVisualCandidate"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Downloaded Size Bytes */
+            downloaded_size_bytes?: number | null;
+            /** Probed Duration Ms */
+            probed_duration_ms?: number | null;
+            /** Review Note */
+            review_note?: string | null;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /** Script Revision */
+            script_revision: number;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Sha256 */
+            sha256?: string | null;
+            status: components["schemas"]["VisualDiscoveryStatus"];
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+        };
+        /** VisualDiscoveryReviewRequest */
+        VisualDiscoveryReviewRequest: {
+            /** Expected Story Version */
+            expected_story_version: number;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * VisualDiscoveryStatus
+         * @description Editorial state of a persisted provider-derived asset candidate.
+         * @enum {string}
+         */
+        VisualDiscoveryStatus: "staged" | "approved" | "rejected" | "superseded";
     };
     responses: never;
     parameters: never;
@@ -5317,7 +5700,7 @@ export interface operations {
     listSourceRuns: {
         parameters: {
             query?: {
-                source?: ("dazhong" | "reddit" | "guardian" | "pikabu") | null;
+                source?: ("dazhong" | "reddit" | "guardian" | "pikabu" | "nasa") | null;
                 run_status?: components["schemas"]["SourceRunStatus"] | null;
                 limit?: number;
                 offset?: number;
@@ -5970,7 +6353,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                source: "dazhong" | "reddit" | "guardian" | "pikabu";
+                source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
             };
             cookie?: never;
         };
@@ -6120,7 +6503,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IngestRequest"];
+                "application/json": components["schemas"]["CreateStoryRequest"];
             };
         };
         responses: {
@@ -8143,6 +8526,73 @@ export interface operations {
             };
         };
     };
+    listStoryVisualDiscoveryAssets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualDiscoveryAssetView"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     listVideoBatches: {
         parameters: {
             query?: {
@@ -8951,6 +9401,352 @@ export interface operations {
                 };
             };
             /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    approveVisualDiscoveryAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisualDiscoveryReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualDiscoveryAssetView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getVisualDiscoveryAssetContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    rejectVisualDiscoveryAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisualDiscoveryReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualDiscoveryAssetView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    searchCommonsVisuals: {
+        parameters: {
+            query?: {
+                query?: string | null;
+                file_title?: string | null;
+                page_id?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonsDiscoveryResult"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    stageCommonsVisual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StageCommonsVisualRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualDiscoveryAssetView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

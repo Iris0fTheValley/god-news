@@ -62,13 +62,17 @@ export const GodNewsShortVideo = (props: GodNewsVideoProps) => {
           );
         }
 
-        if (track.kind === 'source_video') {
+        if (track.kind === 'source_video' || track.kind === 'broll_video') {
           return (
             <Sequence
               key={track.scene.scene_id}
               from={track.from}
               durationInFrames={track.durationInFrames}
-              name="Reviewed source video"
+              name={
+                track.kind === 'source_video'
+                  ? 'Reviewed source video'
+                  : 'Approved attributed B-roll'
+              }
             >
               {renderEpisodeScene({props, track, segmentCount})}
             </Sequence>

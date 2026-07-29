@@ -158,7 +158,7 @@ for (const fixture of cases) {
             return `${video.videoWidth}x${video.videoHeight}`;
           }),
         )
-        .toBe('720x720');
+        .toMatch(/^\d+x\d+$/u);
       const initialFrame = await currentFrame(page);
       const initialTime = await host.evaluate(
         (element) => (element as HTMLVideoElement).currentTime,

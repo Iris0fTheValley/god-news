@@ -83,6 +83,7 @@ export const validProps: GodNewsVideoProps = {
     ],
   },
   source_videos: [],
+  broll_videos: [],
   visual_assets: [],
   output_profiles: [
     {

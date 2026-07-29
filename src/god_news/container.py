@@ -12,6 +12,7 @@ from god_news.application.source_schedule import SourceCollectionScheduler
 from god_news.application.source_transcriptions import SourceMediaTranscriptionService
 from god_news.application.video_batches import VideoBatchService
 from god_news.application.visual_assets import VisualAssetService
+from god_news.application.visual_discovery import VisualDiscoveryApplication
 from god_news.application.workflow import StoryWorkflow
 from god_news.config import MemoryProviderName, Settings
 from god_news.domain.models import HealthReport
@@ -63,6 +64,7 @@ from god_news.infrastructure.tts.gpt_sovits import (
     UnavailableSpeechSynthesizer,
 )
 from god_news.infrastructure.video_assets import LocalBgmCatalog
+from god_news.infrastructure.video_broll_assets import ApprovedVisualDiscoveryBrollLibrary
 from god_news.infrastructure.video_host import (
     PlaceholderHostRenderer,
     UnavailableBatchVideoRenderer,
@@ -73,7 +75,10 @@ from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchReposit
 from god_news.infrastructure.video_source_assets import ApprovedSourceVideoAssetLibrary
 from god_news.infrastructure.video_visual_assets import ApprovedVisualAssetLibrary
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
+from god_news.infrastructure.visual_discovery_repository import SqlAlchemyVisualDiscoveryRepository
+from god_news.infrastructure.visual_discovery_store import LocalVisualDiscoveryStore
 from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
+from god_news.infrastructure.wikimedia_commons import WikimediaCommonsClient
 from god_news.operations.retention import (
     CompositeRetentionAssetProtector,
     RetentionCleanupHandler,
@@ -102,6 +107,7 @@ class AppContainer:
     video_batches: VideoBatchService | None = None
     role_profiles: RoleProfileService | None = None
     visual_assets: VisualAssetService | None = None
+    visual_discovery: VisualDiscoveryApplication | None = None
     source_media: SourceMediaService | None = None
     source_transcriptions: SourceMediaTranscriptionService | None = None
     operations: OperationDispatcher | None = None
@@ -218,6 +224,7 @@ class AppContainer:
 async def build_container(settings: Settings) -> AppContainer:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     settings.visual_asset_root.mkdir(parents=True, exist_ok=True)
+    settings.visual_discovery_root.mkdir(parents=True, exist_ok=True)
     settings.source_media_root.mkdir(parents=True, exist_ok=True)
     settings.video_live2d_output_root.mkdir(parents=True, exist_ok=True)
     database = Database(
@@ -231,6 +238,10 @@ async def build_container(settings: Settings) -> AppContainer:
     visual_asset_repository = SqlAlchemyVisualAssetRepository(
         database.sessions,
         storage_root=settings.visual_asset_root,
+    )
+    visual_discovery_repository = SqlAlchemyVisualDiscoveryRepository(
+        database.sessions,
+        storage_root=settings.visual_discovery_root,
     )
     source_media_repository = SqlAlchemySourceMediaRepository(
         database.sessions,
@@ -339,9 +350,7 @@ async def build_container(settings: Settings) -> AppContainer:
         unavailable_llm_reason = "The selected LLM provider has no configured API key."
         caption_translator: TimedCaptionTranslator
         generator: TextGenerator = UnavailableTextGenerator(unavailable_llm_reason)
-        program_director: ProgramDirector = UnavailableProgramDirector(
-            unavailable_llm_reason
-        )
+        program_director: ProgramDirector = UnavailableProgramDirector(unavailable_llm_reason)
         caption_translator = UnavailableTimedCaptionTranslator(unavailable_llm_reason)
     else:
         openai_generator = OpenAICompatibleTextGenerator(
@@ -440,6 +449,20 @@ async def build_container(settings: Settings) -> AppContainer:
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
     ffprobe = FFprobeSourceVideoInspector.discover(settings.video_remotion_package_dir.parent)
+    visual_discovery_store = LocalVisualDiscoveryStore(
+        settings.visual_discovery_root,
+        max_download_bytes=settings.visual_discovery_max_download_bytes,
+    )
+    visual_discovery = VisualDiscoveryApplication(
+        stories=repository,
+        discovery=WikimediaCommonsClient(http_client, user_agent=settings.commons_user_agent),
+        repository=visual_discovery_repository,
+        store=visual_discovery_store,
+        client=http_client,
+        download_user_agent=settings.commons_user_agent,
+        max_download_bytes=settings.visual_discovery_max_download_bytes,
+        ffprobe_command=ffprobe,
+    )
     source_media = SourceMediaService(
         stories=repository,
         repository=source_media_repository,
@@ -506,6 +529,7 @@ async def build_container(settings: Settings) -> AppContainer:
             "reddit": settings.source_reddit_collection_limit,
             "guardian": settings.source_guardian_collection_limit,
             "pikabu": settings.source_pikabu_collection_limit,
+            "nasa": settings.source_nasa_collection_limit,
         },
     )
     video_renderer = (
@@ -514,6 +538,7 @@ async def build_container(settings: Settings) -> AppContainer:
             output_dir=settings.video_render_root,
             node_command=settings.video_node_command,
             quality_ffmpeg_command=settings.video_quality_ffmpeg_command,
+            max_freeze_seconds=settings.video_quality_max_freeze_seconds,
             timeout_seconds=settings.video_render_timeout_seconds,
             max_parallel_batches=settings.video_render_max_parallel_batches,
             concurrency=settings.video_render_concurrency,
@@ -524,9 +549,7 @@ async def build_container(settings: Settings) -> AppContainer:
     host_renderer: HostRenderer
     if settings.video_live2d_enabled:
         if ffprobe is None or settings.video_live2d_python_executable is None:
-            raise ValueError(
-                "Live2D rendering requires its configured Python runtime and ffprobe."
-            )
+            raise ValueError("Live2D rendering requires its configured Python runtime and ffprobe.")
         host_renderer = LocalLive2DHostRenderer(
             profiles=role_profiles,
             python_executable=settings.video_live2d_python_executable,
@@ -563,6 +586,11 @@ async def build_container(settings: Settings) -> AppContainer:
             transcription_repository=source_transcription_repository,
             media_reader=source_media,
         ),
+        broll_video_library=ApprovedVisualDiscoveryBrollLibrary(
+            stories=repository,
+            repository=visual_discovery_repository,
+            store=visual_discovery_store,
+        ),
         visual_asset_library=ApprovedVisualAssetLibrary(
             repository=visual_asset_repository,
             store=visual_asset_store,
@@ -586,6 +614,7 @@ async def build_container(settings: Settings) -> AppContainer:
         video_batches=video_batches,
         role_profiles=role_profiles,
         visual_assets=visual_assets,
+        visual_discovery=visual_discovery,
         source_media=source_media,
         source_transcriptions=source_transcriptions,
         operations=operations,

@@ -15,7 +15,7 @@ from god_news.sources.collectors.models import (
     CollectionOutcome,
     CollectorReadiness,
 )
-from god_news.sources.models import SourceName
+from god_news.sources.models import SOURCE_ORDER, SourceName
 
 NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -181,4 +181,7 @@ class SourceRun(DomainModel):
 
 
 class SourceRunReadiness(DomainModel):
-    collectors: list[CollectorReadiness] = Field(min_length=4, max_length=4)
+    collectors: list[CollectorReadiness] = Field(
+        min_length=len(SOURCE_ORDER),
+        max_length=len(SOURCE_ORDER),
+    )

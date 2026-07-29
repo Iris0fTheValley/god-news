@@ -2,7 +2,7 @@ import {useMutation, useQuery} from '@tanstack/react-query';
 import {Activity, CircleAlert, RefreshCw, ShieldCheck} from 'lucide-react';
 import {useState} from 'react';
 
-import {diagnoseSource, getSourceHealth} from '../../api/client';
+import {diagnoseSource, getSourceCollectors, getSourceHealth} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
 import type {SourceHealth} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
@@ -12,10 +12,12 @@ const SOURCE_LABELS: Record<SourceHealth['source'], string> = {
   reddit: 'Reddit · HumansBeingBros',
   guardian: 'The Guardian · Kindness',
   pikabu: 'Pikabu · Доброта',
+  nasa: 'NASA · Official RSS',
 };
 
 const ACCESS_LABELS: Record<SourceHealth['access_method'], string> = {
   official_api: '官方 API',
+  official_feed: '官方 RSS / Atom',
   authorized_public_page: '授权公开页面',
   typed_contract_only: '仅类型契约',
 };
@@ -45,7 +47,14 @@ export function SourceManagementPage() {
     queryKey: queryKeys.sourceHealth(probeNetwork),
     queryFn: () => getSourceHealth(probeNetwork),
   });
+  const collectorsQuery = useQuery({
+    queryKey: queryKeys.sourceCollectors(),
+    queryFn: getSourceCollectors,
+  });
   const diagnostic = useMutation({mutationFn: (source: SourceHealth['source']) => diagnoseSource(source)});
+  const readinessBySource = new Map(
+    collectorsQuery.data?.collectors.map((collector) => [collector.source, collector]),
+  );
 
   return (
     <div className="page sources-page">
@@ -79,13 +88,15 @@ export function SourceManagementPage() {
 
       {query.error !== null ? (
         <ApiErrorNotice error={query.error} onRetry={() => void query.refetch()} />
+      ) : collectorsQuery.error !== null ? (
+        <ApiErrorNotice error={collectorsQuery.error} onRetry={() => void collectorsQuery.refetch()} />
       ) : query.data === undefined ? (
-        <div className="loading-state">正在读取四个固定来源的运行契约…</div>
+        <div className="loading-state">正在读取已注册来源的运行契约…</div>
       ) : (
         <>
           <div className="source-summary metadata">
-            <span>{query.data.sources.filter((item) => item.authorized).length}/4 已授权</span>
-            <span>{query.data.sources.filter((item) => item.contract_ok).length}/4 契约正常</span>
+            <span>{query.data.sources.filter((item) => item.authorized).length}/{query.data.sources.length} 已授权</span>
+            <span>{query.data.sources.filter((item) => item.contract_ok).length}/{query.data.sources.length} 契约正常</span>
             <span>{query.data.network_probed ? '本次包含网络探测' : '本次未进行网络探测'}</span>
             <time dateTime={query.data.checked_at}>
               {query.data.checked_at === undefined
@@ -96,6 +107,7 @@ export function SourceManagementPage() {
           <div className="source-grid">
             {query.data.sources.map((item) => {
               const state = availability(item);
+              const readiness = readinessBySource.get(item.source);
               return (
                 <article className="source-card" key={item.source}>
                   <header>
@@ -106,6 +118,9 @@ export function SourceManagementPage() {
                     <span className={`source-state ${state.tone}`}>{state.label}</span>
                   </header>
                   <p className="source-access">{ACCESS_LABELS[item.access_method]}</p>
+                  <p className="metadata">
+                    采集器就绪度：{readiness?.state ?? '读取中'}
+                  </p>
                   <ul className="source-facts">
                     <Fact ok={item.enabled}>采集器已启用</Fact>
                     <Fact ok={item.configured}>凭据或端点配置完整</Fact>
@@ -144,6 +159,7 @@ export function SourceManagementPage() {
                           {diagnostic.data.outcome === 'verified' ? '凭据有效' : `验证失败：${diagnostic.data.outcome}`}
                         </span>
                       ) : null}
+                      {diagnostic.error === null ? null : <ApiErrorNotice error={diagnostic.error} />}
                     </div>
                   ) : null}
                 </article>

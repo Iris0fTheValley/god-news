@@ -8,11 +8,12 @@ from typing import Literal, Protocol
 from pydantic import AnyHttpUrl, Field, model_validator
 
 from god_news.domain.models import DomainModel, utc_now
-from god_news.sources.models import SourceName
+from god_news.sources.models import SOURCE_ORDER, SourceName
 from god_news.sources.registry import SourceNormalizerRegistry
 
 SourceAccessMethod = Literal[
     "official_api",
+    "official_feed",
     "authorized_public_page",
     "typed_contract_only",
 ]
@@ -49,12 +50,15 @@ class SourceHealth(DomainModel):
 class SourceHealthReport(DomainModel):
     checked_at: datetime = Field(default_factory=utc_now)
     network_probed: bool
-    sources: list[SourceHealth] = Field(min_length=4, max_length=4)
+    sources: list[SourceHealth] = Field(
+        min_length=len(SOURCE_ORDER),
+        max_length=len(SOURCE_ORDER),
+    )
 
     @model_validator(mode="after")
     def require_all_fixed_sources_once(self) -> SourceHealthReport:
         names = [item.source for item in self.sources]
-        expected: set[SourceName] = {"dazhong", "reddit", "guardian", "pikabu"}
+        expected = set(SOURCE_ORDER)
         if len(names) != len(set(names)) or set(names) != expected:
             raise ValueError("source health must contain each fixed source exactly once")
         return self
@@ -76,7 +80,7 @@ class SourceHealthMonitor:
         self._policies = tuple(policies)
         self._probe = probe
         names = [policy.source for policy in self._policies]
-        expected: set[SourceName] = {"dazhong", "reddit", "guardian", "pikabu"}
+        expected = set(SOURCE_ORDER)
         if len(names) != len(set(names)) or set(names) != expected:
             raise ValueError("source policies must contain each fixed source exactly once")
 

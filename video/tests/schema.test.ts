@@ -265,4 +265,52 @@ describe('GodNewsVideoPropsSchema', () => {
       /source video scenes must match approved assets/u,
     );
   });
+
+  it('accepts only a muted, attributed B-roll asset referenced by its own scene', () => {
+    const input = structuredClone(validProps);
+    const assetId = '57fd12aa-f57b-4c78-a63e-49a77b7832cc';
+    input.broll_videos = [
+      {
+        asset_id: assetId,
+        story_id: input.manifest.story_id,
+        segment_id: input.manifest.timeline[1]!.segment_id,
+        local_path: 'video/broll.webm',
+        sha256: 'c'.repeat(64),
+        size_bytes: 4096,
+        duration_ms: 5000,
+        width: 1024,
+        height: 768,
+        in_ms: 0,
+        out_ms: 3000,
+        audio_mode: 'muted',
+        source_label: 'Wikimedia Commons',
+        source_url: 'https://commons.wikimedia.org/wiki/File:Example.webm',
+        license: 'CC BY 4.0',
+        attribution: 'Example creator',
+      },
+    ];
+    input.episode_plan!.scenes.push({
+      scene_id: '6475cadc-b077-4a07-861a-5d7f3e805667',
+      sequence: 2,
+      module_id: 'broll_video',
+      narration_segment_id: null,
+      source_video_asset_id: null,
+      broll_video_asset_id: assetId,
+      speaker_id: null,
+      host_visibility: 'hidden',
+      host_slot: null,
+      host_enter: false,
+      host_exit: false,
+      transition_type: 'crossfade',
+      variant_id: 'broll_video_attributed',
+      visual_asset_ids: [],
+    });
+
+    expect(parseGodNewsVideoProps(input).broll_videos[0]?.audio_mode).toBe('muted');
+    const withOriginalAudio = structuredClone(input) as unknown as {
+      broll_videos: Array<{audio_mode: string}>;
+    };
+    withOriginalAudio.broll_videos[0]!.audio_mode = 'original';
+    expect(() => parseGodNewsVideoProps(withOriginalAudio)).toThrow();
+  });
 });

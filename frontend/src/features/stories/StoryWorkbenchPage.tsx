@@ -23,6 +23,7 @@ import {useToast} from '../../components/toastContext';
 import {AudioPanel} from '../audio/AudioPanel';
 import {HistoryPanel} from '../history/HistoryPanel';
 import {SourceMediaPanel} from '../media/SourceMediaPanel';
+import {VisualDiscoveryPanel} from '../media/VisualDiscoveryPanel';
 import {FirstReviewPanel} from '../reviews/FirstReviewPanel';
 import {ResumePanel} from '../reviews/ResumePanel';
 import {ScriptReviewPanel} from '../reviews/ScriptReviewPanel';
@@ -242,6 +243,7 @@ export function StoryWorkbenchPage() {
           </section>
 
           <SourceMediaPanel story={story} />
+          <VisualDiscoveryPanel story={story} />
 
           {scriptDraft === null ? null : (
             <section className="panel">

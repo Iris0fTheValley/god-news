@@ -888,6 +888,8 @@ class GPTSoVITSSpeechSynthesizer:
             process = await asyncio.create_subprocess_exec(
                 str(self._python.resolve()),
                 "-I",
+                "-X",
+                "utf8",
                 str((self._root / "api_v2.py").resolve()),
                 "-a",
                 "127.0.0.1",
@@ -1068,14 +1070,20 @@ class GPTSoVITSSpeechSynthesizer:
                 if response.status_code != 200:
                     body = await response.aread()
                     vendor_message = ""
+                    vendor_detail = ""
                     try:
                         payload = json.loads(body[:4_096].decode("utf-8", errors="strict"))
                         candidate = payload.get("message") if isinstance(payload, dict) else None
                         if isinstance(candidate, str):
                             vendor_message = self._sanitize_vendor_message(candidate)
+                        exception = payload.get("Exception") if isinstance(payload, dict) else None
+                        if isinstance(exception, str):
+                            vendor_detail = self._sanitize_vendor_message(exception)
                     except (UnicodeDecodeError, json.JSONDecodeError):
                         pass
                     detail = f" Vendor message: {vendor_message}." if vendor_message else ""
+                    if vendor_detail and vendor_detail != vendor_message:
+                        detail += f" Vendor detail: {vendor_detail}."
                     raise TTSGenerationError(
                         f"GPT-SoVITS rejected segment {segment.sequence} with "
                         f"HTTP {response.status_code}.{detail}"

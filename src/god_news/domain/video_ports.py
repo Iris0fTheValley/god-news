@@ -10,6 +10,7 @@ from god_news.domain.models import AudioBundle, ProductionManifest, ScriptDocume
 from god_news.domain.video import (
     BgmSelection,
     BgmTrack,
+    BrollVideoRenderAsset,
     DirectedProgramDraft,
     HostVisualReservations,
     RemotionVideoProps,
@@ -98,6 +99,15 @@ class SourceVideoAssetLibrary(Protocol):
         self,
         story_ids: Sequence[UUID],
     ) -> Sequence[SourceVideoRenderAsset]: ...
+
+
+class BrollVideoAssetLibrary(Protocol):
+    """Resolve only immutable, publishable, muted supplemental footage."""
+
+    async def approved_for_stories(
+        self,
+        story_ids: Sequence[UUID],
+    ) -> Sequence[BrollVideoRenderAsset]: ...
 
 
 class VisualAssetLibrary(Protocol):

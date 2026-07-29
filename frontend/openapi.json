@@ -41,7 +41,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -93,7 +94,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -615,7 +617,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -655,7 +658,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -679,6 +683,344 @@
           "authorized"
         ],
         "title": "CollectorReadiness",
+        "type": "object"
+      },
+      "CommonsAttribution": {
+        "additionalProperties": false,
+        "description": "Human-readable facts needed to make a later attribution card.",
+        "properties": {
+          "attribution_text": {
+            "minLength": 1,
+            "title": "Attribution Text",
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          }
+        },
+        "required": [
+          "attribution_text"
+        ],
+        "title": "CommonsAttribution",
+        "type": "object"
+      },
+      "CommonsDiscoveryRequest": {
+        "additionalProperties": false,
+        "description": "A client may name a Commons file, page id, or search query -- nothing else.",
+        "properties": {
+          "file_title": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 6,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Title"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Id"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          }
+        },
+        "title": "CommonsDiscoveryRequest",
+        "type": "object"
+      },
+      "CommonsDiscoveryResult": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CommonsVisualCandidate"
+            },
+            "maxItems": 20,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "request": {
+            "$ref": "#/components/schemas/CommonsDiscoveryRequest"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "CommonsDiscoveryResult",
+        "type": "object"
+      },
+      "CommonsLicense": {
+        "description": "The deliberately small publication allowlist understood by this product.",
+        "enum": [
+          "public_domain",
+          "cc0",
+          "cc_by",
+          "cc_by_sa",
+          "unknown"
+        ],
+        "title": "CommonsLicense",
+        "type": "string"
+      },
+      "CommonsMediaKind": {
+        "enum": [
+          "image",
+          "video"
+        ],
+        "title": "CommonsMediaKind",
+        "type": "string"
+      },
+      "CommonsRights": {
+        "additionalProperties": false,
+        "description": "A licence assessment derived only from metadata supplied by Commons.",
+        "properties": {
+          "allows_commercial_use": {
+            "title": "Allows Commercial Use",
+            "type": "boolean"
+          },
+          "allows_derivatives": {
+            "title": "Allows Derivatives",
+            "type": "boolean"
+          },
+          "license": {
+            "$ref": "#/components/schemas/CommonsLicense"
+          },
+          "license_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Url"
+          },
+          "requires_attribution": {
+            "title": "Requires Attribution",
+            "type": "boolean"
+          },
+          "requires_human_review": {
+            "title": "Requires Human Review",
+            "type": "boolean"
+          },
+          "source_license_label": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source License Label"
+          }
+        },
+        "required": [
+          "license",
+          "allows_commercial_use",
+          "allows_derivatives",
+          "requires_attribution",
+          "requires_human_review"
+        ],
+        "title": "CommonsRights",
+        "type": "object"
+      },
+      "CommonsVideoDerivative": {
+        "additionalProperties": false,
+        "description": "One official transcoding offered by TimedMediaHandler.",
+        "properties": {
+          "bandwidth": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bandwidth"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "mime_type": {
+            "pattern": "^video/",
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url",
+          "mime_type",
+          "width",
+          "height"
+        ],
+        "title": "CommonsVideoDerivative",
+        "type": "object"
+      },
+      "CommonsVisualCandidate": {
+        "additionalProperties": false,
+        "description": "One typed and rights-assessed result from the official Commons API.",
+        "properties": {
+          "attribution": {
+            "$ref": "#/components/schemas/CommonsAttribution"
+          },
+          "canonical_page_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Canonical Page Url",
+            "type": "string"
+          },
+          "direct_download_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Direct Download Url",
+            "type": "string"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "file_title": {
+            "minLength": 1,
+            "title": "File Title",
+            "type": "string"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CommonsMediaKind"
+          },
+          "mime_type": {
+            "minLength": 1,
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "page_id": {
+            "minimum": 1.0,
+            "title": "Page Id",
+            "type": "integer"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/CommonsRights"
+          },
+          "sha1": {
+            "pattern": "^[a-f0-9]{40}$",
+            "title": "Sha1",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "video_derivatives": {
+            "items": {
+              "$ref": "#/components/schemas/CommonsVideoDerivative"
+            },
+            "maxItems": 50,
+            "title": "Video Derivatives",
+            "type": "array"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file_title",
+          "page_id",
+          "canonical_page_url",
+          "direct_download_url",
+          "kind",
+          "mime_type",
+          "width",
+          "height",
+          "size_bytes",
+          "sha1",
+          "attribution",
+          "rights"
+        ],
+        "title": "CommonsVisualCandidate",
         "type": "object"
       },
       "ContentCategory": {
@@ -733,6 +1075,41 @@
           "is_user_generated"
         ],
         "title": "ContentFlags",
+        "type": "object"
+      },
+      "CreateStoryRequest": {
+        "additionalProperties": false,
+        "description": "Minimal public ingest boundary.\n\nNarration preferences deliberately belong to first review.  Internal source\nadapters may still construct the richer domain ingest command, but the public\ncreate endpoint accepts only source evidence and the translation target.",
+        "properties": {
+          "source": {
+            "discriminator": {
+              "mapping": {
+                "text": "#/components/schemas/TextSource",
+                "url": "#/components/schemas/UrlSource"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UrlSource"
+              },
+              {
+                "$ref": "#/components/schemas/TextSource"
+              }
+            ],
+            "title": "Source"
+          },
+          "target_language": {
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target_language"
+        ],
+        "title": "CreateStoryRequest",
         "type": "object"
       },
       "CreateVideoBatch": {
@@ -807,7 +1184,7 @@
             "type": "string"
           },
           "template_version": {
-            "default": "1.0.0",
+            "default": "1.1.0",
             "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
             "title": "Template Version",
             "type": "string"
@@ -1235,6 +1612,18 @@
       "EpisodeScene": {
         "additionalProperties": false,
         "properties": {
+          "broll_video_asset_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Broll Video Asset Id"
+          },
           "host_enter": {
             "default": false,
             "title": "Host Enter",
@@ -1359,7 +1748,8 @@
         "enum": [
           "host_evidence",
           "evidence_fullscreen",
-          "source_video"
+          "source_video",
+          "broll_video"
         ],
         "title": "EpisodeSceneModule",
         "type": "string"
@@ -1659,77 +2049,6 @@
           "url"
         ],
         "title": "ImageMediaAsset",
-        "type": "object"
-      },
-      "IngestRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "emotion": {
-            "$ref": "#/components/schemas/SpeechEmotion",
-            "default": "happiness"
-          },
-          "pitch": {
-            "default": 0.0,
-            "maximum": 12.0,
-            "minimum": -12.0,
-            "title": "Pitch",
-            "type": "number"
-          },
-          "source": {
-            "discriminator": {
-              "mapping": {
-                "text": "#/components/schemas/TextSource",
-                "url": "#/components/schemas/UrlSource"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/UrlSource"
-              },
-              {
-                "$ref": "#/components/schemas/TextSource"
-              }
-            ],
-            "title": "Source"
-          },
-          "speaker_id": {
-            "default": "narrator",
-            "minLength": 1,
-            "title": "Speaker Id",
-            "type": "string"
-          },
-          "speed": {
-            "default": 1.0,
-            "maximum": 1.65,
-            "minimum": 0.6,
-            "title": "Speed",
-            "type": "number"
-          },
-          "style": {
-            "default": "clear, accurate short-video narration",
-            "minLength": 1,
-            "title": "Style",
-            "type": "string"
-          },
-          "target_duration_seconds": {
-            "default": 20,
-            "maximum": 600.0,
-            "minimum": 5.0,
-            "title": "Target Duration Seconds",
-            "type": "integer"
-          },
-          "target_language": {
-            "default": "zh-CN",
-            "minLength": 1,
-            "title": "Target Language",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source"
-        ],
-        "title": "IngestRequest",
         "type": "object"
       },
       "LayoutPreset": {
@@ -2466,6 +2785,36 @@
         "title": "NarrationReviewDecision",
         "type": "string"
       },
+      "NasaSourceFields": {
+        "additionalProperties": false,
+        "properties": {
+          "article_id": {
+            "minLength": 1,
+            "title": "Article Id",
+            "type": "string"
+          },
+          "categories": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Categories",
+            "type": "array"
+          },
+          "source": {
+            "const": "nasa",
+            "default": "nasa",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "article_id"
+        ],
+        "title": "NasaSourceFields",
+        "type": "object"
+      },
       "NormalizedSourceItem": {
         "additionalProperties": false,
         "properties": {
@@ -2557,7 +2906,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -2567,6 +2917,7 @@
               "mapping": {
                 "dazhong": "#/components/schemas/DazhongSourceFields",
                 "guardian": "#/components/schemas/GuardianSourceFields",
+                "nasa": "#/components/schemas/NasaSourceFields",
                 "pikabu": "#/components/schemas/PikabuSourceFields",
                 "reddit": "#/components/schemas/RedditSourceFields"
               },
@@ -2584,6 +2935,9 @@
               },
               {
                 "$ref": "#/components/schemas/PikabuSourceFields"
+              },
+              {
+                "$ref": "#/components/schemas/NasaSourceFields"
               }
             ],
             "title": "Source Fields"
@@ -5030,6 +5384,257 @@
         "title": "RawGuardianVideo",
         "type": "object"
       },
+      "RawNasaImage": {
+        "additionalProperties": false,
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "const": "image",
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "role": {
+            "default": "body",
+            "enum": [
+              "main",
+              "body",
+              "thumbnail"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawNasaImage",
+        "type": "object"
+      },
+      "RawNasaItem": {
+        "additionalProperties": false,
+        "description": "Typed compatibility contract emitted by the NASA RSS connector adapter.",
+        "properties": {
+          "article_id": {
+            "minLength": 1,
+            "title": "Article Id",
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "categories": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Categories",
+            "type": "array"
+          },
+          "language": {
+            "default": "en-US",
+            "minLength": 1,
+            "title": "Language",
+            "type": "string"
+          },
+          "media": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "image": "#/components/schemas/RawNasaImage",
+                  "video": "#/components/schemas/RawNasaVideo"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RawNasaImage"
+                },
+                {
+                  "$ref": "#/components/schemas/RawNasaVideo"
+                }
+              ]
+            },
+            "maxItems": 100,
+            "title": "Media",
+            "type": "array"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "publisher": {
+            "default": "NASA",
+            "minLength": 1,
+            "title": "Publisher",
+            "type": "string"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RawRightsDeclaration"
+          },
+          "source": {
+            "const": "nasa",
+            "default": "nasa",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "article_id",
+          "url",
+          "title",
+          "body",
+          "published_at"
+        ],
+        "title": "RawNasaItem",
+        "type": "object"
+      },
+      "RawNasaVideo": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "RawNasaVideo",
+        "type": "object"
+      },
       "RawPikabuItem": {
         "additionalProperties": false,
         "properties": {
@@ -7016,6 +7621,7 @@
           "access_method": {
             "enum": [
               "official_api",
+              "official_feed",
               "authorized_public_page",
               "typed_contract_only"
             ],
@@ -7061,7 +7667,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -7095,8 +7702,8 @@
             "items": {
               "$ref": "#/components/schemas/SourceHealth"
             },
-            "maxItems": 4,
-            "minItems": 4,
+            "maxItems": 5,
+            "minItems": 5,
             "title": "Sources",
             "type": "array"
           }
@@ -7110,7 +7717,7 @@
       },
       "SourceItemIngestRequest": {
         "additionalProperties": false,
-        "description": "Trusted adapter boundary for one of the four fixed sources.\n\nNetwork-facing adapters must map their documented/authorized response into\n``RawSourceItem`` before calling this boundary. The core never consumes an\nupstream provider's unvalidated mapping.",
+        "description": "Trusted adapter boundary for a registered source.\n\nNetwork-facing adapters must map their documented/authorized response into\n``RawSourceItem`` before calling this boundary. The core never consumes an\nupstream provider's unvalidated mapping.",
         "properties": {
           "emotion": {
             "$ref": "#/components/schemas/SpeechEmotion",
@@ -7121,6 +7728,7 @@
               "mapping": {
                 "dazhong": "#/components/schemas/RawDazhongItem",
                 "guardian": "#/components/schemas/RawGuardianItem",
+                "nasa": "#/components/schemas/RawNasaItem",
                 "pikabu": "#/components/schemas/RawPikabuItem",
                 "reddit": "#/components/schemas/RawRedditItem"
               },
@@ -7138,6 +7746,9 @@
               },
               {
                 "$ref": "#/components/schemas/RawPikabuItem"
+              },
+              {
+                "$ref": "#/components/schemas/RawNasaItem"
               }
             ],
             "title": "Item"
@@ -7317,7 +7928,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -7714,8 +8326,8 @@
             "items": {
               "$ref": "#/components/schemas/CollectorReadiness"
             },
-            "maxItems": 4,
-            "minItems": 4,
+            "maxItems": 5,
+            "minItems": 5,
             "title": "Collectors",
             "type": "array"
           }
@@ -7757,7 +8369,8 @@
               "dazhong",
               "reddit",
               "guardian",
-              "pikabu"
+              "pikabu",
+              "nasa"
             ],
             "title": "Source",
             "type": "string"
@@ -7839,7 +8452,8 @@
                 "dazhong",
                 "reddit",
                 "guardian",
-                "pikabu"
+                "pikabu",
+                "nasa"
               ]
             },
             "title": "Last Started Run Ids",
@@ -7875,7 +8489,8 @@
                 "dazhong",
                 "reddit",
                 "guardian",
-                "pikabu"
+                "pikabu",
+                "nasa"
               ],
               "type": "string"
             },
@@ -8118,6 +8733,65 @@
         ],
         "title": "SpeechEmotion",
         "type": "string"
+      },
+      "StageCommonsVisualRequest": {
+        "additionalProperties": false,
+        "description": "Only stable Commons identity and the target script segment cross the API.",
+        "properties": {
+          "expected_script_revision": {
+            "minimum": 1.0,
+            "title": "Expected Script Revision",
+            "type": "integer"
+          },
+          "expected_story_version": {
+            "minimum": 0.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "file_title": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 6,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Title"
+          },
+          "page_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Id"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "segment_id",
+          "expected_story_version",
+          "expected_script_revision"
+        ],
+        "title": "StageCommonsVisualRequest",
+        "type": "object"
       },
       "StartSourceTranscriptionRequest": {
         "additionalProperties": false,
@@ -9649,6 +10323,151 @@
         ],
         "title": "VisualAssetType",
         "type": "string"
+      },
+      "VisualDiscoveryAssetView": {
+        "additionalProperties": false,
+        "description": "Public view intentionally excludes the protected local storage key.",
+        "properties": {
+          "asset_id": {
+            "format": "uuid",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/CommonsVisualCandidate"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "downloaded_size_bytes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downloaded Size Bytes"
+          },
+          "probed_duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probed Duration Ms"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "script_revision": {
+            "title": "Script Revision",
+            "type": "integer"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisualDiscoveryStatus"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "story_id",
+          "segment_id",
+          "script_revision",
+          "status",
+          "candidate",
+          "created_at"
+        ],
+        "title": "VisualDiscoveryAssetView",
+        "type": "object"
+      },
+      "VisualDiscoveryReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_story_version": {
+            "minimum": 0.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "expected_story_version"
+        ],
+        "title": "VisualDiscoveryReviewRequest",
+        "type": "object"
+      },
+      "VisualDiscoveryStatus": {
+        "description": "Editorial state of a persisted provider-derived asset candidate.",
+        "enum": [
+          "staged",
+          "approved",
+          "rejected",
+          "superseded"
+        ],
+        "title": "VisualDiscoveryStatus",
+        "type": "string"
       }
     }
   },
@@ -10495,7 +11314,8 @@
                     "dazhong",
                     "reddit",
                     "guardian",
-                    "pikabu"
+                    "pikabu",
+                    "nasa"
                   ],
                   "type": "string"
                 },
@@ -11311,7 +12131,8 @@
                 "dazhong",
                 "reddit",
                 "guardian",
-                "pikabu"
+                "pikabu",
+                "nasa"
               ],
               "title": "Source",
               "type": "string"
@@ -11527,7 +12348,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IngestRequest"
+                "$ref": "#/components/schemas/CreateStoryRequest"
               }
             }
           },
@@ -14209,6 +15030,93 @@
         ]
       }
     },
+    "/api/v1/stories/{story_id}/visual-discovery-assets": {
+      "get": {
+        "operationId": "listStoryVisualDiscoveryAssets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VisualDiscoveryAssetView"
+                  },
+                  "title": "Response Liststoryvisualdiscoveryassets",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Story Visual Discovery Assets",
+        "tags": [
+          "visual-discovery"
+        ]
+      }
+    },
     "/api/v1/video/batches": {
       "get": {
         "operationId": "listVideoBatches",
@@ -15260,6 +16168,487 @@
         "summary": "List Bgm",
         "tags": [
           "video"
+        ]
+      }
+    },
+    "/api/v1/visual-discovery-assets/{asset_id}/approve": {
+      "post": {
+        "operationId": "approveVisualDiscoveryAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisualDiscoveryReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualDiscoveryAssetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Approve Visual Discovery Asset",
+        "tags": [
+          "visual-discovery"
+        ]
+      }
+    },
+    "/api/v1/visual-discovery-assets/{asset_id}/content": {
+      "get": {
+        "operationId": "getVisualDiscoveryAssetContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Visual Discovery Asset Content",
+        "tags": [
+          "visual-discovery"
+        ]
+      }
+    },
+    "/api/v1/visual-discovery-assets/{asset_id}/reject": {
+      "post": {
+        "operationId": "rejectVisualDiscoveryAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisualDiscoveryReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualDiscoveryAssetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Reject Visual Discovery Asset",
+        "tags": [
+          "visual-discovery"
+        ]
+      }
+    },
+    "/api/v1/visual-discovery/commons": {
+      "get": {
+        "operationId": "searchCommonsVisuals",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          },
+          {
+            "in": "query",
+            "name": "file_title",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "minLength": 6,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "File Title"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonsDiscoveryResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Search Commons Visuals",
+        "tags": [
+          "visual-discovery"
+        ]
+      }
+    },
+    "/api/v1/visual-discovery/commons/stage": {
+      "post": {
+        "operationId": "stageCommonsVisual",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StageCommonsVisualRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualDiscoveryAssetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Stage Commons Visual",
+        "tags": [
+          "visual-discovery"
         ]
       }
     }

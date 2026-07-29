@@ -495,6 +495,7 @@ export const createTemplateLabFixture = (
           ],
     },
     source_videos: isSourceVideo ? [sourceVideo] : [],
+    broll_videos: [],
     visual_assets: isSourceVideo ? [fallbackScreenshot] : [asset],
     template,
     output_profiles: [

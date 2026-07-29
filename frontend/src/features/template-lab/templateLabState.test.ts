@@ -10,7 +10,7 @@ describe('templateLabState', () => {
   it('round-trips every reproducible selector through URL search params', () => {
     const expected = {
       ...DEFAULT_TEMPLATE_LAB_STATE,
-      scene: 'host_evidence' as const,
+      scene: 'host_evidence',
       variant: 'host_corner_full_bleed',
       profile: 'douyin_vertical' as const,
       fixture: 'host-corner-volunteers',
@@ -35,7 +35,7 @@ describe('templateLabState', () => {
       new URLSearchParams('scene=invented&profile=square&frame=-5&zoom=9'),
     );
 
-    expect(state.scene).toBe(DEFAULT_TEMPLATE_LAB_STATE.scene);
+    expect(state.scene).toBe('invented');
     expect(state.profile).toBe(DEFAULT_TEMPLATE_LAB_STATE.profile);
     expect(state.frame).toBe(0);
     expect(state.zoom).toBe(0.8);

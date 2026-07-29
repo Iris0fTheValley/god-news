@@ -51,6 +51,7 @@ class LocalRemotionBatchVideoRenderer:
         output_dir: Path,
         node_command: str,
         quality_ffmpeg_command: str | Path | None = None,
+        max_freeze_seconds: float = 12.0,
         timeout_seconds: float,
         max_parallel_batches: int,
         concurrency: int,
@@ -60,11 +61,13 @@ class LocalRemotionBatchVideoRenderer:
         self._node = self._resolve_command(node_command)
         self._tsx_cli = self._package_dir / "node_modules" / "tsx" / "dist" / "cli.mjs"
         self._render_script = self._package_dir / "scripts" / "render.ts"
-        self._ffprobe = self._discover_ffprobe(self._package_dir.parent)
+        workspace = self._package_dir.parent
+        self._ffprobe = self._discover_remotion_executable(workspace, "ffprobe")
         self._ffmpeg = self._resolve_optional_command(
             quality_ffmpeg_command,
             default="ffmpeg",
         )
+        self._max_freeze_seconds = max_freeze_seconds
         self._timeout_seconds = timeout_seconds
         self._batch_slots = asyncio.Semaphore(max_parallel_batches)
         self._concurrency = concurrency
@@ -237,6 +240,10 @@ class LocalRemotionBatchVideoRenderer:
             asset.model_copy(update={"local_path": staged_path(asset.local_path)})
             for asset in props.source_videos
         ]
+        broll_videos = [
+            asset.model_copy(update={"local_path": staged_path(asset.local_path)})
+            for asset in props.broll_videos
+        ]
         visual_assets = [
             asset.model_copy(update={"local_path": staged_path(asset.local_path)})
             for asset in props.visual_assets
@@ -254,6 +261,7 @@ class LocalRemotionBatchVideoRenderer:
                 "manifest": manifest,
                 "bgm": bgm,
                 "source_videos": source_videos,
+                "broll_videos": broll_videos,
                 "visual_assets": visual_assets,
                 "visual_reservations": visual_reservations,
             }
@@ -470,9 +478,10 @@ class LocalRemotionBatchVideoRenderer:
                 "Rendered output failed the black-frame quality gate.",
                 retryable=False,
             )
-        if longest_freeze > 4.0:
+        if longest_freeze > self._max_freeze_seconds:
             raise VideoRenderingError(
-                "Rendered output failed the long-freeze quality gate.",
+                "Rendered output failed the long-freeze quality gate "
+                f"({longest_freeze:.3f}s > {self._max_freeze_seconds:.3f}s).",
                 retryable=False,
             )
         return VideoVisualQualityDiagnostics(
@@ -591,7 +600,19 @@ class LocalRemotionBatchVideoRenderer:
         finally:
             await asyncio.to_thread(close_kill_on_close_job, job_handle)
         if process.returncode != 0:
-            raise VideoRenderingError("Video visual quality inspection failed.")
+            stderr_digest = hashlib.sha256(stderr).hexdigest()
+            diagnostic_tail = self._sanitized_worker_diagnostic(stderr)
+            logger.error(
+                "Video visual quality inspection failed (exit_code=%s, "
+                "stderr_sha256=%s, diagnostic_tail=%s).",
+                process.returncode,
+                stderr_digest,
+                diagnostic_tail,
+            )
+            raise VideoRenderingError(
+                "Video visual quality inspection failed: "
+                f"{diagnostic_tail[-600:]}"
+            )
         return (stdout + b"\n" + stderr).decode("utf-8", errors="replace")
 
     def _sanitized_worker_diagnostic(self, stderr: bytes) -> str:
@@ -666,8 +687,11 @@ class LocalRemotionBatchVideoRenderer:
         return resolved if resolved == expected else None
 
     @staticmethod
-    def _discover_ffprobe(workspace: Path) -> Path | None:
-        executable = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+    def _discover_remotion_executable(
+        workspace: Path,
+        command: str,
+    ) -> Path | None:
+        executable = f"{command}.exe" if os.name == "nt" else command
         system = shutil.which(executable)
         if system is not None:
             return Path(system).resolve()

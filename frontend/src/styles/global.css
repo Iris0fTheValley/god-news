@@ -2655,7 +2655,7 @@ time {
 }
 
 /* =========================================================================
-   Template Lab — production Remotion component harness
+   Scene / Visual System Lab — production Remotion component harness
    ========================================================================= */
 
 .template-lab-page {
@@ -2952,5 +2952,57 @@ time {
 
   .template-lab-heading-actions .button {
     flex: 1 1 210px;
+  }
+}
+
+.visual-discovery-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.visual-discovery-search {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.5fr) minmax(14rem, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.visual-discovery-grid,
+.visual-discovery-assets {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.visual-discovery-grid {
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+}
+
+.visual-candidate {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.visual-candidate > p {
+  margin: 0;
+}
+
+.visual-candidate-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.visual-candidate-heading strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .visual-discovery-search {
+    grid-template-columns: 1fr;
   }
 }

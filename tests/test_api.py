@@ -38,12 +38,6 @@ async def test_api_drives_the_full_offline_pipeline(stack: Stack) -> None:
                         "text": "A source story with names, dates, and verifiable quantities.",
                     },
                     "target_language": "zh-CN",
-                    "style": "accurate narration",
-                    "target_duration_seconds": 60,
-                    "speaker_id": "narrator",
-                    "emotion": "neutral",
-                    "speed": 1.0,
-                    "pitch": 0.0,
                 },
             )
             assert created.status_code == 201
@@ -136,6 +130,9 @@ async def test_api_drives_the_full_offline_pipeline(stack: Stack) -> None:
                 ]
                 == "synthesizeStory"
             )
+            create_schema = openapi.json()["components"]["schemas"]["CreateStoryRequest"]
+            assert create_schema["required"] == ["source", "target_language"]
+            assert set(create_schema["properties"]) == {"source", "target_language"}
 
             cannot_resume = await client.post(f"/api/v1/stories/{story_id}/resume")
             assert cannot_resume.status_code == 409
@@ -165,5 +162,19 @@ async def test_api_returns_stable_validation_problem(stack: Stack) -> None:
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post("/api/v1/stories", json={"source": {}})
+            obsolete_preferences = await client.post(
+                "/api/v1/stories",
+                json={
+                    "source": {
+                        "kind": "text",
+                        "title": "Boundary test",
+                        "text": "Preferences belong to first review.",
+                    },
+                    "target_language": "zh-CN",
+                    "style": "must not be accepted at creation",
+                },
+            )
     assert response.status_code == 422
     assert response.json()["code"] == "request_validation_failed"
+    assert obsolete_preferences.status_code == 422
+    assert obsolete_preferences.json()["code"] == "request_validation_failed"
