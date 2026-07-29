@@ -128,6 +128,43 @@ def test_template_visual_asset_count_is_enforced_before_render() -> None:
         )
 
 
+def test_template_host_slot_is_enforced_before_render() -> None:
+    batch_id = uuid4()
+    segment_id = uuid4()
+    template = world_warmth_template()
+    template = template.model_copy(
+        update={
+            "scene_variants": [
+                variant.model_copy(
+                    update={"supported_host_slots": (EpisodeHostSlot.CORNER,)}
+                )
+                if variant.variant_id == "host_only_editorial"
+                else variant
+                for variant in template.scene_variants
+            ]
+        }
+    )
+    scene = EpisodeScene(
+        sequence=0,
+        module_id=EpisodeSceneModule.HOST_EVIDENCE,
+        narration_segment_id=segment_id,
+        speaker_id="anchor",
+        host_visibility=EpisodeHostVisibility.VISIBLE,
+        host_slot=EpisodeHostSlot.PRIMARY,
+        transition_type=SceneTransition.CROSSFADE,
+        variant_id="host_only_editorial",
+        visual_asset_ids=[],
+    )
+
+    with pytest.raises(ValidationError, match="host slot"):
+        RemotionVideoProps(
+            manifest=_manifest(batch_id, segment_id),
+            title="Good news",
+            episode_plan=EpisodePlan(batch_id=batch_id, scenes=[scene]),
+            template=template,
+        )
+
+
 def test_template_accepts_one_reviewed_image_for_host_scene(tmp_path) -> None:
     batch_id = uuid4()
     story_id = uuid4()

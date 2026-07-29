@@ -1111,6 +1111,18 @@ class RemotionVideoProps(DomainModel):
                     variant = variants.get(variant_id)
                     if variant is None or variant.module_id is not scene.module_id:
                         raise ValueError("episode scene references an invalid template variant")
+                    output_profile_ids = {
+                        profile.profile_id for profile in self.output_profiles
+                    }
+                    if not output_profile_ids.issubset(variant.supported_profiles):
+                        raise ValueError(
+                            "episode scene variant does not support all output profiles"
+                        )
+                    if (
+                        scene.host_slot is not None
+                        and scene.host_slot not in variant.supported_host_slots
+                    ):
+                        raise ValueError("episode scene host slot is unsupported by its variant")
                     if not (
                         variant.minimum_visual_assets
                         <= len(scene.visual_asset_ids)

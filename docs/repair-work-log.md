@@ -198,3 +198,19 @@ production Scene/Visual System Lab, and the final dual-profile batch.
 - Final regression evidence: 278 backend tests, 32 frontend tests and production build,
   31 video tests and Remotion bundle, mypy, Ruff, and 10 real-WebM desktop/mobile Playwright
   Scene Lab cases all pass.
+
+## Independent release review
+
+- The independent reviewer found a release-blocking rights downgrade in the NASA compatibility
+  adapter: article-level NASA public-domain policy could replace an embedded media candidate's
+  unknown rights. The adapter now collapses the story/media rights to `unknown`, non-publishable
+  whenever any retained media candidate requires review. The connector-to-collector regression
+  test proves this fail-closed result.
+- Commons staging now computes SHA-1 over the downloaded bytes and compares it with the official
+  API metadata snapshot before media probing or persistence. A mismatch test proves that the
+  downloaded file is removed and never enters review.
+- Python now validates each scene variant's host slot and support for every requested output
+  profile before render, matching the TypeScript contract instead of deferring failure to the
+  renderer.
+- After these release fixes, the complete backend suite passes with 279 tests, plus Ruff and
+  mypy.

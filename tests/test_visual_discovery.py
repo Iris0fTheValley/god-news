@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -385,7 +387,7 @@ async def test_stage_approve_reject_and_stale_revision_are_server_enforced(tmp_p
         width=1,
         height=1,
         size_bytes=len(_MINIMAL_JPEG),
-        sha1="d" * 40,
+        sha1=hashlib.sha1(_MINIMAL_JPEG).hexdigest(),
         attribution={"attribution_text": "Fixture author"},
         rights={
             "license": "public_domain",
@@ -428,6 +430,27 @@ async def test_stage_approve_reject_and_stale_revision_are_server_enforced(tmp_p
         )
         assert staged.status is VisualDiscoveryStatus.STAGED
         assert staged.sha256 is not None
+        mismatched_service = VisualDiscoveryApplication(
+            stories=stories,
+            discovery=_OneCandidateDiscovery(
+                candidate.model_copy(update={"sha1": "d" * 40})
+            ),
+            repository=repository,
+            store=LocalVisualDiscoveryStore(tmp_path, max_download_bytes=1_000),
+            client=client,
+            download_user_agent="test-agent/1.0 (contact: test)",
+            max_download_bytes=1_000,
+        )
+        with pytest.raises(ValueError, match="provider SHA-1"):
+            await mismatched_service.stage(
+                StageCommonsVisualRequest(
+                    file_title="File:fixture.jpg",
+                    story_id=story.story_id,
+                    segment_id=script.segments[0].segment_id,
+                    expected_story_version=story.version,
+                    expected_script_revision=script.revision,
+                )
+            )
         approved = await service.approve(
             staged.asset_id,
             VisualDiscoveryReviewRequest(expected_story_version=story.version, note="verified"),

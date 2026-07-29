@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
@@ -89,6 +91,9 @@ class VisualDiscoveryApplication:
         # decodable signature/dimensions; videos retain the original and get a
         # deterministic ffprobe check if the runtime has one.
         try:
+            downloaded_sha1 = await asyncio.to_thread(_file_sha1, path)
+            if downloaded_sha1 != candidate.sha1.casefold():
+                raise ValueError("Commons download does not match provider SHA-1")
             probe_duration = await self._validate_download(candidate, path)
             asset = PersistedVisualDiscoveryAsset(
                 asset_id=asset_id,
@@ -224,6 +229,11 @@ def _require_official_candidate(candidate: CommonsVisualCandidate) -> None:
         parts = urlsplit(str(url))
         if parts.scheme != "https" or (parts.hostname or "").casefold() != host:
             raise ValueError("Commons provider returned a non-official HTTPS origin")
+
+
+def _file_sha1(path: Path) -> str:
+    with path.open("rb") as source:
+        return hashlib.file_digest(source, "sha1").hexdigest()
 
 
 def _view(asset: PersistedVisualDiscoveryAsset) -> VisualDiscoveryAssetView:

@@ -129,6 +129,21 @@ class NasaConnectorCollectorAdapter:
                     )
                 )
         rights = article.rights
+        # NASA's article-level public-domain policy does not prove that every
+        # embedded image/video is NASA-owned. Collapse the compatibility
+        # contract to uncertain rights whenever any retained media candidate
+        # still requires review so downstream story-level media gates remain
+        # fail-closed.
+        media_rights_uncertain = any(
+            candidate.direct_download_url is not None
+            and candidate.kind != "audio"
+            and (
+                candidate.rights.requires_human_review
+                or candidate.rights.status in {"unknown", "permission_required"}
+            )
+            for candidate in article.media_candidates
+        )
+        rights_status = "unknown" if media_rights_uncertain else rights.status
         return RawNasaItem(
             article_id=article.external_id,
             url=article.canonical_url,
@@ -141,13 +156,19 @@ class NasaConnectorCollectorAdapter:
             language=article.language,
             publisher=article.publisher,
             rights=RawRightsDeclaration(
-                status=rights.status,
+                status=rights_status,
                 copyright_holder=article.publisher,
-                license_name=rights.license_identifier,
-                license_url=rights.license_url,
+                license_name=None if media_rights_uncertain else rights.license_identifier,
+                license_url=None if media_rights_uncertain else rights.license_url,
                 terms_url=rights.policy_url,
-                allows_republication=rights.allows_commercial_use,
-                allows_derivatives=rights.allows_derivatives,
-                requires_attribution=rights.requires_attribution,
+                allows_republication=(
+                    False if media_rights_uncertain else rights.allows_commercial_use
+                ),
+                allows_derivatives=(
+                    False if media_rights_uncertain else rights.allows_derivatives
+                ),
+                requires_attribution=(
+                    True if media_rights_uncertain else rights.requires_attribution
+                ),
             ),
         )

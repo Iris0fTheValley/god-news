@@ -99,6 +99,8 @@ async def test_nasa_connector_supports_cursor_and_collector_compatibility() -> N
     assert collected.outcome == "succeeded"
     assert len(collected.items) == 2
     assert collected.items[0].source == "nasa"
+    assert collected.items[0].rights.status == "unknown"
+    assert collected.items[0].rights.allows_republication is False
 
 
 @pytest.mark.asyncio
