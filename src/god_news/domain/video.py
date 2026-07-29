@@ -374,7 +374,7 @@ class Live2DRenderDiagnostics(DomainModel):
     )
     image_thresholds: dict[NonBlankStr, float] = Field(
         default_factory=dict,
-        max_length=32,
+        max_length=64,
     )
     gate_findings: list[Live2DGateFinding] = Field(
         default_factory=list,

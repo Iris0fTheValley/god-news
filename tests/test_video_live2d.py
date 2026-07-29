@@ -481,6 +481,16 @@ def test_live2d_diagnostic_rejects_inconsistent_percentiles() -> None:
         )
 
 
+def test_live2d_diagnostic_accepts_complete_production_threshold_set() -> None:
+    payload = _diagnostic_payload(
+        image_thresholds={f"threshold_{index:02d}": 0.1 for index in range(38)}
+    )
+
+    diagnostic = Live2DRenderDiagnostics.model_validate(payload)
+
+    assert len(diagnostic.image_thresholds) == 38
+
+
 def test_live2d_renderer_rejects_frozen_worker_diagnostic(tmp_path: Path) -> None:
     model_root = tmp_path / "models"
     model_path = _model(model_root)
