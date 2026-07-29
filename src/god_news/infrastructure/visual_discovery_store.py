@@ -69,6 +69,27 @@ class LocalVisualDiscoveryStore:
         path = self._path_for_key(storage_key)
         return await asyncio.to_thread(_resolve_regular_file, self._root, path)
 
+    async def clone(
+        self,
+        *,
+        source_storage_key: str,
+        target_asset_id: UUID,
+        filename: str,
+    ) -> tuple[str, str, int, Path]:
+        source = await self.resolve(source_storage_key)
+        suffix = _safe_suffix(filename)
+        key = (
+            PurePosixPath("commons") / str(target_asset_id) / f"original{suffix}"
+        ).as_posix()
+        target = self._path_for_key(key)
+        digest, size = await asyncio.to_thread(
+            _atomic_clone,
+            source,
+            target,
+            self._max_download_bytes,
+        )
+        return key, digest, size, target
+
     async def remove(self, storage_key: str) -> None:
         path = self._path_for_key(storage_key)
         try:
@@ -106,3 +127,33 @@ def _resolve_regular_file(root: Path, path: Path) -> Path:
     if not resolved.is_relative_to(root) or not resolved.is_file():
         raise OSError("Commons asset is not a regular file under its root")
     return resolved
+
+
+def _atomic_clone(source: Path, target: Path, limit: int) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    temporary = target.with_name(f".{target.name}.{uuid4().hex}.tmp")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=False)
+        with source.open("rb") as reader, temporary.open("xb") as writer:
+            while chunk := reader.read(1024 * 1024):
+                size += len(chunk)
+                if size > limit:
+                    raise VisualDiscoveryDownloadError(
+                        "Commons clone exceeds configured byte limit"
+                    )
+                digest.update(chunk)
+                writer.write(chunk)
+            if size == 0:
+                raise VisualDiscoveryDownloadError("Commons clone source was empty")
+            writer.flush()
+            os.fsync(writer.fileno())
+        os.replace(temporary, target)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        try:
+            target.parent.rmdir()
+        except OSError:
+            pass
+        raise
+    return digest.hexdigest(), size

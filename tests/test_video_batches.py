@@ -44,6 +44,8 @@ from god_news.domain.video import (
     TimelineReviewDecision,
     VideoBatch,
     VideoBatchStatus,
+    VisualAssetType,
+    VisualRenderAsset,
 )
 from god_news.errors import TTSGenerationError
 from god_news.infrastructure.database import Database
@@ -99,6 +101,17 @@ class _StaticBrollVideoLibrary:
 class _EmptyVisualAssetLibrary:
     async def approved_for_stories(self, stories):  # type: ignore[no-untyped-def]
         return {story.story_id: () for story in stories}
+
+
+class _StaticVisualAssetLibrary:
+    def __init__(self, asset: VisualRenderAsset) -> None:
+        self.asset = asset
+
+    async def approved_for_stories(self, stories):  # type: ignore[no-untyped-def]
+        return {
+            story.story_id: ([self.asset] if story.story_id == self.asset.story_id else ())
+            for story in stories
+        }
 
 
 def _source_video_asset(tmp_path: Path, story_id: UUID) -> SourceVideoRenderAsset:
@@ -538,6 +551,57 @@ async def test_broll_bytes_must_match_approved_rights_snapshot(
     assert failed.status is VideoBatchStatus.PENDING_BATCH_TTS
     assert failed.narration_failure is not None
     assert "B-roll bytes no longer match" in failed.narration_failure.message
+    assert failed.remotion_props is None
+
+
+@pytest.mark.asyncio
+async def test_visual_bytes_must_match_approved_evidence_snapshot(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    story = await _done_story(stack, "Approved imagery has an immutable byte snapshot.")
+    path = tmp_path / "approved-visual.jpg"
+    path.write_bytes(b"tampered-visual-bytes")
+    approved_payload = b"approved-visual-bytes"
+    asset = VisualRenderAsset(
+        asset_id=uuid4(),
+        story_id=story.story_id,
+        segment_id=story.script.segments[0].segment_id,
+        asset_type=VisualAssetType.IMAGE,
+        content_type="image/jpeg",
+        filename="approved-visual.jpg",
+        local_path=str(path),
+        sha256=hashlib.sha256(approved_payload).hexdigest(),
+        size_bytes=len(approved_payload),
+        width=1_200,
+        height=800,
+        source_label="Wikimedia Commons · cc_by",
+        source_url="https://commons.wikimedia.org/wiki/File:Approved_visual.jpg",
+    )
+    repository = InMemoryVideoBatchRepository()
+    service = VideoBatchService(
+        story_pool=stack.workflow,
+        repository=repository,
+        host_renderer=PlaceholderHostRenderer(),
+        program_director=DeterministicProgramDirector(),
+        synthesizer=stack.synthesizer,
+        video_renderer=DeterministicBatchVideoRenderer(tmp_path / "videos"),
+        bgm_catalog=LocalBgmCatalog(tmp_path / "bgm"),
+        source_video_library=EmptySourceVideoAssetLibrary(),
+        visual_asset_library=_StaticVisualAssetLibrary(asset),
+        audio_root=stack.settings.output_dir,
+    )
+    batch = await service.create(
+        CreateVideoBatch(title="Tampered visual", story_ids=[story.story_id])
+    )
+
+    with pytest.raises(VideoBatchConflictError, match="Visual bytes no longer match"):
+        await _approve_and_synthesize(service, batch.batch_id, batch.version)
+    failed = await repository.get(batch.batch_id)
+
+    assert failed.status is VideoBatchStatus.PENDING_BATCH_TTS
+    assert failed.narration_failure is not None
+    assert "Visual bytes no longer match" in failed.narration_failure.message
     assert failed.remotion_props is None
 
 
@@ -1021,7 +1085,7 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
         assert reloaded.status is VideoBatchStatus.RENDERED
         assert reloaded.narration.manifest == rendered.narration.manifest
         assert reloaded.stories[0].used_at == rendered.stories[0].used_at
-        assert await repository.unavailable_story_ids([story.story_id]) == {story.story_id}
+        assert await repository.unavailable_story_ids([story.story_id]) == frozenset()
         assert not await guard.has_live_script_reference(
             rendered.narration.script.segments[0].speaker_id
         )
@@ -1098,6 +1162,10 @@ async def test_sql_repository_persists_merged_narration_and_used_at_atomically(
                     f"/api/v1/video/batches/{rendered.batch_id}/outputs/douyin_vertical"
                 )
                 assert legacy_output.status_code == 409
+        replacement = await service.create(
+            CreateVideoBatch(title="New editorial cut", story_ids=[story.story_id])
+        )
+        assert replacement.status is VideoBatchStatus.PENDING_NARRATION_REVIEW
     finally:
         await database.aclose()
 

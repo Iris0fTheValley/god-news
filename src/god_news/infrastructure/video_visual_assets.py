@@ -10,6 +10,11 @@ from god_news.domain.visual_assets import (
     StoredVisualAsset,
     VisualAssetOrigin,
 )
+from god_news.domain.visual_discovery import CommonsMediaKind, VisualDiscoveryStatus
+from god_news.domain.visual_discovery_ports import (
+    VisualDiscoveryRepository,
+    VisualDiscoveryStore,
+)
 from god_news.domain.visual_ports import VisualAssetRepository, VisualAssetStore
 from god_news.infrastructure.visual_asset_store import inspect_raster_dimensions
 
@@ -22,9 +27,13 @@ class ApprovedVisualAssetLibrary:
         *,
         repository: VisualAssetRepository,
         store: VisualAssetStore,
+        discovery_repository: VisualDiscoveryRepository | None = None,
+        discovery_store: VisualDiscoveryStore | None = None,
     ) -> None:
         self._repository = repository
         self._store = store
+        self._discovery_repository = discovery_repository
+        self._discovery_store = discovery_store
 
     async def approved_for_stories(
         self,
@@ -39,9 +48,52 @@ class ApprovedVisualAssetLibrary:
                 story.story_id,
                 script_revision=story.script.revision,
             )
-            result[story.story_id] = tuple(
-                [await self._to_render_asset(story, asset) for asset in assets]
-            )
+            rendered = [await self._to_render_asset(story, asset) for asset in assets]
+            if self._discovery_repository is not None and self._discovery_store is not None:
+                discovered = await self._discovery_repository.list_for_story(
+                    story.story_id,
+                    script_revision=story.script.revision,
+                )
+                for asset in discovered:
+                    candidate = asset.candidate
+                    if (
+                        asset.status is not VisualDiscoveryStatus.APPROVED
+                        or candidate.kind is not CommonsMediaKind.IMAGE
+                        or not candidate.publish_eligible
+                        or asset.storage_key is None
+                        or asset.sha256 is None
+                        or asset.downloaded_size_bytes is None
+                    ):
+                        continue
+                    path = await self._discovery_store.resolve(asset.storage_key)
+                    content_type = {
+                        "image/png": "image/png",
+                        "image/jpeg": "image/jpeg",
+                        "image/webp": "image/webp",
+                    }.get(candidate.mime_type.casefold())
+                    if content_type is None:
+                        continue
+                    rendered.append(
+                        VisualRenderAsset(
+                            asset_id=asset.asset_id,
+                            story_id=asset.story_id,
+                            segment_id=asset.segment_id,
+                            asset_type=VisualAssetType.IMAGE,
+                            content_type=content_type,
+                            filename=candidate.file_title.removeprefix("File:"),
+                            local_path=str(path),
+                            sha256=asset.sha256,
+                            size_bytes=asset.downloaded_size_bytes,
+                            width=candidate.width,
+                            height=candidate.height,
+                            source_label=(
+                                f"{candidate.attribution.attribution_text} · "
+                                f"{candidate.rights.license.value}"
+                            ),
+                            source_url=str(candidate.canonical_page_url),
+                        )
+                    )
+            result[story.story_id] = tuple(rendered)
         return result
 
     async def _to_render_asset(

@@ -119,7 +119,7 @@ class Settings(BaseSettings):
     video_render_output_dir: Path | None = None
     video_node_command: str = "node"
     video_quality_ffmpeg_command: str | None = None
-    video_quality_max_freeze_seconds: float = Field(default=12.0, gt=1, le=60)
+    video_quality_max_freeze_seconds: float = Field(default=15.0, gt=1, le=60)
     video_render_timeout_seconds: float = Field(default=3_600, gt=0, le=14_400)
     video_render_max_parallel_batches: int = Field(default=1, ge=1, le=4)
     video_render_concurrency: int = Field(default=2, ge=1, le=8)

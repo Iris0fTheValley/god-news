@@ -13,6 +13,7 @@ from god_news.container import AppContainer
 from god_news.domain.visual_discovery import (
     CommonsDiscoveryRequest,
     CommonsDiscoveryResult,
+    ReuseApprovedVisualRequest,
     StageCommonsVisualRequest,
     VisualDiscoveryAssetView,
     VisualDiscoveryReviewRequest,
@@ -62,6 +63,20 @@ async def stage_commons_visual(
     request: StageCommonsVisualRequest, service: ServiceDependency
 ) -> VisualDiscoveryAssetView:
     return await service.stage(request)
+
+
+@router.post(
+    "/visual-discovery-assets/{asset_id}/reuse",
+    response_model=VisualDiscoveryAssetView,
+    status_code=201,
+    operation_id="reuseApprovedVisualDiscoveryAsset",
+)
+async def reuse_approved_visual_discovery_asset(
+    asset_id: UUID,
+    request: ReuseApprovedVisualRequest,
+    service: ServiceDependency,
+) -> VisualDiscoveryAssetView:
+    return await service.reuse(asset_id, request)
 
 
 @router.get(

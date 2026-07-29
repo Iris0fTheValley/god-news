@@ -381,6 +381,7 @@ class VideoBatchService:
             )
             input_assets = await asyncio.to_thread(self._snapshot_input_assets, props)
             self._validate_audio_snapshot_evidence(audio, input_assets)
+            self._validate_visual_snapshot_evidence(props, input_assets)
             self._validate_broll_snapshot_evidence(props, input_assets)
         except Exception as exc:
             return await self._record_narration_failure(running, exc)
@@ -1255,6 +1256,37 @@ class VideoBatchService:
             ):
                 raise VideoBatchConflictError(
                     "B-roll bytes no longer match the approved rights snapshot."
+                )
+
+    @staticmethod
+    def _validate_visual_snapshot_evidence(
+        props: RemotionVideoProps,
+        input_assets: Sequence[VideoInputAsset],
+    ) -> None:
+        snapshots = {
+            (asset.kind, asset.local_path): asset
+            for asset in input_assets
+            if asset.kind
+            in {
+                VideoInputAssetKind.IMAGE,
+                VideoInputAssetKind.SOURCE_SCREENSHOT,
+            }
+        }
+        for visual in props.visual_assets:
+            kind = (
+                VideoInputAssetKind.IMAGE
+                if visual.asset_type is VisualAssetType.IMAGE
+                else VideoInputAssetKind.SOURCE_SCREENSHOT
+            )
+            local_path = str(Path(visual.local_path).expanduser().resolve(strict=True))
+            snapshot = snapshots.get((kind, local_path))
+            if (
+                snapshot is None
+                or snapshot.sha256 != visual.sha256
+                or snapshot.size_bytes != visual.size_bytes
+            ):
+                raise VideoBatchConflictError(
+                    "Visual bytes no longer match the approved evidence snapshot."
                 )
 
     @staticmethod

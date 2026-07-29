@@ -17,6 +17,7 @@ from god_news.domain.visual_discovery import (
     CommonsMediaKind,
     CommonsVisualCandidate,
     PersistedVisualDiscoveryAsset,
+    ReuseApprovedVisualRequest,
     StageCommonsVisualRequest,
     VisualDiscoveryAssetView,
     VisualDiscoveryReviewRequest,
@@ -114,6 +115,69 @@ class VisualDiscoveryApplication:
             raise
         return _view(asset)
 
+    async def reuse(
+        self,
+        source_asset_id: UUID,
+        request: ReuseApprovedVisualRequest,
+    ) -> VisualDiscoveryAssetView:
+        """Reuse provider-verified bytes without another fragile network download.
+
+        The new binding remains staged so an operator must review whether the
+        same media is contextually appropriate for the target story.
+        """
+
+        source = await self._repository.get(source_asset_id)
+        story = await self._stories.get(request.story_id)
+        self._require_current_segment(story, request)
+        if (
+            source.status is not VisualDiscoveryStatus.APPROVED
+            or not source.candidate.publish_eligible
+            or source.storage_key is None
+            or source.sha256 is None
+            or source.downloaded_size_bytes is None
+        ):
+            raise StoryInvariantError(
+                story.story_id,
+                "Only approved, downloaded, rights-cleared Commons assets can be reused.",
+            )
+        path = await self._store.resolve(source.storage_key)
+        digest, size = await asyncio.to_thread(_file_sha256_and_size, path)
+        if digest != source.sha256 or size != source.downloaded_size_bytes:
+            raise StoryInvariantError(
+                story.story_id,
+                "The approved Commons bytes changed and cannot be reused.",
+            )
+        asset_id = uuid4()
+        storage_key, cloned_digest, cloned_size, _cloned_path = await self._store.clone(
+            source_storage_key=source.storage_key,
+            target_asset_id=asset_id,
+            filename=source.candidate.file_title.removeprefix("File:"),
+        )
+        try:
+            if cloned_digest != source.sha256 or cloned_size != source.downloaded_size_bytes:
+                raise StoryInvariantError(
+                    story.story_id,
+                    "The cloned Commons bytes do not match the approved source.",
+                )
+            asset = PersistedVisualDiscoveryAsset(
+                asset_id=asset_id,
+                story_id=story.story_id,
+                segment_id=request.segment_id,
+                script_revision=request.expected_script_revision,
+                status=VisualDiscoveryStatus.STAGED,
+                candidate=source.candidate,
+                storage_key=storage_key,
+                sha256=cloned_digest,
+                downloaded_size_bytes=cloned_size,
+                probed_duration_ms=source.probed_duration_ms,
+                created_at=utc_now(),
+            )
+            await self._repository.create(asset)
+        except Exception:
+            await self._store.remove(storage_key)
+            raise
+        return _view(asset)
+
     async def list(self, story_id: UUID) -> list[VisualDiscoveryAssetView]:
         story = await self._stories.get(story_id)
         if story.script is None:
@@ -174,7 +238,10 @@ class VisualDiscoveryApplication:
         return result.candidates[0]
 
     @staticmethod
-    def _require_current_segment(story: Story, request: StageCommonsVisualRequest) -> None:
+    def _require_current_segment(
+        story: Story,
+        request: StageCommonsVisualRequest | ReuseApprovedVisualRequest,
+    ) -> None:
         if story.version != request.expected_story_version:
             raise ConcurrentWriteError(story.story_id)
         if story.script is None or story.script.revision != request.expected_script_revision:
@@ -234,6 +301,16 @@ def _require_official_candidate(candidate: CommonsVisualCandidate) -> None:
 def _file_sha1(path: Path) -> str:
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha1").hexdigest()
+
+
+def _file_sha256_and_size(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
 
 
 def _view(asset: PersistedVisualDiscoveryAsset) -> VisualDiscoveryAssetView:

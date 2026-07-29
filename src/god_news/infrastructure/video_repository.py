@@ -39,10 +39,11 @@ class VideoBatchRow(Base):
 
 
 class VideoStoryClaimRow(Base):
-    """One active reservation or durable used marker per story.
+    """One active production reservation per story.
 
-    Rejected batches delete their claims. Successful batches keep the row with
-    ``used_at`` populated, which makes candidate exclusion durable and cheap.
+    Rejected, cancelled, and successfully rendered batches release claims.
+    Immutable story snapshots and timestamps remain in ``video_batches`` as
+    audit evidence without permanently preventing a later editorial cut.
     """
 
     __tablename__ = "video_story_claims"
@@ -123,6 +124,20 @@ class SqlAlchemyVideoBatchRepository:
         try:
             async with self._sessions() as session:
                 async with session.begin():
+                    # Upgrade old durable-used markers lazily. Completed batches
+                    # retain their immutable snapshots, so their claim rows are
+                    # no longer needed to prove provenance.
+                    story_ids = [claim.story_id for claim in claims]
+                    if story_ids:
+                        rendered_batch_ids = select(VideoBatchRow.batch_id).where(
+                            VideoBatchRow.status == VideoBatchStatus.RENDERED.value
+                        )
+                        await session.execute(
+                            delete(VideoStoryClaimRow).where(
+                                VideoStoryClaimRow.story_id.in_(story_ids),
+                                VideoStoryClaimRow.batch_id.in_(rendered_batch_ids),
+                            )
+                        )
                     session.add(row)
                     session.add_all(claims)
         except IntegrityError as exc:
@@ -193,8 +208,16 @@ class SqlAlchemyVideoBatchRepository:
         claimed: list[str] = []
         async with self._sessions() as session:
             for start in range(0, len(encoded), 500):
-                statement = select(VideoStoryClaimRow.story_id).where(
-                    VideoStoryClaimRow.story_id.in_(encoded[start : start + 500])
+                statement = (
+                    select(VideoStoryClaimRow.story_id)
+                    .join(
+                        VideoBatchRow,
+                        VideoBatchRow.batch_id == VideoStoryClaimRow.batch_id,
+                    )
+                    .where(
+                        VideoStoryClaimRow.story_id.in_(encoded[start : start + 500]),
+                        VideoBatchRow.status != VideoBatchStatus.RENDERED.value,
+                    )
                 )
                 claimed.extend((await session.scalars(statement)).all())
         return frozenset(UUID(story_id) for story_id in claimed)
@@ -235,12 +258,10 @@ class SqlAlchemyVideoBatchRepository:
                         )
                     )
                 elif saved.status is VideoBatchStatus.RENDERED:
-                    used_at = saved.stories[0].used_at
-                    assert used_at is not None
                     claim_result = await session.execute(
-                        update(VideoStoryClaimRow)
-                        .where(VideoStoryClaimRow.batch_id == str(saved.batch_id))
-                        .values(used_at=used_at)
+                        delete(VideoStoryClaimRow).where(
+                            VideoStoryClaimRow.batch_id == str(saved.batch_id)
+                        )
                     )
                     if cast(CursorResult[Any], claim_result).rowcount != len(saved.stories):
                         raise VideoBatchConflictError(

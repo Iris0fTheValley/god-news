@@ -51,7 +51,7 @@ class LocalRemotionBatchVideoRenderer:
         output_dir: Path,
         node_command: str,
         quality_ffmpeg_command: str | Path | None = None,
-        max_freeze_seconds: float = 12.0,
+        max_freeze_seconds: float = 15.0,
         timeout_seconds: float,
         max_parallel_batches: int,
         concurrency: int,

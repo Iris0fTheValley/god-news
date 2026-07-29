@@ -952,6 +952,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/visual-discovery-assets/{asset_id}/reuse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reuse Approved Visual Discovery Asset */
+        post: operations["reuseApprovedVisualDiscoveryAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/visual-discovery/commons": {
         parameters: {
             query?: never;
@@ -3384,6 +3401,26 @@ export interface components {
              * @default 0
              */
             size_bytes: number;
+        };
+        /**
+         * ReuseApprovedVisualRequest
+         * @description Bind already verified Commons bytes to another current narration segment.
+         */
+        ReuseApprovedVisualRequest: {
+            /** Expected Script Revision */
+            expected_script_revision: number;
+            /** Expected Story Version */
+            expected_story_version: number;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
         };
         /**
          * ReviewDecision
@@ -9564,6 +9601,77 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualDiscoveryAssetView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    reuseApprovedVisualDiscoveryAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReuseApprovedVisualRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

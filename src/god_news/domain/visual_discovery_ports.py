@@ -47,6 +47,14 @@ class VisualDiscoveryStore(Protocol):
         expected_max_bytes: int,
     ) -> tuple[str, str, int, Path]: ...
 
+    async def clone(
+        self,
+        *,
+        source_storage_key: str,
+        target_asset_id: UUID,
+        filename: str,
+    ) -> tuple[str, str, int, Path]: ...
+
     async def resolve(self, storage_key: str) -> Path: ...
 
     async def remove(self, storage_key: str) -> None: ...

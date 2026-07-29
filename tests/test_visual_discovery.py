@@ -16,6 +16,7 @@ from god_news.domain.visual_discovery import (
     CommonsRights,
     CommonsVisualCandidate,
     PersistedVisualDiscoveryAsset,
+    ReuseApprovedVisualRequest,
     StageCommonsVisualRequest,
     VisualDiscoveryReviewRequest,
     VisualDiscoveryStatus,
@@ -456,6 +457,44 @@ async def test_stage_approve_reject_and_stale_revision_are_server_enforced(tmp_p
             VisualDiscoveryReviewRequest(expected_story_version=story.version, note="verified"),
         )
         assert approved.status is VisualDiscoveryStatus.APPROVED
+        target = make_story()
+        target = target.model_copy(
+            update={
+                "source": target.source.model_copy(
+                    update={
+                        "title": "Different target story",
+                        "content_sha256": "c" * 64,
+                    }
+                )
+            }
+        )
+        target_translation, target_script, _target_audio = make_artifacts()
+        target = transition_story(
+            target,
+            StoryStatus.TRANSLATED,
+            translation=target_translation,
+        )
+        target = transition_story(target, StoryStatus.PENDING_FIRST_REVIEW)
+        target = transition_story(target, StoryStatus.PROCESSING_SCRIPT)
+        target = transition_story(target, StoryStatus.SCRIPT_READY, script=target_script)
+        await stories.create(target)
+        reused = await service.reuse(
+            staged.asset_id,
+            ReuseApprovedVisualRequest(
+                story_id=target.story_id,
+                segment_id=target_script.segments[0].segment_id,
+                expected_story_version=target.version,
+                expected_script_revision=target_script.revision,
+            ),
+        )
+        assert reused.asset_id != staged.asset_id
+        assert reused.story_id == target.story_id
+        assert reused.segment_id == target_script.segments[0].segment_id
+        assert reused.status is VisualDiscoveryStatus.STAGED
+        assert reused.sha256 == staged.sha256
+        assert (await repository.get(reused.asset_id)).storage_key != (
+            await repository.get(staged.asset_id)
+        ).storage_key
         rejected = await service.reject(
             staged.asset_id,
             VisualDiscoveryReviewRequest(expected_story_version=story.version, note="withdrawn"),

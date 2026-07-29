@@ -594,6 +594,8 @@ async def build_container(settings: Settings) -> AppContainer:
         visual_asset_library=ApprovedVisualAssetLibrary(
             repository=visual_asset_repository,
             store=visual_asset_store,
+            discovery_repository=visual_discovery_repository,
+            discovery_store=visual_discovery_store,
         ),
         audio_root=settings.output_dir,
         candidate_scan_limit=settings.video_candidate_scan_limit,

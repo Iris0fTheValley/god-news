@@ -1638,9 +1638,26 @@ class VideoBatch(DomainModel):
         }
         if recorded_broll_video_paths != expected_broll_video_paths:
             raise ValueError("B-roll input evidence must match approved render assets")
-        input_by_path = {asset.local_path: asset for asset in self.input_assets}
+        input_by_key = {
+            (asset.kind, asset.local_path): asset for asset in self.input_assets
+        }
+        for visual in self.remotion_props.visual_assets:
+            kind = (
+                VideoInputAssetKind.IMAGE
+                if visual.asset_type is VisualAssetType.IMAGE
+                else VideoInputAssetKind.SOURCE_SCREENSHOT
+            )
+            snapshot = input_by_key.get((kind, visual.local_path))
+            if (
+                snapshot is None
+                or snapshot.sha256 != visual.sha256
+                or snapshot.size_bytes != visual.size_bytes
+            ):
+                raise ValueError("visual bytes must match the approved evidence snapshot")
         for broll in self.remotion_props.broll_videos:
-            snapshot = input_by_path.get(broll.local_path)
+            snapshot = input_by_key.get(
+                (VideoInputAssetKind.BROLL_VIDEO, broll.local_path)
+            )
             if (
                 snapshot is None
                 or snapshot.sha256 != broll.sha256

@@ -6320,6 +6320,40 @@
         "title": "RetentionItemResult",
         "type": "object"
       },
+      "ReuseApprovedVisualRequest": {
+        "additionalProperties": false,
+        "description": "Bind already verified Commons bytes to another current narration segment.",
+        "properties": {
+          "expected_script_revision": {
+            "minimum": 1.0,
+            "title": "Expected Script Revision",
+            "type": "integer"
+          },
+          "expected_story_version": {
+            "minimum": 0.0,
+            "title": "Expected Story Version",
+            "type": "integer"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id",
+          "segment_id",
+          "expected_story_version",
+          "expected_script_revision"
+        ],
+        "title": "ReuseApprovedVisualRequest",
+        "type": "object"
+      },
       "ReviewDecision": {
         "enum": [
           "approve",
@@ -16428,6 +16462,99 @@
           }
         },
         "summary": "Reject Visual Discovery Asset",
+        "tags": [
+          "visual-discovery"
+        ]
+      }
+    },
+    "/api/v1/visual-discovery-assets/{asset_id}/reuse": {
+      "post": {
+        "operationId": "reuseApprovedVisualDiscoveryAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReuseApprovedVisualRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualDiscoveryAssetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Reuse Approved Visual Discovery Asset",
         "tags": [
           "visual-discovery"
         ]

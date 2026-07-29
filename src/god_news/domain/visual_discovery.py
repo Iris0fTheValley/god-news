@@ -193,6 +193,15 @@ class StageCommonsVisualRequest(DomainModel):
         return self
 
 
+class ReuseApprovedVisualRequest(DomainModel):
+    """Bind already verified Commons bytes to another current narration segment."""
+
+    story_id: UUID
+    segment_id: UUID
+    expected_story_version: int = Field(ge=0)
+    expected_script_revision: int = Field(ge=1)
+
+
 class VisualDiscoveryReviewRequest(DomainModel):
     expected_story_version: int = Field(ge=0)
     note: Annotated[str | None, StringConstraints(max_length=2_000)] = None

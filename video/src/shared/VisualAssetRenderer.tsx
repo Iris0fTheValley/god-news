@@ -4,6 +4,14 @@ import {sourceForBrowser} from '../browser-assets';
 import type {CompiledSceneLayout} from '../layout/compile-layout';
 import type {GodNewsVideoProps, VisualRenderAsset} from '../schema';
 
+export const resolveVisualObjectFit = (
+  _asset: Pick<VisualRenderAsset, 'asset_type'>,
+): 'contain' =>
+  // Reviewed still evidence has no focal-point contract. Cropping it would
+  // silently discard source information, and JPEG EXIF orientation can make
+  // stored dimensions differ from the browser's displayed orientation.
+  'contain';
+
 export const resolveSceneVisuals = (
   props: GodNewsVideoProps,
   assetIds: readonly string[],
@@ -36,6 +44,7 @@ export const VisualAssetRenderer = ({
   }
   const tokens = props.template?.design_tokens;
   if (!tokens) throw new Error('Visual asset rendering requires template design tokens.');
+  const objectFit = resolveVisualObjectFit(asset);
   const zoom = interpolate(
     frame,
     [0, 150],
@@ -70,8 +79,8 @@ export const VisualAssetRenderer = ({
         style={{
           width: '100%',
           height: '100%',
-          objectFit: layout.mediaFit,
-          transform: `scale(${zoom})`,
+          objectFit,
+          transform: `scale(${objectFit === 'contain' ? 1 : zoom})`,
         }}
       />
     </div>
