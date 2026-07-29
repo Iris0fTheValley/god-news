@@ -54,6 +54,8 @@ class LocalLive2DHostRenderer:
         width: int,
         height: int,
         fps: int,
+        motion_policy: str = "idle",
+        sdk_auto_breath: bool = False,
         motion_intensity: float = 0.35,
         mouth_attack_ms: float = 55,
         mouth_release_ms: float = 160,
@@ -80,6 +82,10 @@ class LocalLive2DHostRenderer:
         self._width = width
         self._height = height
         self._fps = fps
+        if motion_policy not in {"idle", "emotion_once"}:
+            raise ValueError("Live2D motion policy must be idle or emotion_once")
+        self._motion_policy = motion_policy
+        self._sdk_auto_breath = sdk_auto_breath
         self._motion_intensity = motion_intensity
         self._mouth_attack_ms = mouth_attack_ms
         self._mouth_release_ms = mouth_release_ms
@@ -252,7 +258,7 @@ class LocalLive2DHostRenderer:
             "--diagnostic-trace",
             str(trace_path),
             "--control-mode",
-            "final",
+            "sdk_native",
             "--seed",
             str(self._seed),
             "--emotion",
@@ -265,6 +271,8 @@ class LocalLive2DHostRenderer:
             str(self._height),
             "--fps",
             str(self._fps),
+            "--motion-policy",
+            self._motion_policy,
             "--motion-intensity",
             str(self._motion_intensity),
             "--mouth-attack-ms",
@@ -272,6 +280,8 @@ class LocalLive2DHostRenderer:
             "--mouth-release-ms",
             str(self._mouth_release_ms),
         ]
+        if self._sdk_auto_breath:
+            command.append("--sdk-auto-breath")
         creationflags = 0x08000000 | 0x00000200 if os.name == "nt" else 0
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -317,9 +327,9 @@ class LocalLive2DHostRenderer:
             expected_frames = max(1, round(duration_ms * self._fps / 1_000))
             if diagnostic.frames != expected_frames or diagnostic.fps != self._fps:
                 raise ValueError
-            if diagnostic.control_mode != "final":
+            if diagnostic.control_mode != "sdk_native":
                 raise VideoNarrationSynthesisError(
-                    "Production Live2D rendering must use the final single-owner controller.",
+                    "Production Live2D rendering must use the SDK-native single-owner controller.",
                     retryable=False,
                 )
             if not diagnostic.quality_gate_passed or diagnostic.gate_findings:
@@ -328,11 +338,11 @@ class LocalLive2DHostRenderer:
                     retryable=False,
                 )
             required_owners = {
-                "PARAM_ANGLE_X": "motion_mixer",
-                "PARAM_ANGLE_Y": "motion_mixer",
-                "PARAM_ANGLE_Z": "motion_mixer",
-                "PARAM_BODY_ANGLE_X": "motion_mixer",
-                "PARAM_BREATH": "breath_controller",
+                "PARAM_ANGLE_X": "sdk_native",
+                "PARAM_ANGLE_Y": "sdk_native",
+                "PARAM_ANGLE_Z": "sdk_native",
+                "PARAM_BODY_ANGLE_X": "sdk_native",
+                "PARAM_BREATH": "sdk_native",
                 "PARAM_EYE_BALL_X": "eye_gaze_mixer",
                 "PARAM_EYE_BALL_Y": "eye_gaze_mixer",
                 "PARAM_EYE_L_OPEN": "blink_controller",

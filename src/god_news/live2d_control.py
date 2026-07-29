@@ -37,6 +37,7 @@ class Live2DControlMode(str, Enum):  # noqa: UP042 - worker runtime is Python 3.
     PROCEDURAL_ONLY = "procedural_only"
     NO_LIP_SYNC = "no_lip_sync"
     FINAL = "final"
+    SDK_NATIVE = "sdk_native"
 
 
 class ParameterFamily(str, Enum):  # noqa: UP042 - worker runtime is Python 3.9
@@ -50,6 +51,7 @@ class ParameterFamily(str, Enum):  # noqa: UP042 - worker runtime is Python 3.9
 
 class ParameterOwner(str, Enum):  # noqa: UP042 - worker runtime is Python 3.9
     CONFLICTING_WRITERS = "conflicting_writers"
+    SDK_NATIVE = "sdk_native"
     MOTION_SAMPLER = "motion_sampler"
     PROCEDURAL_POSE_MIXER = "procedural_pose_mixer"
     NEUTRAL_MOUTH_CONTROLLER = "neutral_mouth_controller"
@@ -93,6 +95,13 @@ def effective_parameter_owner(
 ) -> ParameterOwner:
     if mode is Live2DControlMode.LEGACY_CONFLICT:
         return ParameterOwner.CONFLICTING_WRITERS
+    if mode is Live2DControlMode.SDK_NATIVE:
+        if parameter in {PARAM_EYE_BALL_X, PARAM_EYE_BALL_Y}:
+            return ParameterOwner.EYE_GAZE_MIXER
+        if parameter in {PARAM_EYE_L_OPEN, PARAM_EYE_R_OPEN}:
+            return ParameterOwner.BLINK_CONTROLLER
+        if parameter != PARAM_MOUTH_OPEN_Y:
+            return ParameterOwner.SDK_NATIVE
     if mode is Live2DControlMode.MOTION_ONLY and parameter != PARAM_MOUTH_OPEN_Y:
         return ParameterOwner.MOTION_SAMPLER
     if (

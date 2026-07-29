@@ -32,6 +32,11 @@ class ChromaEmbeddingFunctionName(StrEnum):
     DEFAULT = "default"
 
 
+class Live2DMotionPolicy(StrEnum):
+    IDLE = "idle"
+    EMOTION_ONCE = "emotion_once"
+
+
 class ChromaEmbeddingModelName(StrEnum):
     ALL_MINILM_L6_V2 = "all-MiniLM-L6-v2"
 
@@ -133,6 +138,8 @@ class Settings(BaseSettings):
     video_live2d_width: int = Field(default=720, ge=256, le=2_048, multiple_of=2)
     video_live2d_height: int = Field(default=720, ge=256, le=2_048, multiple_of=2)
     video_live2d_fps: int = Field(default=30, ge=1, le=60)
+    video_live2d_motion_policy: Live2DMotionPolicy = Live2DMotionPolicy.IDLE
+    video_live2d_sdk_auto_breath: bool = False
     video_live2d_motion_intensity: float = Field(default=0.35, ge=0, le=1)
     video_live2d_mouth_attack_ms: float = Field(default=55, gt=0, le=500)
     video_live2d_mouth_release_ms: float = Field(default=160, gt=0, le=1_000)

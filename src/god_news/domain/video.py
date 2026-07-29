@@ -332,6 +332,7 @@ class Live2DRenderDiagnostics(DomainModel):
         "procedural_only",
         "no_lip_sync",
         "final",
+        "sdk_native",
     ]
     frames: int = Field(gt=0)
     envelope_frames: int = Field(gt=0)

@@ -565,6 +565,8 @@ async def build_container(settings: Settings) -> AppContainer:
             width=settings.video_live2d_width,
             height=settings.video_live2d_height,
             fps=settings.video_live2d_fps,
+            motion_policy=settings.video_live2d_motion_policy.value,
+            sdk_auto_breath=settings.video_live2d_sdk_auto_breath,
             motion_intensity=settings.video_live2d_motion_intensity,
             mouth_attack_ms=settings.video_live2d_mouth_attack_ms,
             mouth_release_ms=settings.video_live2d_mouth_release_ms,

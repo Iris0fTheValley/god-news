@@ -853,6 +853,7 @@ const RenderedHostVideoSchema = z
           'procedural_only',
           'no_lip_sync',
           'final',
+          'sdk_native',
         ]),
         frames: z.number().int().positive(),
         envelope_frames: z.number().int().positive(),

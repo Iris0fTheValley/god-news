@@ -291,6 +291,50 @@ def test_deterministic_blink_and_idle_pose_are_bounded() -> None:
     )
 
 
+def test_sdk_native_motion_policy_decouples_tts_emotion_from_body_motion() -> None:
+    worker = _load_worker_module()
+    model_data = {
+        "motions": {
+            "like": [{"file": "gesture.mtn"}],
+            "idle_motion": [{"file": "idle.mtn"}],
+        }
+    }
+
+    assert worker._motion_group(model_data, "like", policy="idle") == "idle_motion"
+    assert (
+        worker._motion_group(model_data, "like", policy="emotion_once") == "like"
+    )
+
+
+def test_sdk_native_only_overrides_gaze_and_lip_sync() -> None:
+    worker = _load_worker_module()
+    ranges = {
+        "PARAM_ANGLE_X": worker.ParameterRange(-30.0, 30.0, 0.0),
+        "PARAM_EYE_BALL_X": worker.ParameterRange(-1.0, 1.0, 0.0),
+        "PARAM_MOUTH_OPEN_Y": worker.ParameterRange(0.0, 1.0, 0.0),
+    }
+
+    contributions = worker._sdk_native_contributions(
+        base_values={parameter: value.default for parameter, value in ranges.items()},
+        sampled_values={
+            "PARAM_ANGLE_X": 12.0,
+            "PARAM_EYE_BALL_X": 0.8,
+            "PARAM_MOUTH_OPEN_Y": 0.1,
+        },
+        eye_gaze={"PARAM_EYE_BALL_X": 0.2},
+        blink_openness=1.0,
+        mouth=0.65,
+        parameter_ranges=ranges,
+    )
+
+    assert contributions["PARAM_ANGLE_X"].final == 12.0
+    assert contributions["PARAM_ANGLE_X"].owner.value == "sdk_native"
+    assert contributions["PARAM_EYE_BALL_X"].final == 0.2
+    assert contributions["PARAM_EYE_BALL_X"].owner.value == "eye_gaze_mixer"
+    assert contributions["PARAM_MOUTH_OPEN_Y"].final == 0.65
+    assert contributions["PARAM_MOUTH_OPEN_Y"].owner.value == "lip_sync_controller"
+
+
 def test_capture_retries_transient_blank_without_advancing_state() -> None:
     worker = _load_worker_module()
     blank = bytes(4 * 4 * 4)
@@ -364,11 +408,11 @@ def _diagnostic_payload(**overrides: object) -> dict[str, object]:
         "maximum_high_frequency_energy_ratio": 1.1,
     }
     parameter_owners = {
-        "PARAM_ANGLE_X": "motion_mixer",
-        "PARAM_ANGLE_Y": "motion_mixer",
-        "PARAM_ANGLE_Z": "motion_mixer",
-        "PARAM_BODY_ANGLE_X": "motion_mixer",
-        "PARAM_BREATH": "breath_controller",
+        "PARAM_ANGLE_X": "sdk_native",
+        "PARAM_ANGLE_Y": "sdk_native",
+        "PARAM_ANGLE_Z": "sdk_native",
+        "PARAM_BODY_ANGLE_X": "sdk_native",
+        "PARAM_BREATH": "sdk_native",
         "PARAM_EYE_BALL_X": "eye_gaze_mixer",
         "PARAM_EYE_BALL_Y": "eye_gaze_mixer",
         "PARAM_EYE_L_OPEN": "blink_controller",
@@ -383,7 +427,7 @@ def _diagnostic_payload(**overrides: object) -> dict[str, object]:
     }
     payload: dict[str, object] = {
         "schema_version": "2.0",
-        "control_mode": "final",
+        "control_mode": "sdk_native",
         "frames": 36,
         "envelope_frames": 36,
         "rendered_frames": 36,

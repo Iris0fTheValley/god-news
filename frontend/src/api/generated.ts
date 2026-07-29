@@ -1949,7 +1949,7 @@ export interface components {
              * Control Mode
              * @enum {string}
              */
-            control_mode: "legacy_conflict" | "motion_only" | "procedural_only" | "no_lip_sync" | "final";
+            control_mode: "legacy_conflict" | "motion_only" | "procedural_only" | "no_lip_sync" | "final" | "sdk_native";
             /** Controlled Parameters */
             controlled_parameters?: string[];
             /** Envelope Frames */

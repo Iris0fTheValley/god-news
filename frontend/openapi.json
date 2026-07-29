@@ -2332,7 +2332,8 @@
               "motion_only",
               "procedural_only",
               "no_lip_sync",
-              "final"
+              "final",
+              "sdk_native"
             ],
             "title": "Control Mode",
             "type": "string"

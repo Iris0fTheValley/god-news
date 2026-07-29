@@ -18,6 +18,8 @@ sys.path.insert(0, str(WORKSPACE / "src"))
 
 from god_news.live2d_control import (  # noqa: E402
     CONTROLLED_PARAMETERS,
+    PARAM_EYE_BALL_X,
+    PARAM_EYE_BALL_Y,
     PARAM_EYE_L_OPEN,
     PARAM_EYE_R_OPEN,
     PARAM_MOUTH_OPEN_Y,
@@ -55,6 +57,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, default=900)
     parser.add_argument("--height", type=int, default=900)
     parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument(
+        "--motion-policy",
+        choices=("idle", "emotion_once"),
+        default="idle",
+        help="Use a stable idle motion or play the segment emotion gesture once.",
+    )
+    parser.add_argument(
+        "--sdk-auto-breath",
+        action="store_true",
+        help="Enable the runtime's strong head/body breath oscillator.",
+    )
     parser.add_argument("--scale", type=float, default=1.0)
     parser.add_argument("--offset-x", type=float, default=0.0)
     parser.add_argument("--offset-y", type=float, default=0.0)
@@ -64,7 +77,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--control-mode",
         choices=[mode.value for mode in Live2DControlMode],
-        default=Live2DControlMode.FINAL.value,
+        default=Live2DControlMode.SDK_NATIVE.value,
     )
     parser.add_argument("--diagnostic-trace", type=Path)
     parser.add_argument("--seed", type=int, default=42)
@@ -213,11 +226,20 @@ def _idle_pose(frame_index: int, *, fps: int, intensity: float) -> dict[str, flo
     }
 
 
-def _motion_group(model_data: dict[str, object], emotion: str) -> str | None:
+def _motion_group(
+    model_data: dict[str, object],
+    emotion: str,
+    *,
+    policy: str = "emotion_once",
+) -> str | None:
     motions = model_data.get("motions")
     if not isinstance(motions, dict):
         return None
-    candidates = (emotion, "talking_motion", "idle_motion", "IDLE")
+    candidates = (
+        ("idle_motion", "IDLE", "talking_motion")
+        if policy == "idle"
+        else (emotion, "talking_motion", "idle_motion", "IDLE")
+    )
     for candidate in candidates:
         entries = motions.get(candidate)
         if isinstance(entries, list) and entries:
@@ -362,8 +384,9 @@ def _parameter_ranges(model: object) -> dict[str, ParameterRange]:
     ranges: dict[str, ParameterRange] = {}
     for index in range(model.GetParameterCount()):
         parameter = model.GetParameter(index)
-        if parameter.id in CONTROLLED_PARAMETERS:
-            ranges[parameter.id] = ParameterRange(
+        parameter_id = str(parameter.id)
+        if parameter_id in CONTROLLED_PARAMETERS:
+            ranges[parameter_id] = ParameterRange(
                 minimum=float(parameter.min),
                 maximum=float(parameter.max),
                 default=float(parameter.default),
@@ -436,6 +459,63 @@ def _legacy_contributions(
             final=final,
             owner=effective_parameter_owner(
                 Live2DControlMode.LEGACY_CONFLICT,
+                parameter,
+            ),
+        )
+    return contributions
+
+
+def _sdk_native_contributions(
+    *,
+    base_values: dict[str, float],
+    sampled_values: dict[str, float],
+    eye_gaze: dict[str, float],
+    blink_openness: float,
+    mouth: float,
+    parameter_ranges: dict[str, ParameterRange],
+) -> dict[str, ParameterContribution]:
+    """Describe the SDK-owned frame without reapplying its parameters.
+
+    The Live2D SDK remains the sole owner of motion, expression, breath, pose,
+    and physics.  Deterministic blink, smooth gaze, and lip sync are the only
+    intentional post-update overrides, matching the staged update order of the
+    reference players without making physics consume a competing head/body pose.
+    """
+
+    contributions: dict[str, ParameterContribution] = {}
+    for parameter, parameter_range in parameter_ranges.items():
+        sampled = parameter_range.clamp(
+            sampled_values.get(parameter, base_values[parameter])
+        )
+        lip_sync = mouth if parameter == PARAM_MOUTH_OPEN_Y else None
+        look = eye_gaze.get(parameter)
+        blink = (
+            blink_openness
+            if parameter in {PARAM_EYE_L_OPEN, PARAM_EYE_R_OPEN}
+            else None
+        )
+        final = (
+            parameter_range.clamp(mouth)
+            if lip_sync is not None
+            else parameter_range.clamp(look)
+            if look is not None
+            else parameter_range.clamp(sampled * blink)
+            if blink is not None
+            else sampled
+        )
+        contributions[parameter] = ParameterContribution(
+            base=base_values[parameter],
+            motion=sampled,
+            expression=None,
+            idle=None,
+            look=look,
+            breath=None,
+            blink=blink,
+            lip_sync=lip_sync,
+            desired=final,
+            final=final,
+            owner=effective_parameter_owner(
+                Live2DControlMode.SDK_NATIVE,
                 parameter,
             ),
         )
@@ -740,7 +820,12 @@ def render(args: argparse.Namespace) -> None:
 
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
     import av
-    import live2d.v2cpp as live2d
+
+    # The pure-Python v2 adapter and UtSystem share the same injected clock.
+    # v2cpp owns a separate wall clock, so pairing it with this UtSystem makes
+    # offline rendering advance according to capture/encode latency and causes
+    # non-reproducible motion catch-up stutters.
+    import live2d.v2 as live2d
     import numpy as np
     import pygame
     from live2d.v2.core import UtSystem
@@ -795,22 +880,37 @@ def render(args: argparse.Namespace) -> None:
         model.Resize(args.width, args.height)
         model.SetScale(args.scale)
         model.SetOffset(args.offset_x, args.offset_y)
+        sdk_native = control_mode is Live2DControlMode.SDK_NATIVE
         model.SetAutoBlinkEnable(False)
-        model.SetAutoBreathEnable(control_mode is Live2DControlMode.LEGACY_CONFLICT)
+        model.SetAutoBreathEnable(
+            control_mode is Live2DControlMode.LEGACY_CONFLICT
+            or (sdk_native and args.sdk_auto_breath)
+        )
 
-        group = _motion_group(model_data, args.emotion)
+        group = _motion_group(
+            model_data,
+            args.emotion,
+            policy=args.motion_policy,
+        )
         motion_count = _motion_count(model_data, group)
         motion_index = 0
-        if group is not None and control_mode is Live2DControlMode.LEGACY_CONFLICT:
+        if group is not None and control_mode in {
+            Live2DControlMode.LEGACY_CONFLICT,
+            Live2DControlMode.SDK_NATIVE,
+        }:
             model.StartMotion(group, motion_index, 3)
         expression = _expression_name(model_data, args.emotion)
         if (
             expression is not None
-            and control_mode is Live2DControlMode.LEGACY_CONFLICT
+            and control_mode
+            in {
+                Live2DControlMode.LEGACY_CONFLICT,
+                Live2DControlMode.SDK_NATIVE,
+            }
         ):
             model.SetExpression(expression)
         parameter_indexes = {
-            model.GetParameter(index).id: index
+            str(model.GetParameter(index).id): index
             for index in range(model.GetParameterCount())
         }
         parameter_ranges = _parameter_ranges(model)
@@ -867,7 +967,12 @@ def render(args: argparse.Namespace) -> None:
             )
         )
 
-        container = av.open(os.fspath(output_path), mode="w", format="webm")
+        container = av.open(
+            os.fspath(output_path),
+            mode="w",
+            format="webm",
+            options={"fflags": "+bitexact"},
+        )
         stream = container.add_stream("libvpx-vp9", rate=args.fps)
         stream.width = args.width
         stream.height = args.height
@@ -922,7 +1027,41 @@ def render(args: argparse.Namespace) -> None:
             UtSystem.setUserTimeMSec(round(frame_index * 1_000 / args.fps))
             glClear(GL_COLOR_BUFFER_BIT)
             motion_switched_this_frame = False
-            if control_mode is Live2DControlMode.LEGACY_CONFLICT:
+            if control_mode is Live2DControlMode.SDK_NATIVE:
+                model.Update()
+                sampled_values = _parameter_values(
+                    model,
+                    parameter_indexes,
+                    set(parameter_ranges),
+                )
+                mouth_frame = mouth_controller.update(
+                    raw_audio,
+                    delta_seconds=delta_seconds,
+                )
+                mouth_open = mouth_frame.final_value
+                native_pose = procedural_controller.update(
+                    timestamp_seconds=timestamp_seconds,
+                    delta_seconds=delta_seconds,
+                    motion_weight=1.0,
+                )
+                blink = blink_controller.update(delta_seconds, enabled=True)
+                contributions = _sdk_native_contributions(
+                    base_values=base_values,
+                    sampled_values=sampled_values,
+                    eye_gaze=native_pose.look,
+                    blink_openness=blink,
+                    mouth=mouth_open,
+                    parameter_ranges=parameter_ranges,
+                )
+                motion_finished = bool(model.IsMotionFinished())
+                motion_state = (
+                    "sdk_native_settle" if motion_finished else "sdk_native_motion"
+                )
+                motion_weight = 0.0 if motion_finished else 1.0
+                blink_state = blink_controller.state.value
+                gated_envelope = mouth_frame.gated_envelope
+                smoothed_mouth_target = mouth_frame.smoothed_target
+            elif control_mode is Live2DControlMode.LEGACY_CONFLICT:
                 model.Update()
                 motion_values = _parameter_values(
                     model,
@@ -1044,7 +1183,18 @@ def render(args: argparse.Namespace) -> None:
                 gated_envelope = mouth_frame.gated_envelope
                 smoothed_mouth_target = mouth_frame.smoothed_target
             for parameter, contribution in contributions.items():
-                model.SetParameterValue(parameter, contribution.final, 1.0)
+                if (
+                    control_mode is not Live2DControlMode.SDK_NATIVE
+                    or parameter
+                    in {
+                        PARAM_EYE_BALL_X,
+                        PARAM_EYE_BALL_Y,
+                        PARAM_EYE_L_OPEN,
+                        PARAM_EYE_R_OPEN,
+                        PARAM_MOUTH_OPEN_Y,
+                    }
+                ):
+                    model.SetParameterValue(parameter, contribution.final, 1.0)
                 parameter_tracks[parameter].append(contribution.final)
             if motion_switched_this_frame:
                 motion_final_switch_deltas.append(
@@ -1198,7 +1348,22 @@ def render(args: argparse.Namespace) -> None:
                 "threshold": threshold.as_dict(),
                 "findings": [finding.as_dict() for finding in findings],
             }
-            gate_findings.extend(finding.as_dict() for finding in findings)
+            # SDK-authored head/body curves can intentionally exceed generic
+            # procedural derivative limits.  Production still records those
+            # observations, while only post-owned gaze/blink/mouth parameters and
+            # the stricter image-space stability gate can fail this mode.
+            if (
+                control_mode is not Live2DControlMode.SDK_NATIVE
+                or parameter
+                in {
+                    PARAM_EYE_BALL_X,
+                    PARAM_EYE_BALL_Y,
+                    PARAM_EYE_L_OPEN,
+                    PARAM_EYE_R_OPEN,
+                    PARAM_MOUTH_OPEN_Y,
+                }
+            ):
+                gate_findings.extend(finding.as_dict() for finding in findings)
         image_metric_objects, image_limits, image_findings = evaluate_image_tracks(
             image_tracks,
             timestamps,
@@ -1211,6 +1376,54 @@ def render(args: argparse.Namespace) -> None:
             for name, metrics in image_metric_objects.items()
         }
         gate_findings.extend(finding.as_dict() for finding in image_findings)
+        if control_mode is Live2DControlMode.SDK_NATIVE:
+            stable_image_limits = {
+                "stable_face_delta_p99": 0.050,
+                "stable_face_delta_max": 0.075,
+                "stable_eye_delta_p99": 0.065,
+                "stable_eye_delta_max": 0.090,
+                "stable_local_flow_p99": 0.0025,
+                "stable_local_flow_max": 0.0050,
+            }
+            image_limits.update(stable_image_limits)
+            stable_checks = {
+                "stable_face_delta_p99": (
+                    image_metric_objects["face_delta"].p99_absolute_value,
+                    stable_image_limits["stable_face_delta_p99"],
+                ),
+                "stable_face_delta_max": (
+                    image_metric_objects["face_delta"].maximum_absolute_value,
+                    stable_image_limits["stable_face_delta_max"],
+                ),
+                "stable_eye_delta_p99": (
+                    image_metric_objects["eye_delta"].p99_absolute_value,
+                    stable_image_limits["stable_eye_delta_p99"],
+                ),
+                "stable_eye_delta_max": (
+                    image_metric_objects["eye_delta"].maximum_absolute_value,
+                    stable_image_limits["stable_eye_delta_max"],
+                ),
+                "stable_local_flow_p99": (
+                    image_metric_objects["local_flow_magnitude"].p99_absolute_value,
+                    stable_image_limits["stable_local_flow_p99"],
+                ),
+                "stable_local_flow_max": (
+                    image_metric_objects[
+                        "local_flow_magnitude"
+                    ].maximum_absolute_value,
+                    stable_image_limits["stable_local_flow_max"],
+                ),
+            }
+            for metric, (observed, threshold) in stable_checks.items():
+                if observed > threshold:
+                    gate_findings.append(
+                        {
+                            "code": f"sdk_native_{metric}_exceeded",
+                            "metric": metric,
+                            "observed": observed,
+                            "threshold": threshold,
+                        }
+                    )
         trace_size = trace_path.stat().st_size
         trace_sha256 = hashlib.sha256(trace_path.read_bytes()).hexdigest()
         print(
