@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-WORKSPACE = Path(__file__).resolve().parents[1]
+WORKSPACE = Path(__file__).resolve().parents[2]
 MODES = ("motion_only", "procedural_only", "no_lip_sync", "final")
 
 
@@ -678,7 +678,12 @@ def main() -> int:
         diagnostic_path = mode_root / f"{mode}-diagnostics.json"
         command = [
             str(live2d_python),
-            str(WORKSPACE / "scripts" / "render_live2d_host.py"),
+            str(
+                WORKSPACE
+                / "scripts"
+                / "workers"
+                / "render_live2d_host.py"
+            ),
             "--model",
             str(model),
             "--audio",
@@ -748,7 +753,7 @@ def main() -> int:
         ):
             analysis_command = [
                 str(live2d_python),
-                str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
+                str(WORKSPACE / "scripts" / "quality" / "analyze_live2d_video.py"),
                 "--input",
                 str(input_video),
                 "--output",

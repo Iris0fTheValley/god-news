@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     video_render_concurrency: int = Field(default=2, ge=1, le=8)
     video_live2d_enabled: bool = False
     video_live2d_python_executable: Path | None = None
-    video_live2d_worker_script: Path = Path("./scripts/render_live2d_host.py")
+    video_live2d_worker_script: Path = Path("./scripts/workers/render_live2d_host.py")
     video_live2d_trusted_asset_roots: tuple[Path, ...] = ()
     video_live2d_output_dir: Path | None = None
     video_live2d_timeout_seconds: float = Field(default=900, gt=0, le=7_200)

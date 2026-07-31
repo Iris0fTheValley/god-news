@@ -2,7 +2,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
-$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $statePath = Join-Path $root "data\dev-processes.json"
 if (-not (Test-Path -LiteralPath $statePath)) {
     Write-Host "No god-news development process state was found."

@@ -13,7 +13,7 @@ from contextlib import suppress
 from fractions import Fraction
 from pathlib import Path
 
-WORKSPACE = Path(__file__).resolve().parents[1]
+WORKSPACE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(WORKSPACE / "src"))
 
 from god_news.live2d_control import (  # noqa: E402

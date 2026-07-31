@@ -21,16 +21,19 @@
 - `visual_reservations`：角色视觉资产引用；生产可绑定按段预渲染、带诊断与哈希的 Live2D VP9 WebM；
 - `runtime_assets`：CLI 生成的浏览器可读资产绑定，业务调用方不应手写。
 
-[`example/video-props.json`](./example/video-props.json) 是旧版最小契约示例，仅用于解释历史字段。旧快照可读取和审计，但生产渲染不会静默把它迁移到当前模板。正式可渲染输入应由后端冻结，或在前端 `/template-lab` 导出当前 `world_warmth@1.1.0` 的 validated props。
+正式可渲染输入应由后端冻结，或在前端 `/template-lab` 导出当前
+`world_warmth@1.1.0` 的 validated props。旧版输入不会被静默迁移；无效契约会在
+进入渲染器前失败。
 
 ## 使用
 
 ```powershell
 pnpm --filter @god-news/video studio
 pnpm --filter @god-news/video check
-pnpm --filter @god-news/video render -- --input .\video\example\video-props.json --profile douyin_vertical --output .\out\douyin.mp4
-pnpm --filter @god-news/video render -- --input .\video\example\video-props.json --profile bilibili_horizontal --output .\out\bilibili.mp4
 ```
+
+生产渲染使用后端冻结的输入；手工调试时，从 `/template-lab` 导出 validated props 后
+再传给 `pnpm --filter @god-news/video render`。
 
 CLI 校验 JSON，把本地音频、视觉素材、主持人视频和 BGM 按内容 SHA-256 复制到一次性 public 目录，覆盖任何传入的运行时绑定，渲染后删除临时 staging。相对路径以输入 JSON 所在目录为基准；HTTP、data URI、UNC 等非本地资产会被拒绝。
 

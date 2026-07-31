@@ -1,5 +1,7 @@
 # 2026-07 production repair work log
 
+> 历史归档：记录 2026-07 的一次性修复和本地输出路径，不代表当前目录、命令或运行状态。
+
 This log records evidence for the repair objective that starts from
 `codex/live2d-motion-stability` at
 `bc724b6fcfc1d9b857275edcf2af500d062d5939`.

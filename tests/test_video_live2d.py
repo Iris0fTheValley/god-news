@@ -33,7 +33,7 @@ SHA = "0" * 64
 
 
 def _load_worker_module() -> ModuleType:
-    path = Path("scripts/render_live2d_host.py").resolve(strict=True)
+    path = Path("scripts/workers/render_live2d_host.py").resolve(strict=True)
     spec = importlib.util.spec_from_file_location("render_live2d_host_test", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -146,7 +146,7 @@ def _renderer(
     return LocalLive2DHostRenderer(
         profiles=_Profiles(profile),
         python_executable=sys.executable,
-        worker_script=Path("scripts/render_live2d_host.py"),
+        worker_script=Path("scripts/workers/render_live2d_host.py"),
         inspector=_Inspector(duration_ms),  # type: ignore[arg-type]
         output_root=tmp_path / "hosts",
         trusted_asset_roots=[model_root],

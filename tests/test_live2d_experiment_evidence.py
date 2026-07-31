@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 WORKSPACE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(WORKSPACE / "scripts"))
+sys.path.insert(0, str(WORKSPACE / "scripts" / "quality"))
 
 from analyze_live2d_video import (  # noqa: E402
     _normalized_crop_bounds,

@@ -4,15 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "generate:openapi": "uv run --project .. python ../scripts/export_openapi.py ./openapi.json && openapi-typescript ./openapi.json -o ./src/api/generated.ts",
+    "prepare:template-lab-assets": "node scripts/prepare-template-lab-assets.mjs",
+    "dev": "pnpm prepare:template-lab-assets && vite --host 127.0.0.1",
+    "generate:openapi": "uv run --project .. python ../scripts/maintenance/export_openapi.py ./openapi.json && openapi-typescript ./openapi.json -o ./src/api/generated.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "capture:template-lab": "node scripts/capture-template-lab.mjs",
-    "build": "pnpm generate:openapi && tsc --noEmit && vite build",
+    "test:e2e": "pnpm prepare:template-lab-assets && playwright test",
+    "capture:template-lab": "pnpm prepare:template-lab-assets && node scripts/capture-template-lab.mjs",
+    "build": "pnpm prepare:template-lab-assets && pnpm generate:openapi && tsc --noEmit && vite build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {

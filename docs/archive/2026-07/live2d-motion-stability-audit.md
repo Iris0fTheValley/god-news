@@ -1,5 +1,8 @@
 # Live2D motion stability audit
 
+> 历史归档：本文记录当时的实验与旧控制模式。当前生产行为见
+> `docs/quality/live2d-motion.md`。
+
 This document records the implementation contract and the evidence required to
 accept a Live2D host render. It does not claim that the repository contains a
 general-purpose Live2D editor.

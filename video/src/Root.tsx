@@ -8,7 +8,7 @@ import {
 } from './constants';
 import {GodNewsShortVideo} from './GodNewsShortVideo';
 import {buildRenderPlan} from './render-plan';
-import {sampleProps} from './sample-props';
+import {sampleProps} from './lab/sample-props';
 import {
   GodNewsVideoPropsSchema,
   parseGodNewsVideoProps,

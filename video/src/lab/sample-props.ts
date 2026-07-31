@@ -1,4 +1,4 @@
-import type {GodNewsVideoProps} from './schema';
+import type {GodNewsVideoProps} from '../schema';
 
 export const sampleProps: GodNewsVideoProps = {
   manifest: {

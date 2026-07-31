@@ -91,7 +91,7 @@ from god_news.operations.models import (
 )
 from god_news.video_errors import VideoRenderingError
 
-WORKSPACE = Path(__file__).resolve().parents[1]
+WORKSPACE = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1184,7 +1184,7 @@ async def extract_layer_comparison_evidence(
         analysis_path = layer_root / f"{label}-analysis.json"
         analysis_arguments = [
             str(live2d_python),
-            str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
+            str(WORKSPACE / "scripts" / "quality" / "analyze_live2d_video.py"),
             "--input",
             str(path),
             "--output",
@@ -1235,7 +1235,7 @@ async def extract_layer_comparison_evidence(
             )
             await run_process(
                 str(live2d_python),
-                str(WORKSPACE / "scripts" / "analyze_live2d_video.py"),
+                str(WORKSPACE / "scripts" / "quality" / "analyze_live2d_video.py"),
                 "--input",
                 render_output.local_path,
                 "--output",
@@ -1486,7 +1486,12 @@ async def main() -> None:
         host_renderer = LocalLive2DHostRenderer(
             profiles=container.role_profiles,
             python_executable=dsakiko_root / "runtime" / "python.exe",
-            worker_script=WORKSPACE / "scripts" / "render_live2d_host.py",
+            worker_script=(
+                WORKSPACE
+                / "scripts"
+                / "workers"
+                / "render_live2d_host.py"
+            ),
             inspector=inspector,
             output_root=live2d_root,
             trusted_asset_roots=[dsakiko_root],

@@ -10,7 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $stateDirectory = Join-Path $root "data"
 $statePath = Join-Path $stateDirectory "dev-processes.json"
 $logDirectory = Join-Path $root "logs\dev"
@@ -108,5 +108,5 @@ catch {
 Write-Host "god-news backend: $apiUri" -ForegroundColor Green
 Write-Host "god-news frontend: $uiUri" -ForegroundColor Green
 if ($OfflineDemo) { Write-Host "Mode: deterministic offline demo" -ForegroundColor Yellow }
-Write-Host "Stop with: .\scripts\stop.ps1"
+Write-Host "Stop with: .\scripts\dev\stop.ps1"
 if (-not $NoBrowser) { Start-Process $uiUri }

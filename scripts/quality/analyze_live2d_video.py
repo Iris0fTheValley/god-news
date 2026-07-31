@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-WORKSPACE = Path(__file__).resolve().parents[1]
+WORKSPACE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(WORKSPACE / "src"))
-sys.path.insert(0, str(WORKSPACE / "scripts"))
+sys.path.insert(0, str(WORKSPACE / "scripts" / "workers"))
 
 from render_live2d_host import _frame_image_metrics  # noqa: E402
 

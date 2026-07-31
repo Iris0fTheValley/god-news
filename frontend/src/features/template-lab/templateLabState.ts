@@ -44,7 +44,7 @@ export const DEFAULT_TEMPLATE_LAB_STATE: TemplateLabState = {
   captionBounds: false,
   hostVisible: false,
   hostSlot: 'primary',
-  hostVideoUrl: '/template-lab/host-soyo-30fps.webm',
+  hostVideoUrl: '',
   tokenPreset: 'default',
   title: '',
   caption: '',

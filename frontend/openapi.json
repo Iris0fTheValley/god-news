@@ -2403,7 +2403,7 @@
             "additionalProperties": {
               "type": "number"
             },
-            "maxProperties": 32,
+            "maxProperties": 64,
             "propertyNames": {
               "minLength": 1
             },

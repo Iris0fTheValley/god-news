@@ -1,5 +1,9 @@
 # god-news 前后端接口契约
 
+> 本文只描述工作台核心工作流，并非端点穷举。机器事实来源是
+> `frontend/openapi.json` 与 `frontend/src/api/generated.ts`；素材发现、审批和内容读取等
+> 新增端点应以生成契约为准。
+
 更新时间：2026-07-15
 
 本文件描述工作台实际调用的后端能力。`frontend/openapi.json` 与
