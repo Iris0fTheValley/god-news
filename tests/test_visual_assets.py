@@ -29,9 +29,9 @@ from god_news.domain.visual_assets import (
 from god_news.errors import ConcurrentWriteError, VisualAssetNotFoundError, VisualAssetUploadError
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.repositories import SqlAlchemyStoryRepository
-from god_news.infrastructure.testing import InMemoryStoryRepository
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
 from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
+from god_news.testing.fakes import InMemoryStoryRepository
 
 from .conftest import Stack
 from .test_fsm import make_artifacts, make_story

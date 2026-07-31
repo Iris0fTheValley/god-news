@@ -2,10 +2,10 @@ import {screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import type {CommonsVisualCandidate, Story} from '../../api/types';
-import {scriptFixture, storyFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {VisualDiscoveryPanel} from './VisualDiscoveryPanel';
+import type {CommonsVisualCandidate, Story} from '@/api/types';
+import {VisualDiscoveryPanel} from '@/features/media/VisualDiscoveryPanel';
+import {scriptFixture, storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   approveVisualDiscoveryAsset: vi.fn(),
@@ -16,7 +16,7 @@ const apiMocks = vi.hoisted(() => ({
   visualDiscoveryAssetContentUrl: vi.fn((assetId: string) => `/media/${assetId}`),
 }));
 
-vi.mock('../../api/client', () => apiMocks);
+vi.mock('@/api/client', () => apiMocks);
 
 const candidate: CommonsVisualCandidate = {
   file_title: 'File:Moon transit of sun large.ogv',

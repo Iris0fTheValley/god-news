@@ -97,10 +97,15 @@ pnpm --filter @god-news/frontend test
 # 视频
 pnpm --filter @god-news/video check
 pnpm --filter @god-news/video test
+
+# 清理可再生缓存、日志、测试报告和前端静态暂存（保留 data/outputs/依赖）
+.\scripts\maintenance\clean_workspace.ps1
 ```
 
 前端接口契约、已实现能力与诚实的运行边界见
 [`docs/architecture/frontend-api-mapping.md`](docs/architecture/frontend-api-mapping.md)。
+仓库文件职责和测试/文档/正式代码分区见
+[`docs/project-layout.md`](docs/project-layout.md)。
 
 ## 真实双比例端到端演示
 

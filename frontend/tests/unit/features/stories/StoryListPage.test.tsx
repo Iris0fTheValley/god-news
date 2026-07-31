@@ -2,9 +2,9 @@ import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {renderWithApp} from '../../test/render';
-import {storyFixture} from '../../test/fixtures';
-import {StoryListPage} from './StoryListPage';
+import {StoryListPage} from '@/features/stories/StoryListPage';
+import {storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   listStories: vi.fn(),
@@ -13,7 +13,7 @@ const apiMocks = vi.hoisted(() => ({
   getClassificationMetrics: vi.fn(),
 }));
 
-vi.mock('../../api/client', () => ({
+vi.mock('@/api/client', () => ({
   listStories: apiMocks.listStories,
   createStory: apiMocks.createStory,
   deleteStory: apiMocks.deleteStory,

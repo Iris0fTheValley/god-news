@@ -4,7 +4,7 @@ import {
   DEFAULT_TEMPLATE_LAB_STATE,
   readTemplateLabState,
   writeTemplateLabState,
-} from './templateLabState';
+} from '@/features/template-lab/templateLabState';
 
 describe('templateLabState', () => {
   it('round-trips every reproducible selector through URL search params', () => {

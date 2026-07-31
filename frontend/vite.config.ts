@@ -1,8 +1,15 @@
 import react from '@vitejs/plugin-react';
+import {fileURLToPath, URL} from 'node:url';
 import {defineConfig} from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@test': fileURLToPath(new URL('./tests/support', import.meta.url)),
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,
@@ -16,8 +23,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    exclude: ['e2e/**', 'node_modules/**'],
+    setupFiles: ['./tests/support/setup.ts'],
+    include: ['tests/unit/**/*.test.{ts,tsx}'],
+    exclude: ['tests/e2e/**', 'node_modules/**'],
     css: true,
     restoreMocks: true,
   },

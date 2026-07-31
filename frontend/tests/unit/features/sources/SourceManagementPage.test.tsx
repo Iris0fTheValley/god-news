@@ -2,8 +2,8 @@ import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {renderWithApp} from '../../test/render';
-import {SourceManagementPage} from './SourceManagementPage';
+import {SourceManagementPage} from '@/features/sources/SourceManagementPage';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   diagnoseSource: vi.fn(),
@@ -11,7 +11,7 @@ const apiMocks = vi.hoisted(() => ({
   getSourceHealth: vi.fn(),
 }));
 
-vi.mock('../../api/client', () => ({
+vi.mock('@/api/client', () => ({
   diagnoseSource: apiMocks.diagnoseSource,
   getSourceCollectors: apiMocks.getSourceCollectors,
   getSourceHealth: apiMocks.getSourceHealth,

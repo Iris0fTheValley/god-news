@@ -11,7 +11,7 @@
     "render": "tsx scripts/render.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "remotion bundle src/index.ts dist",
+    "build": "remotion bundle src/index.ts --out-dir=dist",
     "check": "pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {

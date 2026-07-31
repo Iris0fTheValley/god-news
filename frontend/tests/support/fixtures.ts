@@ -1,4 +1,4 @@
-import type {ScriptDocument, Story} from '../api/types';
+import type {ScriptDocument, Story} from '@/api/types';
 
 export const storyFixture = {
   story_id: '0f6deee6-d05e-4a70-88df-30dd551bac81',

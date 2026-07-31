@@ -13,8 +13,8 @@ from god_news.domain.visual_discovery import (
     PersistedVisualDiscoveryAsset,
     VisualDiscoveryStatus,
 )
-from god_news.infrastructure.testing import InMemoryStoryRepository
 from god_news.infrastructure.video_broll_assets import ApprovedVisualDiscoveryBrollLibrary
+from god_news.testing.fakes import InMemoryStoryRepository
 
 from .test_fsm import make_artifacts, make_story
 

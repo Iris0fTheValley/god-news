@@ -1,3 +1,5 @@
+"""Deterministic video adapters for tests and offline workflow verification."""
+
 from __future__ import annotations
 
 import asyncio

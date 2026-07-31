@@ -12,15 +12,15 @@ from god_news.config import Environment, Settings
 from god_news.container import AppContainer
 from god_news.infrastructure.fetchers.chain import TextFetcher
 from god_news.infrastructure.source_health import build_source_policies
-from god_news.infrastructure.testing import (
+from god_news.sources.health import SourceHealthMonitor
+from god_news.sources.registry import create_default_source_registry
+from god_news.testing.fakes import (
     DeterministicSpeechSynthesizer,
     DeterministicTextGenerator,
     DeterministicVoiceProfileResolver,
     InMemoryMemoryProvider,
     InMemoryStoryRepository,
 )
-from god_news.sources.health import SourceHealthMonitor
-from god_news.sources.registry import create_default_source_registry
 
 
 @dataclass(slots=True)

@@ -7,10 +7,10 @@ import type {
   SourceMediaArtifact,
   SourceMediaTranscription,
   Story,
-} from '../../api/types';
-import {storyFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {SourceMediaPanel} from './SourceMediaPanel';
+} from '@/api/types';
+import {SourceMediaPanel} from '@/features/media/SourceMediaPanel';
+import {storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   acquireSourceMedia: vi.fn(),
@@ -21,7 +21,7 @@ const apiMocks = vi.hoisted(() => ({
   startSourceMediaTranscription: vi.fn(),
 }));
 
-vi.mock('../../api/client', () => ({
+vi.mock('@/api/client', () => ({
   acquireSourceMedia: apiMocks.acquireSourceMedia,
   cancelSourceMediaTranscription: apiMocks.cancelSourceMediaTranscription,
   listSourceMediaArtifacts: apiMocks.listSourceMediaArtifacts,

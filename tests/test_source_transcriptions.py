@@ -47,9 +47,9 @@ from god_news.infrastructure.source_media_asr import (
 from god_news.infrastructure.source_transcription_repository import (
     SqlAlchemySourceTranscriptionRepository,
 )
-from god_news.infrastructure.testing import InMemoryStoryRepository
 from god_news.sources.models import parse_raw_source_json
 from god_news.sources.registry import create_default_source_registry
+from god_news.testing.fakes import InMemoryStoryRepository
 from god_news.workers.faster_whisper_transcribe import _run as run_faster_whisper_worker
 
 from .conftest import Stack

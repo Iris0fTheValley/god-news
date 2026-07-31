@@ -70,7 +70,7 @@ New-Item -ItemType Directory -Path $stateDirectory, $logDirectory -Force | Out-N
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $uv = (Get-Command uv).Source
 $pnpm = (Get-Command pnpm).Source
-$appModule = if ($OfflineDemo) { "god_news.testing_app:app" } else { "god_news.main:app" }
+$appModule = if ($OfflineDemo) { "god_news.testing.app:app" } else { "god_news.main:app" }
 
 $backend = Start-Process -FilePath $uv `
     -ArgumentList @("run", "uvicorn", $appModule, "--host", $ApiHost, "--port", "$ApiPort") `

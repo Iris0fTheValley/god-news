@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'vitest';
 
-import {canEditNarration, canPreviewBatchNarration} from './narrationReviewState';
+import {
+  canEditNarration,
+  canPreviewBatchNarration,
+} from '@/features/video/narrationReviewState';
 
 describe('canEditNarration', () => {
   it('allows revisions after narration approval and before batch TTS', () => {

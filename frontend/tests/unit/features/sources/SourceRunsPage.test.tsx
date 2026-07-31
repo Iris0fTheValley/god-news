@@ -2,8 +2,8 @@ import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {renderWithApp} from '../../test/render';
-import {SourceRunsPage} from './SourceRunsPage';
+import {SourceRunsPage} from '@/features/sources/SourceRunsPage';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   cancelSourceRun: vi.fn(),
@@ -15,7 +15,7 @@ const apiMocks = vi.hoisted(() => ({
   stopSourceSchedule: vi.fn(),
 }));
 
-vi.mock('../../api/client', () => apiMocks);
+vi.mock('@/api/client', () => apiMocks);
 
 const disabledSchedule = {
   schedule_id: 'source-auto-collection',

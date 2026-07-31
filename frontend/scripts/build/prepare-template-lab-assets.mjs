@@ -2,7 +2,7 @@ import {copyFile, mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 
-const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const repositoryRoot = path.resolve(frontendRoot, '..');
 const sourceRoot = path.join(repositoryRoot, 'assets', 'demo-owned');
 const targetRoot = path.join(frontendRoot, 'public', 'template-lab');

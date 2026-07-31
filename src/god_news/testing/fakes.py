@@ -1,3 +1,5 @@
+"""Deterministic test doubles shared by unit tests and the offline demo."""
+
 from __future__ import annotations
 
 import asyncio

@@ -2,8 +2,8 @@ import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it, vi} from 'vitest';
 
-import {renderWithApp} from '../../test/render';
-import {TemplateLabPage} from './TemplateLabPage';
+import {TemplateLabPage} from '@/features/template-lab/TemplateLabPage';
+import {renderWithApp} from '@test/render';
 
 vi.mock('@remotion/player', async () => {
   const React = await import('react');

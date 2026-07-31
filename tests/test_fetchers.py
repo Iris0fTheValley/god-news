@@ -22,7 +22,7 @@ from god_news.infrastructure.fetchers.scrapy import (
 )
 from god_news.infrastructure.fetchers.url_policy import UrlPolicy, normalize_allowed_ports
 from god_news.infrastructure.processes import run_json_worker
-from god_news.infrastructure.testing import DeterministicFetcher
+from god_news.testing.fakes import DeterministicFetcher
 
 
 class FailingFetcher:

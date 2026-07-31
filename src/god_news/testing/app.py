@@ -12,7 +12,9 @@ from god_news.application.workflow import StoryWorkflow
 from god_news.config import Environment, Settings
 from god_news.container import AppContainer
 from god_news.infrastructure.source_health import build_source_policies
-from god_news.infrastructure.testing import (
+from god_news.sources.health import SourceHealthMonitor
+from god_news.sources.registry import create_default_source_registry
+from god_news.testing.fakes import (
     DeterministicFetcher,
     DeterministicSpeechSynthesizer,
     DeterministicTextGenerator,
@@ -20,8 +22,6 @@ from god_news.infrastructure.testing import (
     InMemoryMemoryProvider,
     InMemoryStoryRepository,
 )
-from god_news.sources.health import SourceHealthMonitor
-from god_news.sources.registry import create_default_source_registry
 
 settings = Settings(
     _env_file=None,

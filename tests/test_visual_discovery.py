@@ -22,9 +22,9 @@ from god_news.domain.visual_discovery import (
     VisualDiscoveryStatus,
 )
 from god_news.errors import StoryInvariantError
-from god_news.infrastructure.testing import InMemoryStoryRepository
 from god_news.infrastructure.visual_discovery_store import LocalVisualDiscoveryStore
 from god_news.infrastructure.wikimedia_commons import WikimediaCommonsClient, WikimediaCommonsError
+from god_news.testing.fakes import InMemoryStoryRepository
 
 from .test_fsm import make_artifacts, make_story
 

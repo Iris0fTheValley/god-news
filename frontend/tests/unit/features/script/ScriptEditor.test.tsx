@@ -2,9 +2,9 @@ import {fireEvent, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it, vi} from 'vitest';
 
-import {scriptFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {ScriptEditor} from './ScriptEditor';
+import {ScriptEditor} from '@/features/script/ScriptEditor';
+import {scriptFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 describe('ScriptEditor', () => {
   it('reorders segments while restoring a contiguous sequence', async () => {

@@ -56,7 +56,7 @@ from god_news.infrastructure.repositories import (
 from god_news.infrastructure.video_assets import LocalBgmCatalog
 from god_news.infrastructure.video_host import PlaceholderHostRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
-from god_news.infrastructure.video_testing import (
+from god_news.testing.video_fakes import (
     DeterministicBatchVideoRenderer,
     DeterministicProgramDirector,
     EmptySourceVideoAssetLibrary,

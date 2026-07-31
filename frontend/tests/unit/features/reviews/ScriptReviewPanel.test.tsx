@@ -2,14 +2,14 @@ import {cleanup, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import type {Story} from '../../api/types';
-import {scriptFixture, storyFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {ScriptReviewPanel} from './ScriptReviewPanel';
+import type {Story} from '@/api/types';
+import {ScriptReviewPanel} from '@/features/reviews/ScriptReviewPanel';
+import {scriptFixture, storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({submitScriptReview: vi.fn()}));
 
-vi.mock('../../api/client', () => ({submitScriptReview: apiMocks.submitScriptReview}));
+vi.mock('@/api/client', () => ({submitScriptReview: apiMocks.submitScriptReview}));
 
 afterEach(cleanup);
 

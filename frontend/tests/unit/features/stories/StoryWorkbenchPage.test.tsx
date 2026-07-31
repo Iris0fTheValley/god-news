@@ -3,10 +3,10 @@ import userEvent from '@testing-library/user-event';
 import {Route, Routes} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import type {Story} from '../../api/types';
-import {storyFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {StoryWorkbenchPage} from './StoryWorkbenchPage';
+import type {Story} from '@/api/types';
+import {StoryWorkbenchPage} from '@/features/stories/StoryWorkbenchPage';
+import {storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   deleteStory: vi.fn(),
@@ -17,7 +17,7 @@ const apiMocks = vi.hoisted(() => ({
   reopenStory: vi.fn(),
 }));
 
-vi.mock('../../api/client', () => ({
+vi.mock('@/api/client', () => ({
   deleteStory: apiMocks.deleteStory,
   getProductionManifest: apiMocks.getProductionManifest,
   getStory: apiMocks.getStory,

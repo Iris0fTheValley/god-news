@@ -7,8 +7,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
-dist/
-build/
+/dist/
+/build/
 *.egg-info/
 data/
 /output/
@@ -24,7 +24,6 @@ frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
 frontend/public/template-lab/
-video/dist/
 .pnpm-store/
 .pnpm-*.log
 .backups/

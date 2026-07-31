@@ -2,14 +2,14 @@ import {cleanup, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-import type {RoleProfile} from '../../api/types';
-import {storyFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {FirstReviewPanel} from './FirstReviewPanel';
+import type {RoleProfile} from '@/api/types';
+import {FirstReviewPanel} from '@/features/reviews/FirstReviewPanel';
+import {storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({listRoles: vi.fn(), submitFirstReview: vi.fn()}));
 
-vi.mock('../../api/client', () => ({
+vi.mock('@/api/client', () => ({
   listRoles: apiMocks.listRoles,
   submitFirstReview: apiMocks.submitFirstReview,
 }));

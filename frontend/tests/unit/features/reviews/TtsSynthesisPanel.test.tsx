@@ -2,14 +2,14 @@ import {screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it, vi} from 'vitest';
 
-import type {Story} from '../../api/types';
-import {storyFixture} from '../../test/fixtures';
-import {renderWithApp} from '../../test/render';
-import {TtsSynthesisPanel} from './TtsSynthesisPanel';
+import type {Story} from '@/api/types';
+import {TtsSynthesisPanel} from '@/features/reviews/TtsSynthesisPanel';
+import {storyFixture} from '@test/fixtures';
+import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({synthesizeStory: vi.fn()}));
 
-vi.mock('../../api/client', () => ({synthesizeStory: apiMocks.synthesizeStory}));
+vi.mock('@/api/client', () => ({synthesizeStory: apiMocks.synthesizeStory}));
 
 describe('TtsSynthesisPanel', () => {
   it('starts local TTS only after explicit confirmation', async () => {
