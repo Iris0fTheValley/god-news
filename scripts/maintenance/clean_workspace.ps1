@@ -8,9 +8,13 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 # production outputs, virtual environments, and package installations are
 # intentionally excluded.
 $targets = @(
+    ".coverage",
+    "htmlcov",
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
+    "dist",
+    "build",
     "src",
     "tests",
     "frontend/public/template-lab",
