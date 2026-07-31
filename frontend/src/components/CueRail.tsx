@@ -21,7 +21,9 @@ export function CueRail({status, compact = false}: CueRailProps) {
             <span className="cue-dot" aria-hidden="true">
               {state === 'complete' ? <Check size={13} /> : <Circle size={10} fill="currentColor" />}
             </span>
-            <span>{STATUS_LABELS[item]}</span>
+            <span className={compact ? 'visually-hidden' : undefined}>
+              {STATUS_LABELS[item]}
+            </span>
           </li>
         );
       })}

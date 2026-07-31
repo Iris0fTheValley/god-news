@@ -3,6 +3,7 @@
 ## 正式代码
 
 - `src/god_news/`：Python 领域、应用与基础设施。
+- `src/god_news/workers/`：随 Python 包发布、通过 `python -m` 启动的隔离子进程入口。
 - `src/god_news/testing/`：确定性测试替身和离线演示应用，与生产适配器隔离。
 - `frontend/src/`：React 正式前端代码，不放测试实现。
 - `video/src/`：Remotion 渲染器、模板、布局编译器和 Studio fixture。
@@ -13,9 +14,10 @@ Template Lab 所需的浏览器静态文件由
 `frontend/public/template-lab/`，不得重复提交两份相同素材。Live2D 预渲染文件仍由
 操作者或视觉测试临时注入。
 
-使用专用 SDK/Python 环境的一次性生产进程属于 `scripts/workers/`，与开发、维护和质量
-脚本分开；可复用领域逻辑仍属于 `src/god_news/`。CLI 只负责参数解析和编排，不应成为
-领域逻辑的唯一存放位置。
+使用项目 Python 环境、需要作为模块导入或随 wheel 分发的子进程入口属于
+`src/god_news/workers/`；使用专用外部 SDK/Python 环境的一次性生产进程属于
+`scripts/workers/`。两者都只负责参数解析、协议适配和进程编排，可复用领域逻辑仍属于
+`src/god_news/`，不能只存在于 CLI 中。
 
 ## 测试
 
@@ -58,4 +60,6 @@ Template Lab 所需的浏览器静态文件由
 .\scripts\maintenance\clean_workspace.ps1
 ```
 
-该脚本明确不处理 `.venv/`、`node_modules/`、`data/` 和 `outputs/`。
+该脚本明确不处理 `.venv/`、`node_modules/`、`data/` 和 `outputs/`。开发服务正在写入
+的日志在 Windows 上可能被锁定；脚本会明确警告并保留这些活跃文件，其他清理仍正常
+完成，服务停止后再次运行即可删除。

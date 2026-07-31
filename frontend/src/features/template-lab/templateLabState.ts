@@ -25,8 +25,8 @@ export interface TemplateLabState {
   hostSlot: 'primary' | 'corner';
   hostVideoUrl: string;
   tokenPreset: TemplateLabTokenPreset;
-  title: string;
-  caption: string;
+  title: string | null;
+  caption: string | null;
 }
 
 export const DEFAULT_TEMPLATE_LAB_STATE: TemplateLabState = {
@@ -46,8 +46,14 @@ export const DEFAULT_TEMPLATE_LAB_STATE: TemplateLabState = {
   hostSlot: 'primary',
   hostVideoUrl: '',
   tokenPreset: 'default',
-  title: '',
-  caption: '',
+  title: null,
+  caption: null,
+};
+
+export const encodeBase64Utf8 = (value: string): string => {
+  const bytes = new TextEncoder().encode(value);
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return window.btoa(binary);
 };
 
 const boolParam = (value: string | null, fallback: boolean): boolean => {
@@ -99,8 +105,8 @@ export const readTemplateLabState = (
     hostVideoUrl: params.get('hostVideo') ?? '',
     tokenPreset:
       params.get('tokens') === 'high_contrast' ? 'high_contrast' : 'default',
-    title: params.get('title') ?? '',
-    caption: params.get('caption') ?? '',
+    title: params.has('title') ? params.get('title') ?? '' : null,
+    caption: params.has('caption') ? params.get('caption') ?? '' : null,
   };
 };
 
@@ -125,7 +131,7 @@ export const writeTemplateLabState = (
     tokens: state.tokenPreset,
   });
   if (state.hostVideoUrl !== '') params.set('hostVideo', state.hostVideoUrl);
-  if (state.title !== '') params.set('title', state.title);
-  if (state.caption !== '') params.set('caption', state.caption);
+  if (state.title !== null) params.set('title', state.title);
+  if (state.caption !== null) params.set('caption', state.caption);
   return params;
 };

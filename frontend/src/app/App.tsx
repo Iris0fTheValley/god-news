@@ -1,10 +1,13 @@
-import {Clapperboard, DatabaseZap, FolderOpen, Keyboard, LayoutTemplate, Music, Radio, Rows3, UserCog, Wrench} from 'lucide-react';
+import {useQuery} from '@tanstack/react-query';
+import {Keyboard, Menu, Radio, X} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {Link, Navigate, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 
+import {getReadiness} from '../api/client';
 import {KeyboardShortcuts} from '../components/KeyboardShortcuts';
 import {ToastProvider} from '../components/Toast';
 import {BgmPage} from '../features/bgm/BgmPage';
+import {VisualAssetsPage} from '../features/library/VisualAssetsPage';
 import {OpsPage} from '../features/ops/OpsPage';
 import {RolesPage} from '../features/roles/RolesPage';
 import {SourceManagementPage} from '../features/sources/SourceManagementPage';
@@ -13,114 +16,237 @@ import {StoryListPage} from '../features/stories/StoryListPage';
 import {StoryWorkbenchPage} from '../features/stories/StoryWorkbenchPage';
 import {TemplateLabPage} from '../features/template-lab/TemplateLabPage';
 import {VideoBatchesPage} from '../features/video/VideoBatchesPage';
+import {VisualModulesPage} from '../features/visual-modules/VisualModulesPage';
+import {queryKeys} from '../api/queryKeys';
+import {
+  NAVIGATION_GROUPS,
+  NAVIGATION_ITEMS,
+  navigationItemForPath,
+} from './navigation';
 
-const NAV_ITEMS = [
-  {to: '/stories', label: '故事队列', icon: Rows3},
-  {to: '/sources', label: '来源运行', icon: DatabaseZap},
-  {to: '/roles', label: '角色', icon: UserCog},
-  {to: '/video', label: '视频批次', icon: Clapperboard},
-  {to: '/source-runs', label: '采集记录', icon: FolderOpen},
-  {to: '/bgm', label: 'BGM', icon: Music},
-  {to: '/ops', label: '运维日志', icon: Wrench},
-  {to: '/template-lab', label: '场景与视觉系统', icon: LayoutTemplate},
-];
+function NavigationLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: (typeof NAVIGATION_ITEMS)[number];
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
+  return (
+    <Link
+      className={active ? 'side-nav-link active' : 'side-nav-link'}
+      to={item.to}
+      aria-current={active ? 'page' : undefined}
+      onClick={onNavigate}
+    >
+      <item.icon size={18} aria-hidden="true" />
+      <span>
+        <strong>{item.label}</strong>
+        <small>{item.description}</small>
+      </span>
+      {item.shortcut !== undefined ? <kbd>{item.shortcut}</kbd> : null}
+    </Link>
+  );
+}
+
+function LegacyRedirect({to}: {to: string}) {
+  const location = useLocation();
+  return (
+    <Navigate
+      replace
+      to={{
+        pathname: to,
+        search: location.search,
+        hash: location.hash,
+      }}
+    />
+  );
+}
 
 function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const currentItem = navigationItemForPath(location.pathname);
+  const readiness = useQuery({
+    queryKey: queryKeys.readiness,
+    queryFn: getReadiness,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
 
-  // Global keyboard shortcuts
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        setShortcutsOpen((prev) => !prev);
-      }
-      if (e.key === 'Escape' && shortcutsOpen) {
-        setShortcutsOpen(false);
+    window.scrollTo({top: 0, left: 0});
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target;
+      const editing = target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target instanceof HTMLSelectElement
+        || (target instanceof HTMLElement && target.isContentEditable);
+      if (event.key === 'Escape') {
+        if (shortcutsOpen) setShortcutsOpen(false);
+        if (mobileNavOpen) setMobileNavOpen(false);
         return;
       }
-      // Number nav
-      if (e.key >= '1' && e.key <= String(NAV_ITEMS.length) && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        const idx = Number(e.key) - 1;
-        const item = NAV_ITEMS[idx];
-        if (item !== undefined) void navigate(item.to);
+      if (editing) return;
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        setShortcutsOpen((previous) => !previous);
+        return;
+      }
+      if (event.key === '/') {
+        const search = document.querySelector<HTMLInputElement>('[data-global-search]');
+        if (search !== null) {
+          event.preventDefault();
+          search.focus();
+        }
+        return;
+      }
+      if (event.key.toLowerCase() === 'n') {
+        const createButton = document.querySelector<HTMLButtonElement>('[data-new-story]');
+        if (createButton !== null) {
+          event.preventDefault();
+          createButton.click();
+        }
+        return;
+      }
+      const destination = NAVIGATION_ITEMS.find((item) => item.shortcut === event.key);
+      if (destination !== undefined && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        setMobileNavOpen(false);
+        void navigate(destination.to);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, shortcutsOpen]);
+  }, [mobileNavOpen, navigate, shortcutsOpen]);
+
+  const systemState = readiness.isLoading
+    ? {tone: 'loading', label: '检查制作系统'}
+    : readiness.data?.ready === true
+      ? {tone: 'ready', label: '制作系统就绪'}
+      : {tone: 'blocked', label: '系统需要处理'};
 
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <header className="masthead">
-        <Link className="brand" to="/stories" aria-label="god-news 故事看板">
-          <span className="brand-mark" aria-hidden="true">
-            <Radio size={20} strokeWidth={2.2} />
-          </span>
-          <span>
-            <strong>god-news</strong>
-            <small>好事播报制作台</small>
-          </span>
-        </Link>
-        <nav aria-label="主导航">
-          {NAV_ITEMS.slice(0, 4).map((item) => (
-            <Link
-              key={item.to}
-              className={location.pathname.startsWith(item.to) ? 'nav-link active' : 'nav-link'}
-              to={item.to}
-            >
-              <item.icon size={18} aria-hidden="true" />
-              {item.label}
-            </Link>
-          ))}
-          {/* Overflow — hide on desktop if more than 4 visible; always show on mobile */}
-          <div className="nav-overflow">
-            {NAV_ITEMS.slice(4).map((item) => (
-              <Link
-                key={item.to}
-                className={location.pathname.startsWith(item.to) ? 'nav-link active' : 'nav-link'}
-                to={item.to}
-                style={{fontSize: '13px'}}
-              >
-                <item.icon size={16} aria-hidden="true" />
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
-        <div className="system-pulse" role="status">
-          <span aria-hidden="true" />
-          本地制作模式
+      <aside className={mobileNavOpen ? 'side-rail open' : 'side-rail'} aria-label="主导航">
+        <div className="side-rail-brand">
+          <Link className="brand" to="/stories" aria-label="god-news 故事制作台">
+            <span className="brand-mark" aria-hidden="true">
+              <Radio size={20} strokeWidth={2.2} />
+            </span>
+            <span>
+              <strong>god-news</strong>
+              <small>好消息节目制作台</small>
+            </span>
+          </Link>
           <button
-            className="icon-button"
+            className="icon-button side-rail-close"
             type="button"
-            aria-label="查看快捷键 (? 键)"
-            onClick={() => setShortcutsOpen(true)}
-            style={{marginLeft: 8, width: 28, height: 28}}
+            aria-label="关闭导航"
+            onClick={() => setMobileNavOpen(false)}
           >
-            <Keyboard size={14} aria-hidden="true" />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
-      </header>
-      <main id="main-content" tabIndex={-1}>
-        <Routes>
-          <Route path="/stories" element={<StoryListPage />} />
-          <Route path="/stories/:storyId" element={<StoryWorkbenchPage />} />
-          <Route path="/sources" element={<SourceManagementPage />} />
-          <Route path="/roles" element={<RolesPage />} />
-          <Route path="/video" element={<VideoBatchesPage />} />
-          <Route path="/source-runs" element={<SourceRunsPage />} />
-          <Route path="/bgm" element={<BgmPage />} />
-          <Route path="/ops" element={<OpsPage />} />
-          <Route path="/template-lab" element={<TemplateLabPage />} />
-          <Route path="*" element={<Navigate replace to="/stories" />} />
-        </Routes>
-      </main>
+        <nav className="side-navigation">
+          {NAVIGATION_GROUPS.map((group) => (
+            <section className="side-nav-group" key={group.label}>
+              <h2>{group.label}</h2>
+              {group.items.map((item) => (
+                <NavigationLink
+                  key={item.to}
+                  item={item}
+                  pathname={location.pathname}
+                  onNavigate={() => setMobileNavOpen(false)}
+                />
+              ))}
+            </section>
+          ))}
+        </nav>
+        <div className="side-rail-footer">
+          <Link
+            className={`system-readiness ${systemState.tone}`}
+            to="/collection/sources"
+            aria-label={`${systemState.label}，查看来源和系统状态`}
+          >
+            <span aria-hidden="true" />
+            <strong>{systemState.label}</strong>
+            <small>
+              {readiness.data?.checks.length ?? 0} 项检查
+            </small>
+          </Link>
+          <button
+            className="shortcut-trigger"
+            type="button"
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <Keyboard size={15} aria-hidden="true" />
+            快捷键
+            <kbd>?</kbd>
+          </button>
+        </div>
+      </aside>
+      {mobileNavOpen ? (
+        <button
+          className="nav-backdrop"
+          type="button"
+          aria-label="关闭导航"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+      <div className="app-workspace">
+        <header className="workspace-bar">
+          <button
+            className="icon-button mobile-nav-trigger"
+            type="button"
+            aria-label="打开导航"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu size={19} aria-hidden="true" />
+          </button>
+          <div>
+            <span>{NAVIGATION_GROUPS.find((group) => group.items.includes(currentItem))?.label}</span>
+            <strong>{currentItem.label}</strong>
+          </div>
+          <div className={`workspace-health ${systemState.tone}`} role="status">
+            <span aria-hidden="true" />
+            {systemState.label}
+          </div>
+        </header>
+        <main id="main-content" tabIndex={-1}>
+          <Routes>
+            <Route path="/stories" element={<StoryListPage />} />
+            <Route path="/stories/:storyId" element={<StoryWorkbenchPage />} />
+            <Route path="/collection/sources" element={<SourceManagementPage />} />
+            <Route path="/collection/runs" element={<SourceRunsPage />} />
+            <Route path="/production/batches" element={<VideoBatchesPage />} />
+            <Route path="/library/visual-assets" element={<VisualAssetsPage />} />
+            <Route path="/library/roles" element={<RolesPage />} />
+            <Route path="/library/audio" element={<BgmPage />} />
+            <Route path="/visual/modules" element={<VisualModulesPage />} />
+            <Route path="/visual/scene-lab" element={<TemplateLabPage />} />
+            <Route path="/system/operations" element={<OpsPage />} />
+
+            <Route path="/sources" element={<LegacyRedirect to="/collection/sources" />} />
+            <Route path="/source-runs" element={<LegacyRedirect to="/collection/runs" />} />
+            <Route path="/video" element={<LegacyRedirect to="/production/batches" />} />
+            <Route path="/roles" element={<LegacyRedirect to="/library/roles" />} />
+            <Route path="/bgm" element={<LegacyRedirect to="/library/audio" />} />
+            <Route path="/template-lab" element={<LegacyRedirect to="/visual/scene-lab" />} />
+            <Route path="/ops" element={<LegacyRedirect to="/system/operations" />} />
+            <Route path="*" element={<Navigate replace to="/stories" />} />
+          </Routes>
+        </main>
+      </div>
       <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );

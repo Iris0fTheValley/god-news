@@ -7,6 +7,7 @@ import type {
   CreateStoryRequest,
   CreateVideoBatch,
   FirstReviewSubmission,
+  HealthReport,
   OperationRun,
   ProblemDetail,
   RenderVideoBatch,
@@ -31,6 +32,7 @@ import type {
   VideoBatchStatus,
   VisualAssetMutation,
   VisualDiscoveryReviewRequest,
+  ReuseApprovedVisualRequest,
 } from './types';
 
 export interface SourceRunListParams {
@@ -60,6 +62,26 @@ export class ApiProblem extends Error {
     this.status = status;
     this.storyId = problem.story_id ?? null;
   }
+}
+
+export async function getReadiness(): Promise<HealthReport> {
+  const result = await api.GET('/api/v1/health/ready');
+  if (result.data !== undefined) return result.data;
+  if (
+    typeof result.error === 'object'
+    && result.error !== null
+    && 'ready' in result.error
+    && 'checks' in result.error
+  ) {
+    return result.error;
+  }
+  throwProblem(result.error, result.response);
+}
+
+export async function listVideoTemplates() {
+  const result = await api.GET('/api/v1/video/templates');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
 }
 
 function throwProblem(error: unknown, response: Response): never {
@@ -383,6 +405,18 @@ export async function rejectVisualDiscoveryAsset(
   body: VisualDiscoveryReviewRequest,
 ) {
   const result = await api.POST('/api/v1/visual-discovery-assets/{asset_id}/reject', {
+    params: {path: {asset_id: assetId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function reuseApprovedVisualDiscoveryAsset(
+  assetId: string,
+  body: ReuseApprovedVisualRequest,
+) {
+  const result = await api.POST('/api/v1/visual-discovery-assets/{asset_id}/reuse', {
     params: {path: {asset_id: assetId}},
     body,
   });

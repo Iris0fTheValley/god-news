@@ -1204,6 +1204,68 @@ async def test_sql_repository_reports_legacy_batch_payload_without_fabricating_n
 
 
 @pytest.mark.asyncio
+async def test_video_api_lists_versioned_template_capabilities(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    service, _, _, _ = _service(stack, tmp_path)
+    stack.container.video_batches = service
+
+    async def factory(settings):  # type: ignore[no-untyped-def]
+        del settings
+        return stack.container
+
+    app = create_app(stack.settings, container_factory=factory)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/v1/video/templates")
+            openapi = await client.get("/openapi.json")
+
+    assert response.status_code == 200
+    assert [
+        (item["template_id"], item["template_version"]) for item in response.json()
+    ] == [("world_warmth", "1.1.0")]
+    template = response.json()[0]
+    assert template["capabilities"]["supported_profiles"] == [
+        "douyin_vertical",
+        "bilibili_horizontal",
+    ]
+    assert {item["module_id"] for item in template["scene_variants"]} == {
+        "host_evidence",
+        "evidence_fullscreen",
+        "source_video",
+        "broll_video",
+    }
+    assert "local_path" not in json.dumps(template)
+    assert openapi.status_code == 200
+    assert (
+        openapi.json()["paths"]["/api/v1/video/templates"]["get"]["operationId"]
+        == "listVideoTemplates"
+    )
+
+
+@pytest.mark.asyncio
+async def test_video_template_catalog_reports_unavailable_orchestration(
+    stack: Stack,
+) -> None:
+    assert stack.container.video_batches is None
+
+    async def factory(settings):  # type: ignore[no-untyped-def]
+        del settings
+        return stack.container
+
+    app = create_app(stack.settings, container_factory=factory)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/v1/video/templates")
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "video_renderer_unavailable"
+
+
+@pytest.mark.asyncio
 async def test_video_api_exposes_narration_review_manual_tts_and_timeline_gate(
     stack: Stack,
     tmp_path: Path,

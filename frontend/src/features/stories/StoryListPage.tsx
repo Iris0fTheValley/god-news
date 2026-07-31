@@ -98,6 +98,7 @@ export function StoryListPage() {
           <input
             className="input"
             type="search"
+            data-global-search
             placeholder="搜索标题或来源…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

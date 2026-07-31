@@ -64,6 +64,18 @@ function cloneSegments(segments: ScriptSegment[]): ScriptSegment[] {
   }));
 }
 
+interface ScriptSnapshot {
+  title: string;
+  segments: ScriptSegment[];
+}
+
+function snapshotScript(script: ScriptDocument): ScriptSnapshot {
+  return {
+    title: script.title,
+    segments: cloneSegments(script.segments),
+  };
+}
+
 function withSpokenText(segment: ScriptSegment, spokenText: string): ScriptSegment {
   const captions = (segment.captions ?? []).map((caption) => (
     caption.kind === 'verbatim'
@@ -86,7 +98,7 @@ function withSpokenLanguage(segment: ScriptSegment, language: string): ScriptSeg
   };
 }
 
-export function ScriptEditor({
+function ScriptEditorInner({
   script,
   onChange,
   roles = [],
@@ -104,9 +116,8 @@ export function ScriptEditor({
   const [knownStoryVersion, setKnownStoryVersion] = useState<number | undefined>(storyVersion);
 
   /* ── Undo/redo history stack ── */
-  const [past, setPast] = useState<ScriptSegment[][]>([]);
-  const [future, setFuture] = useState<ScriptSegment[][]>([]);
-  const skipHistory = useRef(false);
+  const [past, setPast] = useState<ScriptSnapshot[]>([]);
+  const [future, setFuture] = useState<ScriptSnapshot[]>([]);
 
   const visualAssetsQuery = useQuery({
     queryKey: queryKeys.visualAssets(storyId ?? ''),
@@ -169,35 +180,43 @@ export function ScriptEditor({
   });
 
   const pushHistory = useCallback(() => {
-    if (skipHistory.current) {
-      skipHistory.current = false;
-      return;
-    }
-    setPast((previous) => [...previous.slice(-49), cloneSegments(script.segments)]);
+    setPast((previous) => [...previous.slice(-49), snapshotScript(script)]);
     setFuture([]);
-  }, [script.segments]);
+  }, [script]);
 
   const undo = useCallback(() => {
     if (past.length === 0) return;
     const previous = past[past.length - 1];
     setPast((items) => items.slice(0, -1));
-    setFuture((items) => [...items, cloneSegments(script.segments)]);
-    skipHistory.current = true;
-    onChange({...script, segments: cloneSegments(previous)});
+    setFuture((items) => [...items, snapshotScript(script)]);
+    onChange({
+      ...script,
+      title: previous.title,
+      segments: cloneSegments(previous.segments),
+    });
   }, [past, script, onChange]);
 
   const redo = useCallback(() => {
     if (future.length === 0) return;
     const next = future[future.length - 1];
     setFuture((items) => items.slice(0, -1));
-    setPast((items) => [...items, cloneSegments(script.segments)]);
-    skipHistory.current = true;
-    onChange({...script, segments: cloneSegments(next)});
+    setPast((items) => [...items, snapshotScript(script)]);
+    onChange({
+      ...script,
+      title: next.title,
+      segments: cloneSegments(next.segments),
+    });
   }, [future, script, onChange]);
 
   useEffect(() => {
     if (readOnly) return;
     const handler = (event: KeyboardEvent) => {
+      const target = event.target;
+      const editing = target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target instanceof HTMLSelectElement
+        || (target instanceof HTMLElement && target.isContentEditable);
+      if (editing) return;
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
         undo();
@@ -403,22 +422,26 @@ export function ScriptEditor({
                   )}
                 </label>
               </div>
-              <label className="field segment-text">
-                <span>口播</span>
+              <div className="segment-text">
+                <label className="field">
+                  <span>口播语言</span>
                 <input
                   className="input"
-                  aria-label={`第 ${String(index + 1)} 段口播语言`}
                   value={segment.spoken_language}
                   readOnly={readOnly}
                   onChange={(event) => replaceSegment(index, withSpokenLanguage(segment, event.target.value))}
                 />
+                </label>
+                <label className="field">
+                  <span>口播文本</span>
                 <textarea
                   className="textarea"
                   value={segment.spoken_text}
                   readOnly={readOnly}
                   onChange={(event) => replaceSegment(index, withSpokenText(segment, event.target.value))}
                 />
-              </label>
+                </label>
+              </div>
               {(segment.captions ?? []).filter((caption) => caption.kind === 'translation').map((caption) => (
                 <label className="field segment-text" key={`${caption.kind}-${caption.language}`}>
                   <span>翻译字幕 · {caption.language}</span>
@@ -498,9 +521,14 @@ export function ScriptEditor({
                     min={0.6}
                     max={1.65}
                     step={0.05}
-                    value={segment.speed}
+                    value={Number.isFinite(segment.speed) ? segment.speed : ''}
                     readOnly={readOnly}
-                    onChange={(event) => updateSegment(index, {speed: Number(event.target.value)})}
+                    onChange={(event) => updateSegment(index, {
+                      speed: event.target.value === '' ? Number.NaN : Number(event.target.value),
+                    })}
+                    onBlur={() => {
+                      if (!Number.isFinite(segment.speed)) updateSegment(index, {speed: 1});
+                    }}
                   />
                 </label>
                 {readOnly ? null : (
@@ -528,4 +556,9 @@ export function ScriptEditor({
       )}
     </div>
   );
+}
+
+export function ScriptEditor(props: ScriptEditorProps) {
+  const historyKey = `${props.storyId ?? 'detached'}:${String(props.script.revision)}`;
+  return <ScriptEditorInner key={historyKey} {...props} />;
 }

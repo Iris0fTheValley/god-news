@@ -41,12 +41,15 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
   const storyId = story.story_id;
   const queryClient = useQueryClient();
   const retryReviewId = useRef<string | null>(null);
-  const [pendingDecision, setPendingDecision] = useState<'approve' | 'request_changes' | null>(null);
+  const [pendingSubmission, setPendingSubmission] = useState<{
+    decision: 'approve' | 'request_changes';
+    values: ReviewForm;
+  } | null>(null);
   const rolesQuery = useQuery({
     queryKey: queryKeys.roles(true),
     queryFn: () => listRoles(true),
   });
-  const {register, getValues, setValue, control, formState} = useForm<ReviewForm>({
+  const {register, handleSubmit, setValue, control, formState} = useForm<ReviewForm>({
     defaultValues: {
       reviewerId: 'local-editor',
       translation: story.translation?.translated_text ?? '',
@@ -74,9 +77,14 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
   const canApprove = rolesQuery.isSuccess && selectedRole !== undefined && selectedEmotion !== null;
 
   const mutation = useMutation({
-    mutationFn: async ({decision}: {decision: 'approve' | 'request_changes'}) => {
+    mutationFn: async ({
+      decision,
+      values,
+    }: {
+      decision: 'approve' | 'request_changes';
+      values: ReviewForm;
+    }) => {
       if (storyId === undefined) throw new Error('Story ID is missing.');
-      const values = getValues();
       const role = eligibleRoles.find((item) => item.speaker_id === values.speakerId);
       const emotion = role === undefined ? null : resolveEmotion(role.default_emotion);
       if (decision === 'approve' && (role === undefined || emotion === null || !rolesQuery.isSuccess)) {
@@ -122,23 +130,67 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
       ]);
     },
   });
+  const requestDecision = (decision: 'approve' | 'request_changes') => {
+    void handleSubmit((values) => {
+      setPendingSubmission({decision, values: {...values}});
+    })();
+  };
+  const pendingDecision = pendingSubmission?.decision ?? null;
+  const activeDecision = mutation.isPending ? mutation.variables?.decision : undefined;
 
   return (
-    <form className="review-form" onSubmit={(event) => event.preventDefault()}>
+    <form
+      className="review-form"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canApprove) requestDecision('approve');
+      }}
+    >
       <p className="eyebrow">FIRST REVIEW · v{String(story.version ?? 1)}</p>
       <h2>人工初审</h2>
       <p className="review-help">确认事实、译文和关键点。在这里设定脚本参数；批准后只生成口播文本，不会启动本地 TTS。</p>
       <label className="field">
         <span>审核人</span>
-        <input className="input" required {...register('reviewerId')} />
+        <input
+          className="input"
+          aria-invalid={formState.errors.reviewerId !== undefined}
+          {...register('reviewerId', {
+            required: '请输入审核人。',
+            validate: (value) => value.trim() !== '' || '请输入审核人。',
+          })}
+        />
+        {formState.errors.reviewerId?.message === undefined ? null : (
+          <small role="alert">{formState.errors.reviewerId.message}</small>
+        )}
       </label>
       <label className="field">
         <span>译文</span>
-        <textarea className="textarea tall" required {...register('translation')} />
+        <textarea
+          className="textarea tall"
+          aria-invalid={formState.errors.translation !== undefined}
+          {...register('translation', {
+            required: '请输入译文。',
+            validate: (value) => value.trim() !== '' || '请输入译文。',
+          })}
+        />
+        {formState.errors.translation?.message === undefined ? null : (
+          <small role="alert">{formState.errors.translation.message}</small>
+        )}
       </label>
       <label className="field">
         <span>摘要</span>
-        <textarea className="textarea" required {...register('summary')} />
+        <textarea
+          className="textarea"
+          aria-invalid={formState.errors.summary !== undefined}
+          {...register('summary', {
+            required: '请输入摘要。',
+            validate: (value) => value.trim() !== '' || '请输入摘要。',
+          })}
+        />
+        {formState.errors.summary?.message === undefined ? null : (
+          <small role="alert">{formState.errors.summary.message}</small>
+        )}
       </label>
       <label className="field">
         <span>关键点（每行一条）</span>
@@ -189,7 +241,23 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           </label>
           <label className="field">
             <span>语速</span>
-            <input className="input" type="number" min={0.6} max={1.65} step={0.05} {...register('speed', {valueAsNumber: true})} />
+            <input
+              className="input"
+              type="number"
+              min={0.6}
+              max={1.65}
+              step={0.05}
+              aria-invalid={formState.errors.speed !== undefined}
+              {...register('speed', {
+                valueAsNumber: true,
+                required: '请输入语速。',
+                min: {value: 0.6, message: '语速不能低于 0.6。'},
+                max: {value: 1.65, message: '语速不能高于 1.65。'},
+              })}
+            />
+            {formState.errors.speed?.message === undefined ? null : (
+              <small role="alert">{formState.errors.speed.message}</small>
+            )}
           </label>
           <label className="field">
             <span>口播语言</span>
@@ -197,18 +265,54 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           </label>
           <label className="field">
             <span>字幕语言</span>
-            <input className="input mono" required placeholder="zh-CN" {...register('captionLanguage')} />
+            <input
+              className="input mono"
+              placeholder="zh-CN"
+              aria-invalid={formState.errors.captionLanguage !== undefined}
+              {...register('captionLanguage', {
+                required: '请输入字幕语言。',
+                validate: (value) => value.trim() !== '' || '请输入字幕语言。',
+              })}
+            />
+            {formState.errors.captionLanguage?.message === undefined ? null : (
+              <small role="alert">{formState.errors.captionLanguage.message}</small>
+            )}
           </label>
         </div>
       </fieldset>
       <div className="form-grid">
         <label className="field">
           <span>播报风格</span>
-          <input className="input" required {...register('style')} />
+          <input
+            className="input"
+            aria-invalid={formState.errors.style !== undefined}
+            {...register('style', {
+              required: '请输入播报风格。',
+              validate: (value) => value.trim() !== '' || '请输入播报风格。',
+            })}
+          />
+          {formState.errors.style?.message === undefined ? null : (
+            <small role="alert">{formState.errors.style.message}</small>
+          )}
         </label>
         <label className="field">
           <span>目标秒数</span>
-          <input className="input" type="number" min={5} max={600} {...register('duration', {valueAsNumber: true})} />
+          <input
+            className="input"
+            type="number"
+            min={5}
+            max={600}
+            aria-invalid={formState.errors.duration !== undefined}
+            {...register('duration', {
+              valueAsNumber: true,
+              required: '请输入目标秒数。',
+              min: {value: 5, message: '目标秒数不能少于 5 秒。'},
+              max: {value: 600, message: '目标秒数不能超过 600 秒。'},
+            })}
+          />
+          {formState.errors.duration?.message === undefined ? null : (
+            <small role="alert">{formState.errors.duration.message}</small>
+          )}
         </label>
       </div>
       <label className="field">
@@ -222,18 +326,19 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           className="button secondary"
           type="button"
           disabled={mutation.isPending || formState.isSubmitting}
-          onClick={() => setPendingDecision('request_changes')}
+          onClick={() => requestDecision('request_changes')}
         >
-          <RotateCcw size={17} aria-hidden="true" /> 保存修改，暂不生成
+          <RotateCcw size={17} aria-hidden="true" />
+          {activeDecision === 'request_changes' ? '正在保存修改…' : '保存修改，暂不生成'}
         </button>
         <button
           className="button primary"
           type="button"
           disabled={mutation.isPending || formState.isSubmitting || !canApprove}
-          onClick={() => setPendingDecision('approve')}
+          onClick={() => requestDecision('approve')}
         >
           <CheckCircle2 size={18} aria-hidden="true" />
-          {mutation.isPending ? '正在生成口播文本…' : '批准并生成口播文本'}
+          {activeDecision === 'approve' ? '正在生成口播文本…' : '批准并生成口播文本'}
         </button>
       </div>
       {canApprove ? null : (
@@ -245,11 +350,13 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
       )}
       {mutation.isPending ? (
         <p className="pending-note" role="status" aria-live="polite">
-          正在生成口播文本。请保持页面打开；中断后可从安全检查点恢复。
+          {activeDecision === 'approve'
+            ? '正在生成口播文本。请保持页面打开；中断后可从安全检查点恢复。'
+            : '正在保存初审修改。'}
         </p>
       ) : null}
       <ConfirmDialog
-        open={pendingDecision !== null}
+        open={pendingSubmission !== null}
         title={pendingDecision === 'approve' ? '批准初审' : '保存修改'}
         message={
           pendingDecision === 'approve'
@@ -258,10 +365,10 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
         }
         confirmLabel={pendingDecision === 'approve' ? '批准并生成口播文本' : '确认保存'}
         onConfirm={() => {
-          if (pendingDecision !== null) mutation.mutate({decision: pendingDecision});
-          setPendingDecision(null);
+          if (pendingSubmission !== null) mutation.mutate(pendingSubmission);
+          setPendingSubmission(null);
         }}
-        onCancel={() => setPendingDecision(null)}
+        onCancel={() => setPendingSubmission(null)}
       />
     </form>
   );

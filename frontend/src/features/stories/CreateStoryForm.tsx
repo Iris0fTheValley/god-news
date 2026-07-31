@@ -73,7 +73,12 @@ export function CreateStoryForm() {
 
   if (!open) {
     return (
-      <button className="button primary" type="button" onClick={() => setOpen(true)}>
+      <button
+        className="button primary"
+        type="button"
+        data-new-story
+        onClick={() => setOpen(true)}
+      >
         <Plus size={18} aria-hidden="true" /> 新建故事
       </button>
     );

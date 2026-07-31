@@ -54,4 +54,63 @@ describe('ScriptEditor', () => {
     expect(within(container).getAllByText('画面 / 图片')).toHaveLength(scriptFixture.segments.length);
     expect(within(container).queryByText('雨伞和小狗')).not.toBeInTheDocument();
   });
+
+  it('restores the script title as part of undo history', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const {rerender} = renderWithApp(
+      <ScriptEditor script={scriptFixture} onChange={onChange} storyId="story-a" />,
+    );
+
+    fireEvent.change(screen.getByLabelText('脚本标题'), {target: {value: '新的脚本标题'}});
+    const changed = onChange.mock.calls.at(-1)?.[0] as typeof scriptFixture;
+    rerender(<ScriptEditor script={changed} onChange={onChange} storyId="story-a" />);
+    await user.click(screen.getByRole('button', {name: '撤销 Ctrl+Z'}));
+
+    expect(onChange.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      title: scriptFixture.title,
+      segments: scriptFixture.segments,
+    }));
+  });
+
+  it('leaves native textarea undo alone', () => {
+    const onChange = vi.fn();
+    renderWithApp(<ScriptEditor script={scriptFixture} onChange={onChange} />);
+    const spokenText = screen.getAllByLabelText('口播文本')[0];
+
+    fireEvent.change(spokenText, {target: {value: '编辑中的口播'}});
+    fireEvent.keyDown(spokenText, {key: 'z', ctrlKey: true});
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets history when the story or script revision changes', () => {
+    const onChange = vi.fn();
+    const {rerender} = renderWithApp(
+      <ScriptEditor script={scriptFixture} onChange={onChange} storyId="story-a" />,
+    );
+    fireEvent.change(screen.getByLabelText('脚本标题'), {target: {value: '故事 A 草稿'}});
+    expect(screen.getByRole('button', {name: '撤销 Ctrl+Z'})).toBeInTheDocument();
+
+    const nextScript = structuredClone(scriptFixture);
+    nextScript.revision += 1;
+    rerender(<ScriptEditor script={nextScript} onChange={onChange} storyId="story-b" />);
+
+    expect(screen.queryByRole('button', {name: '撤销 Ctrl+Z'})).not.toBeInTheDocument();
+  });
+
+  it('allows speed to be cleared while editing and restores a valid default on blur', () => {
+    const onChange = vi.fn();
+    const {rerender} = renderWithApp(<ScriptEditor script={scriptFixture} onChange={onChange} />);
+    const speed = screen.getAllByRole('spinbutton')[0];
+
+    fireEvent.change(speed, {target: {value: ''}});
+    const cleared = onChange.mock.calls.at(-1)?.[0] as typeof scriptFixture;
+    expect(Number.isNaN(cleared.segments[0].speed)).toBe(true);
+
+    rerender(<ScriptEditor script={cleared} onChange={onChange} />);
+    fireEvent.blur(screen.getAllByRole('spinbutton')[0]);
+    const restored = onChange.mock.calls.at(-1)?.[0] as typeof scriptFixture;
+    expect(restored.segments[0].speed).toBe(1);
+  });
 });

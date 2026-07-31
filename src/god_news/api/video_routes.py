@@ -24,6 +24,7 @@ from god_news.domain.video import (
     SubmitNarrationReview,
     SubmitTimelineReview,
     SynthesizeBatchNarration,
+    TemplateDefinition,
     VideoBatch,
     VideoBatchStatus,
     VideoOutputProfileId,
@@ -55,6 +56,19 @@ def get_video_batch_service(container: ContainerDependency) -> VideoBatchService
 
 
 VideoBatchServiceDependency = Annotated[VideoBatchService, Depends(get_video_batch_service)]
+
+
+@router.get(
+    "/templates",
+    response_model=list[TemplateDefinition],
+    operation_id="listVideoTemplates",
+)
+async def list_video_templates(
+    service: VideoBatchServiceDependency,
+) -> list[TemplateDefinition]:
+    """List immutable production template definitions in stable identity order."""
+
+    return list(service.list_templates())
 
 
 def _open_regular_file_evidence(path: Path) -> tuple[BinaryIO, int, str] | None:

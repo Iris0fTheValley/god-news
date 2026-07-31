@@ -40,4 +40,20 @@ describe('templateLabState', () => {
     expect(state.frame).toBe(0);
     expect(state.zoom).toBe(0.8);
   });
+
+  it('distinguishes inherited fixture copy from an explicit empty override', () => {
+    const inherited = readTemplateLabState(new URLSearchParams());
+    expect(inherited.title).toBeNull();
+    expect(inherited.caption).toBeNull();
+
+    const cleared = {
+      ...DEFAULT_TEMPLATE_LAB_STATE,
+      title: '',
+      caption: '',
+    };
+    const params = writeTemplateLabState(cleared);
+    expect(params.has('title')).toBe(true);
+    expect(params.has('caption')).toBe(true);
+    expect(readTemplateLabState(params)).toEqual(cleared);
+  });
 });

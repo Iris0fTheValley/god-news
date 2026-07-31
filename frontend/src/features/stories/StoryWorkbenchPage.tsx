@@ -1,5 +1,5 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
-import {ArrowLeft, CheckCircle2, ExternalLink, FileClock, Hash, Languages, RotateCcw, Trash2} from 'lucide-react';
+import {ArrowLeft, ArrowRight, CheckCircle2, ExternalLink, FileClock, Hash, Languages, RotateCcw, Trash2} from 'lucide-react';
 import {useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 
@@ -13,7 +13,7 @@ import {
   reopenStory,
 } from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
-import type {ScriptDocument, StateTransition} from '../../api/types';
+import type {ScriptDocument, StateTransition, StoryStatus} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {CueRail} from '../../components/CueRail';
@@ -30,6 +30,44 @@ import {ScriptReviewPanel} from '../reviews/ScriptReviewPanel';
 import {SecondReviewPanel} from '../reviews/SecondReviewPanel';
 import {TtsSynthesisPanel} from '../reviews/TtsSynthesisPanel';
 import {ScriptEditor} from '../script/ScriptEditor';
+
+function nextActionForStatus(status: StoryStatus) {
+  const actions = {
+    FETCHED: ['等待内容处理', '检查来源证据；系统将继续翻译与筛选。'],
+    TRANSLATED: ['等待进入初审', '翻译已完成，系统正在准备人工初审。'],
+    PENDING_FIRST_REVIEW: ['完成人工初审', '在右侧核对译文、播报参数和角色，批准后才生成口播。'],
+    PROCESSING_SCRIPT: ['正在生成口播', '无需重复操作；页面会自动刷新到脚本审核。'],
+    SCRIPT_READY: ['审核口播脚本', '先编辑并保存脚本，再批准进入本地语音合成。'],
+    PENDING_TTS: ['手动合成本地语音', '在右侧确认角色与脚本版本后启动高能耗 TTS。'],
+    PROCESSING_TTS: ['正在合成本地语音', '无需重复操作；中断后可从安全检查点恢复。'],
+    PENDING_SECOND_REVIEW: ['完成终审', '试听每段音频并复核字幕，批准后冻结生产 Manifest。'],
+    DONE: ['加入视频批次', '故事、脚本、音频和 Manifest 已冻结，可进入节目编排。'],
+    ARCHIVED: ['只读归档', '此故事不再推进，但来源证据和审核历史仍可查阅。'],
+  } as const;
+  return actions[status];
+}
+
+function EvidenceText({
+  title,
+  text,
+  emptyText,
+}: {
+  title: string;
+  text: string | null | undefined;
+  emptyText: string;
+}) {
+  const content = text?.trim() || emptyText;
+  const long = content.length > 1_200;
+  return (
+    <details className="evidence-copy" open={!long}>
+      <summary>
+        <strong>{title}</strong>
+        <span className="metadata">{content.length.toLocaleString('zh-CN')} 字符</span>
+      </summary>
+      <p className="long-copy">{content}</p>
+    </details>
+  );
+}
 
 export function StoryWorkbenchPage() {
   const {storyId = ''} = useParams();
@@ -124,6 +162,7 @@ export function StoryWorkbenchPage() {
   const hasUnsavedScriptChanges = serverScript !== null
     && scriptDraft !== null
     && JSON.stringify(serverScript) !== JSON.stringify(scriptDraft);
+  const nextAction = nextActionForStatus(story.status);
 
   return (
     <div className="page workbench-page">
@@ -172,6 +211,22 @@ export function StoryWorkbenchPage() {
         )}
       </header>
       <CueRail status={story.status} />
+      <section className={`workflow-next-action status-${story.status.toLocaleLowerCase()}`}>
+        <div>
+          <p className="eyebrow">NEXT ACTION · {STATUS_LABELS[story.status]}</p>
+          <h2>{nextAction[0]}</h2>
+          <p>{nextAction[1]}</p>
+        </div>
+        {story.status === 'DONE' ? (
+          <Link className="button primary" to="/production/batches">
+            前往视频批次 <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        ) : ['PENDING_FIRST_REVIEW', 'SCRIPT_READY', 'PENDING_TTS', 'PENDING_SECOND_REVIEW'].includes(story.status) ? (
+          <a className="button" href="#current-action">
+            前往当前操作 <ArrowRight size={16} aria-hidden="true" />
+          </a>
+        ) : null}
+      </section>
 
       {(transitionQuery.data ?? []).length > 0 ? (
         <details className="panel audit-timeline" open={(transitionQuery.data ?? []).length <= 5}>
@@ -215,12 +270,14 @@ export function StoryWorkbenchPage() {
             </div>
             <div className="evidence-split">
               <article>
-                <h3>原文</h3>
-                <p className="long-copy">{story.original_text}</p>
+                <EvidenceText title="原文" text={story.original_text} emptyText="原文为空。" />
               </article>
               <article>
-                <h3>译文</h3>
-                <p className="long-copy">{story.translation?.translated_text ?? '翻译尚未完成。'}</p>
+                <EvidenceText
+                  title="译文"
+                  text={story.translation?.translated_text}
+                  emptyText="翻译尚未完成。"
+                />
                 <h3>摘要</h3>
                 <p>{story.translation?.summary ?? '摘要尚未生成。'}</p>
                 {story.translation?.screening === undefined ? null : (
@@ -243,7 +300,7 @@ export function StoryWorkbenchPage() {
           </section>
 
           <SourceMediaPanel story={story} />
-          <VisualDiscoveryPanel story={story} />
+          <VisualDiscoveryPanel key={storyId} story={story} />
 
           {scriptDraft === null ? null : (
             <section className="panel">
@@ -255,6 +312,7 @@ export function StoryWorkbenchPage() {
                 <span className="metadata">{String(scriptDraft.segments.length)} 段 · {scriptDraft.spoken_language}</span>
               </div>
               <div className="panel-body">
+                {rolesQuery.error === null ? null : <ApiErrorNotice error={rolesQuery.error} />}
                 <ScriptEditor
                   script={scriptDraft}
                   onChange={setScriptDraft}
@@ -309,12 +367,14 @@ export function StoryWorkbenchPage() {
               <FileClock size={18} aria-hidden="true" />
             </div>
             <div className="panel-body">
+              {reviewQuery.error === null ? null : <ApiErrorNotice error={reviewQuery.error} />}
+              {transitionQuery.error === null ? null : <ApiErrorNotice error={transitionQuery.error} />}
               <HistoryPanel reviews={reviewQuery.data ?? []} transitions={transitionQuery.data ?? []} />
             </div>
           </section>
         </div>
 
-        <aside className="action-inspector" aria-label="当前审核操作">
+        <aside id="current-action" className="action-inspector" aria-label="当前审核操作">
           {story.status === 'PENDING_FIRST_REVIEW' ? (
             <FirstReviewPanel story={story} />
           ) : story.status === 'SCRIPT_READY' && scriptDraft !== null ? (

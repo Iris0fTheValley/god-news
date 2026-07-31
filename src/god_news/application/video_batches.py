@@ -156,6 +156,11 @@ class VideoBatchService:
     async def list_bgm(self) -> Sequence[BgmTrack]:
         return await self._bgm_catalog.list()
 
+    def list_templates(self) -> tuple[TemplateDefinition, ...]:
+        """Return the immutable, stably ordered production template catalog."""
+
+        return self._template_registry.list()
+
     async def recover_interrupted(self) -> int:
         """Make crash-orphaned render work retryable before accepting traffic."""
 

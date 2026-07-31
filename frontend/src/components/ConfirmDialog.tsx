@@ -1,5 +1,7 @@
 import {AlertTriangle, X} from 'lucide-react';
 
+import {ModalDialog} from './ModalDialog';
+
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
@@ -24,15 +26,11 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div
+    <ModalDialog
+      open
       className="confirm-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      onClick={onCancel}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-      }}
+      labelledBy="confirm-dialog-title"
+      onClose={onCancel}
     >
       <div
         className="confirm-dialog"
@@ -63,19 +61,18 @@ export function ConfirmDialog({
           )}
         </div>
         <div className="form-actions" style={{padding: '0 18px 16px'}}>
-          <button className="button" type="button" onClick={onCancel}>
+          <button className="button" type="button" onClick={onCancel} autoFocus>
             {cancelLabel}
           </button>
           <button
             className={`button ${variant === 'danger' ? 'danger' : 'primary'}`}
             type="button"
             onClick={onConfirm}
-            autoFocus
           >
             {confirmLabel}
           </button>
         </div>
       </div>
-    </div>
+    </ModalDialog>
   );
 }

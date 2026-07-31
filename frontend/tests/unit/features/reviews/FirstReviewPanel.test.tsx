@@ -89,4 +89,77 @@ describe('FirstReviewPanel', () => {
     expect(screen.getByRole('button', {name: '批准并生成口播文本'})).toBeDisabled();
     expect(screen.getByRole('option', {name: '当前角色不可用于本地 TTS'})).toBeDisabled();
   });
+
+  it('does not open confirmation or submit when required review text is blank', async () => {
+    const user = userEvent.setup();
+    apiMocks.listRoles.mockResolvedValue([ttsRole]);
+    renderWithApp(<FirstReviewPanel story={storyFixture} />);
+
+    await waitFor(() => expect(screen.getByRole('button', {name: '批准并生成口播文本'})).toBeEnabled());
+    await user.clear(screen.getByLabelText('审核人'));
+    await user.click(screen.getByRole('button', {name: '批准并生成口播文本'}));
+
+    expect(await screen.findByText('请输入审核人。')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(apiMocks.submitFirstReview).not.toHaveBeenCalled();
+  });
+
+  it('validates numeric ranges before opening the request-changes confirmation', async () => {
+    const user = userEvent.setup();
+    apiMocks.listRoles.mockResolvedValue([ttsRole]);
+    renderWithApp(<FirstReviewPanel story={storyFixture} />);
+
+    const duration = screen.getByLabelText('目标秒数');
+    await user.clear(duration);
+    await user.type(duration, '4');
+    await user.click(screen.getByRole('button', {name: '保存修改，暂不生成'}));
+
+    expect(await screen.findByText('目标秒数不能少于 5 秒。')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(apiMocks.submitFirstReview).not.toHaveBeenCalled();
+  });
+
+  it('keeps request-changes behind confirmation and submits validated values', async () => {
+    const user = userEvent.setup();
+    apiMocks.listRoles.mockResolvedValue([ttsRole]);
+    apiMocks.submitFirstReview.mockResolvedValue(storyFixture);
+    renderWithApp(<FirstReviewPanel story={storyFixture} />);
+
+    await user.click(screen.getByRole('button', {name: '保存修改，暂不生成'}));
+    expect(await screen.findByRole('dialog', {name: '保存修改'})).toBeVisible();
+    expect(apiMocks.submitFirstReview).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', {name: '确认保存'}));
+
+    await waitFor(() => expect(apiMocks.submitFirstReview).toHaveBeenCalledOnce());
+    expect(apiMocks.submitFirstReview.mock.calls[0]?.[1]).toMatchObject({
+      decision: 'request_changes',
+      reviewer_id: 'local-editor',
+      corrected_translation: storyFixture.translation?.translated_text,
+      corrected_summary: storyFixture.translation?.summary,
+    });
+  });
+
+  it('disables both review actions while a confirmed submission is pending', async () => {
+    const user = userEvent.setup();
+    let resolveSubmission: ((value: typeof storyFixture) => void) | undefined;
+    apiMocks.listRoles.mockResolvedValue([ttsRole]);
+    apiMocks.submitFirstReview.mockImplementation(() => new Promise((resolve) => {
+      resolveSubmission = resolve;
+    }));
+    renderWithApp(<FirstReviewPanel story={storyFixture} />);
+
+    await waitFor(() => expect(screen.getByRole('button', {name: '批准并生成口播文本'})).toBeEnabled());
+    await user.click(screen.getByRole('button', {name: '批准并生成口播文本'}));
+    const confirmButtons = await screen.findAllByRole('button', {name: '批准并生成口播文本'});
+    await user.click(confirmButtons[confirmButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', {name: '正在生成口播文本…'})).toBeDisabled();
+      expect(screen.getByRole('button', {name: '保存修改，暂不生成'})).toBeDisabled();
+    });
+
+    resolveSubmission?.(storyFixture);
+    await waitFor(() => expect(screen.queryByText('正在生成口播文本。请保持页面打开；中断后可从安全检查点恢复。')).not.toBeInTheDocument());
+  });
 });

@@ -1,4 +1,5 @@
 export const queryKeys = {
+  readiness: ['health', 'readiness'] as const,
   stories: (status?: string) => (
     status === undefined ? ['stories'] as const : ['stories', {status}] as const
   ),
@@ -24,6 +25,7 @@ export const queryKeys = {
   sourceCollectors: () => ['sources', 'collectors'] as const,
   videoBatches: () => ['video', 'batches'] as const,
   videoBatch: (batchId: string) => ['video', 'batches', batchId] as const,
+  videoTemplates: () => ['video', 'templates'] as const,
   bgmTracks: () => ['video', 'bgm'] as const,
   operationRuns: () => ['operations', 'runs'] as const,
   schedules: () => ['operations', 'schedules'] as const,

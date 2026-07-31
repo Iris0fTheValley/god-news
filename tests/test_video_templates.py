@@ -104,6 +104,27 @@ def test_template_registry_rejects_duplicate_identity() -> None:
         TemplateRegistry([template, template])
 
 
+def test_template_registry_list_is_stable_by_identity() -> None:
+    template = world_warmth_template()
+    registry = TemplateRegistry(
+        [
+            template.model_copy(
+                update={"template_id": "world_warmth_extra", "template_version": "1.0.0"}
+            ),
+            template.model_copy(update={"template_version": "2.0.0"}),
+            template,
+        ]
+    )
+
+    assert [
+        (item.template_id, item.template_version) for item in registry.list()
+    ] == [
+        ("world_warmth", "1.1.0"),
+        ("world_warmth", "2.0.0"),
+        ("world_warmth_extra", "1.0.0"),
+    ]
+
+
 def test_template_visual_asset_count_is_enforced_before_render() -> None:
     batch_id = uuid4()
     segment_id = uuid4()

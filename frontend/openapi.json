@@ -16206,6 +16206,82 @@
         ]
       }
     },
+    "/api/v1/video/templates": {
+      "get": {
+        "description": "List immutable production template definitions in stable identity order.",
+        "operationId": "listVideoTemplates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateDefinition"
+                  },
+                  "title": "Response Listvideotemplates",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "List Video Templates",
+        "tags": [
+          "video"
+        ]
+      }
+    },
     "/api/v1/visual-discovery-assets/{asset_id}/approve": {
       "post": {
         "operationId": "approveVisualDiscoveryAsset",

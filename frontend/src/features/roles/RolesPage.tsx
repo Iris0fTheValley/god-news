@@ -15,6 +15,7 @@ import type {
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {EmptyState} from '../../components/EmptyState';
+import {ModalDialog} from '../../components/ModalDialog';
 import {SPEECH_EMOTIONS, SPEECH_EMOTION_LABELS} from '../../components/narrationOptions';
 import {useToast} from '../../components/toastContext';
 
@@ -278,7 +279,12 @@ export function RolesPage() {
       )}
 
       {editing === null ? null : (
-        <dialog className="create-drawer wide-drawer" open aria-labelledby="role-form-heading" onCancel={(event) => { event.preventDefault(); setEditing(null); }}>
+        <ModalDialog
+          open
+          className="create-drawer wide-drawer"
+          labelledBy="role-form-heading"
+          onClose={() => setEditing(null)}
+        >
           <div className="panel-header">
             <div><p className="eyebrow">{editing.profileId === null ? 'NEW ROLE' : 'EDIT ROLE'}</p><h2 id="role-form-heading">{editing.profileId === null ? '新建角色' : '编辑角色'}</h2></div>
             <button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="关闭">✕</button>
@@ -329,8 +335,8 @@ export function RolesPage() {
                 <label className="field"><span>参考文本语言</span><input className="input mono" placeholder="all_zh / all_ja（可选）" value={editing.referenceLanguage} onChange={(event) => setEditing({...editing, referenceLanguage: event.target.value})} /></label>
                 <label className="field"><span>默认口播语言</span><input className="input mono" required placeholder="zh-CN / en-US / ja-JP" value={editing.defaultSpokenLanguage} onChange={(event) => setEditing({...editing, defaultSpokenLanguage: event.target.value})} /></label>
                 <label className="field"><span>默认情绪</span><select className="select" value={editing.defaultEmotion} onChange={(event) => setEditing({...editing, defaultEmotion: event.target.value})}>{!isSpeechEmotion(editing.defaultEmotion) ? <option value={editing.defaultEmotion}>保留历史值：{editing.defaultEmotion}</option> : null}{SPEECH_EMOTIONS.map((emotion) => <option key={emotion} value={emotion}>{SPEECH_EMOTION_LABELS[emotion]}</option>)}</select></label>
-                <label className="field"><span>默认语速</span><input className="input" type="number" min={0.6} max={1.65} step={0.05} value={editing.defaultSpeed} onChange={(event) => setEditing({...editing, defaultSpeed: Number(event.target.value)})} /></label>
-                <label className="field"><span>默认音高</span><input className="input" type="number" min={-12} max={12} step={0.5} value={editing.defaultPitch} onChange={(event) => setEditing({...editing, defaultPitch: Number(event.target.value)})} /></label>
+                <label className="field"><span>默认语速</span><input className="input" type="number" min={0.6} max={1.65} step={0.05} required value={Number.isFinite(editing.defaultSpeed) ? editing.defaultSpeed : ''} onChange={(event) => setEditing({...editing, defaultSpeed: event.target.valueAsNumber})} onBlur={() => { if (!Number.isFinite(editing.defaultSpeed)) setEditing({...editing, defaultSpeed: 1}); }} /></label>
+                <label className="field"><span>默认音高</span><input className="input" type="number" min={-12} max={12} step={0.5} required value={Number.isFinite(editing.defaultPitch) ? editing.defaultPitch : ''} onChange={(event) => setEditing({...editing, defaultPitch: event.target.valueAsNumber})} onBlur={() => { if (!Number.isFinite(editing.defaultPitch)) setEditing({...editing, defaultPitch: 0}); }} /></label>
               </div>
             </fieldset>
 
@@ -353,7 +359,7 @@ export function RolesPage() {
             {(createMutation.error ?? updateMutation.error) === null ? null : <div className="wide"><ApiErrorNotice error={(createMutation.error ?? updateMutation.error)!} /></div>}
             <div className="form-actions wide"><button className="button" type="button" onClick={() => setEditing(null)}>取消</button><button className="button primary" type="submit" disabled={createMutation.isPending || updateMutation.isPending}>{createMutation.isPending || updateMutation.isPending ? '保存中…' : '保存角色'}</button></div>
           </form>
-        </dialog>
+        </ModalDialog>
       )}
 
       <ConfirmDialog

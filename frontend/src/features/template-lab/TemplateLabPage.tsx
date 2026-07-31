@@ -26,6 +26,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 
 import {
+  encodeBase64Utf8,
   readTemplateLabState,
   writeTemplateLabState,
   type TemplateLabState,
@@ -101,8 +102,8 @@ export function TemplateLabPage() {
         fixtureId: state.fixture,
         profileId: state.profile,
         variantId: state.variant,
-        title: state.title || undefined,
-        translatedCaption: state.caption || undefined,
+        title: state.title ?? undefined,
+        translatedCaption: state.caption ?? undefined,
         hostVisible: state.hostVisible,
         hostSlot: state.hostSlot,
         hostVideoUrl: state.hostVideoUrl || undefined,
@@ -148,12 +149,12 @@ export function TemplateLabPage() {
   );
   const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
   const captionText =
-    state.caption ||
-    selectedFixture?.translatedCaption ||
-    fixtureResult.fixture?.translatedCaption ||
-    '';
+    state.caption
+    ?? selectedFixture?.translatedCaption
+    ?? fixtureResult.fixture?.translatedCaption
+    ?? '';
   const titleText =
-    state.title || selectedFixture?.title || fixtureResult.fixture?.title || '';
+    state.title ?? selectedFixture?.title ?? fixtureResult.fixture?.title ?? '';
 
   useEffect(() => {
     const player = playerRef.current;
@@ -264,8 +265,8 @@ export function TemplateLabPage() {
       fixture: nextFixture?.fixtureId ?? `${nextScene}-unavailable`,
       hostVisible: nextScene === 'host_evidence',
       hostSlot: nextVariant === 'host_corner_full_bleed' ? 'corner' : 'primary',
-      title: '',
-      caption: '',
+      title: null,
+      caption: null,
       frame: 0,
     });
   };
@@ -281,8 +282,8 @@ export function TemplateLabPage() {
       variant: fixture.variantId,
       hostVisible: fixture.moduleId === 'host_evidence',
       hostSlot: fixture.variantId === 'host_corner_full_bleed' ? 'corner' : 'primary',
-      title: '',
-      caption: '',
+      title: null,
+      caption: null,
       frame: 0,
     });
   };
@@ -451,7 +452,7 @@ export function TemplateLabPage() {
           </label>
         </aside>
 
-        <main className="template-lab-stage" aria-label="生产 Remotion 场景预览">
+        <section className="template-lab-stage" aria-label="生产 Remotion 场景预览">
           <div className="template-lab-stage-toolbar">
             <div className="template-lab-playback">
               <button
@@ -564,7 +565,7 @@ export function TemplateLabPage() {
               </div>
             )}
           </div>
-        </main>
+        </section>
 
         <aside className="template-lab-panel template-lab-inspector" aria-label="场景契约与诊断">
           <p className="eyebrow">INSPECTOR</p>
@@ -663,7 +664,7 @@ export function TemplateLabPage() {
               className="button secondary"
               type="button"
               onClick={() => {
-                const encodedUrl = window.btoa(window.location.href);
+                const encodedUrl = encodeBase64Utf8(window.location.href);
                 void copyDevelopmentCommand(
                   `pnpm --dir frontend capture:template-lab -- --url-base64 "${encodedUrl}" --output "../outputs/template-lab/scene-frame-${currentFrame}.png"`,
                   '真实 Edge 截图命令已复制。',

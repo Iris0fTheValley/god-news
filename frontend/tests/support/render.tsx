@@ -12,14 +12,17 @@ export function renderWithApp(ui: ReactElement, initialEntries: string[] = ['/st
       mutations: {retry: false},
     },
   });
+  const wrap = (element: ReactElement) => (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={initialEntries}>
+        <ToastProvider>{element}</ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  const result = render(wrap(ui));
   return {
     queryClient,
-    ...render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={initialEntries}>
-          <ToastProvider>{ui}</ToastProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    ),
+    ...result,
+    rerender: (nextUi: ReactElement) => result.rerender(wrap(nextUi)),
   };
 }
