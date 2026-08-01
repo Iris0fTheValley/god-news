@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from god_news.api.dependencies import get_container
 from god_news.api.schemas import ProblemDetail, PublicVideoBatch
 from god_news.application.video_batches import VideoBatchService
+from god_news.application.video_registry import VideoRegistryService
 from god_news.container import AppContainer
 from god_news.domain.video import (
     BgmTrack,
@@ -29,6 +30,7 @@ from god_news.domain.video import (
     VideoBatchStatus,
     VideoOutputProfileId,
 )
+from god_news.domain.video_registry import SetVideoCapabilityPolicy, VideoRegistryView
 from god_news.video_errors import VideoBatchConflictError, VideoRendererUnavailableError
 
 PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -58,6 +60,18 @@ def get_video_batch_service(container: ContainerDependency) -> VideoBatchService
 VideoBatchServiceDependency = Annotated[VideoBatchService, Depends(get_video_batch_service)]
 
 
+def get_video_registry_service(container: ContainerDependency) -> VideoRegistryService:
+    if container.video_registry is None:
+        raise VideoRendererUnavailableError("Video capability registry is not configured.")
+    return container.video_registry
+
+
+VideoRegistryServiceDependency = Annotated[
+    VideoRegistryService,
+    Depends(get_video_registry_service),
+]
+
+
 @router.get(
     "/templates",
     response_model=list[TemplateDefinition],
@@ -69,6 +83,29 @@ async def list_video_templates(
     """List immutable production template definitions in stable identity order."""
 
     return list(service.list_templates())
+
+
+@router.get(
+    "/registry",
+    response_model=VideoRegistryView,
+    operation_id="getVideoCapabilityRegistry",
+)
+async def get_video_capability_registry(
+    service: VideoRegistryServiceDependency,
+) -> VideoRegistryView:
+    return await service.view()
+
+
+@router.put(
+    "/registry/policy",
+    response_model=VideoRegistryView,
+    operation_id="setVideoCapabilityPolicy",
+)
+async def set_video_capability_policy(
+    request: SetVideoCapabilityPolicy,
+    service: VideoRegistryServiceDependency,
+) -> VideoRegistryView:
+    return await service.set_policy(request)
 
 
 def _open_regular_file_evidence(path: Path) -> tuple[BinaryIO, int, str] | None:

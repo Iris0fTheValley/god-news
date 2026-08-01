@@ -229,3 +229,51 @@ class SourceTranscriptionOperationError(GodNewsError):
             story_id=story_id,
             retryable=retryable,
         )
+
+
+class MediaCatalogNotFoundError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "media_catalog_asset_not_found",
+            "Media catalog asset was not found.",
+            status_code=404,
+        )
+
+
+class ConcurrentMediaCatalogWriteError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "concurrent_media_catalog_write",
+            "Media catalog entry changed concurrently; reload it and retry.",
+            status_code=409,
+            retryable=True,
+        )
+
+
+class MediaCatalogConflictError(GodNewsError):
+    def __init__(self, message: str) -> None:
+        super().__init__("media_catalog_conflict", message, status_code=409)
+
+
+class VideoCapabilityNotFoundError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "video_capability_not_found",
+            "Video capability was not found in the production registry.",
+            status_code=404,
+        )
+
+
+class ConcurrentVideoCapabilityWriteError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "concurrent_video_capability_write",
+            "Video capability policy changed concurrently; reload it and retry.",
+            status_code=409,
+            retryable=True,
+        )
+
+
+class VideoCapabilityConflictError(GodNewsError):
+    def __init__(self, message: str) -> None:
+        super().__init__("video_capability_conflict", message, status_code=409)

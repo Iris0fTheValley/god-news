@@ -424,10 +424,13 @@ async def test_approved_source_video_is_snapshotted_and_compiled_after_narration
     batch = await service.create(
         CreateVideoBatch(title="Original clip", story_ids=[story.story_id])
     )
+    assert batch.media_reservations_frozen
+    assert batch.reserved_source_videos == [asset]
+    library.asset = _source_video_asset(tmp_path, story.story_id)
 
     synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
 
-    assert library.calls == 2
+    assert library.calls == 1
     assert synthesized.remotion_props is not None
     assert synthesized.remotion_props.source_videos == [asset]
     assert synthesized.remotion_props.episode_plan is not None
@@ -466,6 +469,9 @@ async def test_approved_broll_is_snapshotted_and_compiled_after_bound_segment(
     batch = await service.create(
         CreateVideoBatch(title="Licensed B-roll", story_ids=[story.story_id])
     )
+    assert batch.media_reservations_frozen
+    assert batch.reserved_broll_videos == [asset]
+    library.assets = []
 
     synthesized = await _approve_and_synthesize(service, batch.batch_id, batch.version)
 

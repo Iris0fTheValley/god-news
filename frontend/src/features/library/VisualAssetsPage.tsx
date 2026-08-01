@@ -1,9 +1,11 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {
+  Archive,
   ExternalLink,
-  FileImage,
   Film,
   Image as ImageIcon,
+  Library,
+  RotateCcw,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -12,184 +14,151 @@ import {useMemo, useState} from 'react';
 import {Link} from 'react-router-dom';
 
 import {
-  listSourceMediaArtifacts,
-  listStories,
-  listStoryVisualAssets,
-  listStoryVisualDiscoveryAssets,
-  approveVisualDiscoveryAsset,
-  rejectVisualDiscoveryAsset,
-  reuseApprovedVisualDiscoveryAsset,
-  sourceMediaContentUrl,
-  visualAssetContentUrl,
-  visualDiscoveryAssetContentUrl,
+  archiveMediaCatalogAsset,
+  listMediaCatalogAssets,
+  mediaCatalogAssetContentUrl,
+  restoreMediaCatalogAsset,
 } from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
-import type {
-  SourceMediaArtifact,
-  Story,
-  VisualAsset,
-  VisualDiscoveryAssetView,
-} from '../../api/types';
+import type {MediaCatalogEntry} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ModalDialog} from '../../components/ModalDialog';
 
-type LibraryKind = 'all' | 'story' | 'commons' | 'source-video';
+type SourceFilter = 'all' | MediaCatalogEntry['source_kind'];
+type KindFilter = 'all' | MediaCatalogEntry['media_kind'];
+type LifecycleFilter = 'all' | MediaCatalogEntry['lifecycle'];
 
-interface LibraryAsset {
-  id: string;
-  kind: Exclude<LibraryKind, 'all'>;
-  label: string;
-  detail: string;
-  contentUrl: string;
-  sourceUrl: string | null;
-  status: 'approved' | 'review' | 'bound' | 'rejected' | 'superseded';
-  metadata: string[];
-  discoveryAsset?: VisualDiscoveryAssetView;
+const SOURCE_LABELS: Record<MediaCatalogEntry['source_kind'], string> = {
+  visual_asset: '编辑上传 / 网页截图',
+  visual_discovery: 'Commons 授权素材',
+  source_media: '来源视频证据',
+};
+
+const EDITORIAL_LABELS: Record<string, string> = {
+  approved: '已批准',
+  staged: '待审核',
+  rejected: '已拒绝',
+  superseded: '已替换',
+  bound: '已绑定',
+  publish_eligible: '可发布',
+  rights_review: '待权利审核',
+};
+
+function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '未下载';
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-function storyLabel(story: Story): string {
-  return story.title?.trim() || story.source.title || '未命名故事';
+function formatDuration(value: number | null | undefined): string | null {
+  return value === null || value === undefined ? null : `${(value / 1000).toFixed(1)} 秒`;
 }
 
-function visualAssetItem(asset: VisualAsset): LibraryAsset | null {
-  if (asset.asset_id === undefined) return null;
-  return {
-    id: asset.asset_id,
-    kind: 'story',
-    label: asset.filename,
-    detail: asset.origin === 'source_page_screenshot' ? '来源网页截图' : '编辑上传素材',
-    contentUrl: visualAssetContentUrl(asset.story_id, asset.asset_id),
-    sourceUrl: null,
-    status: 'bound',
-    metadata: [
-      asset.content_type,
-      `${(asset.size_bytes / 1024).toFixed(0)} KiB`,
-      asset.segment_id === null || asset.segment_id === undefined ? '故事级' : '已绑定脚本段',
-    ],
-  };
-}
-
-function discoveryAssetItem(asset: VisualDiscoveryAssetView): LibraryAsset {
-  const rights = asset.candidate.rights;
-  const status = asset.status === 'staged' ? 'review' : asset.status;
-  const statusLabel = {
-    approved: '已批准',
-    rejected: '已拒绝',
-    staged: '待审核',
-    superseded: '已替代',
-  }[asset.status];
-  return {
-    id: asset.asset_id,
-    kind: 'commons',
-    label: asset.candidate.file_title,
-    detail: asset.candidate.attribution.author || asset.candidate.attribution.attribution_text,
-    contentUrl: asset.status === 'approved'
-      ? visualDiscoveryAssetContentUrl(asset.asset_id)
-      : asset.candidate.direct_download_url,
-    sourceUrl: asset.candidate.canonical_page_url,
-    status,
-    metadata: [
-      `${asset.candidate.width}×${asset.candidate.height}`,
-      rights.source_license_label || rights.license,
-      statusLabel,
-      `脚本段 ${asset.segment_id.slice(0, 8)}`,
-    ],
-    discoveryAsset: asset,
-  };
-}
-
-function sourceMediaItem(asset: SourceMediaArtifact): LibraryAsset {
-  return {
-    id: asset.artifact_id ?? `${asset.story_id}-${String(asset.media_index)}`,
-    kind: 'source-video',
-    label: asset.filename,
-    detail: asset.attribution.author || asset.attribution.publisher || asset.source,
-    contentUrl: sourceMediaContentUrl(asset.story_id, asset.artifact_id ?? ''),
-    sourceUrl: asset.source_url,
-    status: asset.publish_eligible ? 'approved' : 'review',
-    metadata: [
-      `${asset.probe.width}×${asset.probe.height}`,
-      `${(asset.probe.duration_ms / 1000).toFixed(1)} 秒`,
-      asset.publish_eligible ? '可进入发布流程' : '仅供审核',
-    ],
-  };
-}
-
-function AssetPreview({
+function AssetCard({
   asset,
   busy,
-  onApprove,
-  onReject,
-  onReuse,
+  onLifecycleChange,
 }: {
-  asset: LibraryAsset;
+  asset: MediaCatalogEntry;
   busy: boolean;
-  onApprove: () => void;
-  onReject: () => void;
-  onReuse: () => void;
+  onLifecycleChange: (asset: MediaCatalogEntry) => void;
 }) {
-  const isVideo = asset.kind === 'source-video';
+  const previewUrl = asset.has_local_content
+    ? mediaCatalogAssetContentUrl(asset.catalog_id)
+    : asset.external_preview_url;
+  const usages = asset.usages ?? [];
+  const usageLabel = usages.length === 0
+    ? '尚未使用'
+    : `${usages.length} 条使用记录`;
+  const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : null;
+  const duration = formatDuration(asset.duration_ms);
   return (
-    <article className="library-asset-card">
+    <article className={`library-asset-card${asset.lifecycle === 'archived' ? ' archived' : ''}`}>
       <div className="library-asset-preview">
-        {isVideo ? (
-          <video controls preload="metadata" src={asset.contentUrl}>
+        {previewUrl === null || previewUrl === undefined ? (
+          <div className="asset-preview-placeholder">
+            {asset.media_kind === 'video'
+              ? <Film size={30} aria-hidden="true" />
+              : <ImageIcon size={30} aria-hidden="true" />}
+            <span>素材尚未下载</span>
+          </div>
+        ) : asset.media_kind === 'video' ? (
+          <video controls preload="metadata" src={previewUrl}>
             <track kind="captions" />
           </video>
         ) : (
-          <img src={asset.contentUrl} alt="" loading="lazy" />
+          <img src={previewUrl} alt="" loading="lazy" />
         )}
-        <span className={`asset-rights-state ${asset.status}`}>
-          {asset.status === 'approved' ? (
-            <ShieldCheck size={13} aria-hidden="true" />
-          ) : asset.status === 'review' || asset.status === 'rejected' ? (
-            <ShieldAlert size={13} aria-hidden="true" />
-          ) : (
-            <FileImage size={13} aria-hidden="true" />
-          )}
-          {asset.status === 'approved'
-            ? '可用于制作'
-            : asset.status === 'review'
-              ? '待权利审核'
-              : asset.status === 'rejected'
-                ? '已拒绝'
-                : asset.status === 'superseded'
-                  ? '已替代'
-                  : '已绑定'}
+        <span className={`asset-rights-state ${asset.selectable ? 'approved' : 'review'}`}>
+          {asset.selectable
+            ? <ShieldCheck size={13} aria-hidden="true" />
+            : <ShieldAlert size={13} aria-hidden="true" />}
+          {asset.lifecycle === 'archived'
+            ? '已归档'
+            : asset.selectable
+              ? '可进入新制作'
+              : '不可进入新制作'}
         </span>
       </div>
       <div className="library-asset-body">
         <div>
-          <p className="eyebrow">{asset.kind.replace('-', ' ')}</p>
-          <h3 title={asset.label}>{asset.label}</h3>
-          <p>{asset.detail}</p>
+          <p className="eyebrow">{SOURCE_LABELS[asset.source_kind]}</p>
+          <h3 title={asset.filename}>{asset.filename}</h3>
+          <p>{asset.attribution || '项目内编辑素材'}</p>
         </div>
         <ul className="asset-metadata">
-          {asset.metadata.map((item) => <li key={item}>{item}</li>)}
+          <li>{asset.media_kind === 'video' ? '视频' : '图片'}</li>
+          {dimensions === null ? null : <li>{dimensions}</li>}
+          {duration === null ? null : <li>{duration}</li>}
+          <li>{formatBytes(asset.size_bytes)}</li>
+          <li>{asset.license_label || '项目内来源证据'}</li>
+          <li>{EDITORIAL_LABELS[asset.editorial_state] || asset.editorial_state}</li>
         </ul>
-        {asset.sourceUrl === null ? null : (
-          <a href={asset.sourceUrl} target="_blank" rel="noreferrer">
-            查看原始来源 <ExternalLink size={14} aria-hidden="true" />
-          </a>
-        )}
-        {asset.discoveryAsset === undefined ? null : (
-          <div className="asset-card-actions">
-            {asset.discoveryAsset.status === 'staged' ? (
-              <>
-                <button className="button secondary" type="button" disabled={busy} onClick={onReject}>
-                  拒绝
-                </button>
-                <button className="button primary" type="button" disabled={busy} onClick={onApprove}>
-                  批准素材
-                </button>
-              </>
-            ) : asset.discoveryAsset.status === 'approved' ? (
-              <button className="button" type="button" disabled={busy} onClick={onReuse}>
-                复用到其他故事
-              </button>
-            ) : null}
-          </div>
-        )}
+        <details className="asset-usage-details">
+          <summary>{usageLabel}</summary>
+          {usages.length === 0 ? (
+            <p>该素材尚未绑定故事或冻结到视频批次。</p>
+          ) : (
+            <ul>
+              {usages.map((usage, index) => (
+                <li key={`${usage.purpose}-${usage.batch_id ?? usage.story_id}-${index}`}>
+                  <span>{usage.purpose === 'batch_scene' ? '视频场景' : '故事绑定'}</span>
+                  <Link to={usage.batch_id
+                    ? `/production/batches?batch=${encodeURIComponent(usage.batch_id)}`
+                    : `/stories/${usage.story_id}`}
+                  >
+                    {usage.batch_id
+                      ? `批次 ${usage.batch_id.slice(0, 8)} · 场景 ${(usage.scene_sequence ?? 0) + 1}`
+                      : `故事 ${usage.story_id.slice(0, 8)}`}
+                  </Link>
+                  <small>{usage.state === 'frozen' ? '冻结证据' : '当前使用'}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+        <div className="asset-card-actions">
+          {asset.source_url === null || asset.source_url === undefined ? null : (
+            <a className="button secondary" href={asset.source_url} target="_blank" rel="noreferrer">
+              原始来源 <ExternalLink size={14} aria-hidden="true" />
+            </a>
+          )}
+          <Link className="button secondary" to={`/stories/${asset.story_id}`}>
+            故事工作台
+          </Link>
+          <button
+            className="button"
+            type="button"
+            disabled={busy}
+            onClick={() => onLifecycleChange(asset)}
+          >
+            {asset.lifecycle === 'active' ? (
+              <><Archive size={15} aria-hidden="true" /> 归档</>
+            ) : (
+              <><RotateCcw size={15} aria-hidden="true" /> 恢复</>
+            )}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -197,288 +166,172 @@ function AssetPreview({
 
 export function VisualAssetsPage() {
   const queryClient = useQueryClient();
-  const [storyId, setStoryId] = useState('');
-  const [kind, setKind] = useState<LibraryKind>('all');
   const [search, setSearch] = useState('');
-  const [reuseAssetId, setReuseAssetId] = useState<string | null>(null);
-  const [reuseStoryId, setReuseStoryId] = useState('');
-  const [reuseSegmentId, setReuseSegmentId] = useState('');
-  const storiesQuery = useQuery({
-    queryKey: queryKeys.stories(),
-    queryFn: () => listStories(),
+  const [source, setSource] = useState<SourceFilter>('all');
+  const [kind, setKind] = useState<KindFilter>('all');
+  const [lifecycle, setLifecycle] = useState<LifecycleFilter>('active');
+  const [pendingAsset, setPendingAsset] = useState<MediaCatalogEntry | null>(null);
+  const [reason, setReason] = useState('');
+  const params = useMemo(() => ({
+    search: search.trim() || undefined,
+    source_kind: source === 'all' ? undefined : source,
+    media_kind: kind === 'all' ? undefined : kind,
+    lifecycle: lifecycle === 'all' ? undefined : lifecycle,
+    limit: 200,
+  }), [kind, lifecycle, search, source]);
+  const catalogQuery = useQuery({
+    queryKey: [...queryKeys.mediaCatalog(), params],
+    queryFn: () => listMediaCatalogAssets(params),
   });
-  const allStories = storiesQuery.data ?? [];
-  const stories = allStories.filter((story) => story.script !== null && story.script !== undefined);
-  const effectiveStoryId = storyId || stories[0]?.story_id || '';
-
-  const storyAssetsQuery = useQuery({
-    queryKey: queryKeys.visualAssets(effectiveStoryId),
-    queryFn: () => listStoryVisualAssets(effectiveStoryId),
-    enabled: effectiveStoryId !== '',
-  });
-  const discoveryQuery = useQuery({
-    queryKey: queryKeys.visualDiscoveryAssets(effectiveStoryId),
-    queryFn: () => listStoryVisualDiscoveryAssets(effectiveStoryId),
-    enabled: effectiveStoryId !== '',
-  });
-  const sourceMediaQuery = useQuery({
-    queryKey: queryKeys.sourceMedia(effectiveStoryId),
-    queryFn: () => listSourceMediaArtifacts(effectiveStoryId),
-    enabled: effectiveStoryId !== '',
-  });
-
-  const assets = useMemo(() => {
-    const storyAssets = storyAssetsQuery.data;
-    const uploaded = [
-      storyAssets?.source_page_screenshot,
-      ...(storyAssets?.segment_assets ?? []).map((binding) => binding.asset),
-    ].flatMap((asset) => {
-      if (asset === null || asset === undefined) return [];
-      const item = visualAssetItem(asset);
-      return item === null ? [] : [item];
-    });
-    return [
-      ...uploaded,
-      ...(discoveryQuery.data ?? []).map(discoveryAssetItem),
-      ...(sourceMediaQuery.data ?? []).map(sourceMediaItem),
-    ];
-  }, [discoveryQuery.data, sourceMediaQuery.data, storyAssetsQuery.data]);
-  const normalizedSearch = search.trim().toLocaleLowerCase();
-  const visibleAssets = assets.filter((asset) => (
-    (kind === 'all' || asset.kind === kind)
-    && (normalizedSearch === ''
-      || [asset.label, asset.detail, ...asset.metadata]
-        .some((value) => value.toLocaleLowerCase().includes(normalizedSearch)))
-  ));
-  const selectedStory = stories.find((story) => story.story_id === effectiveStoryId);
-  const targetStory = stories.find((story) => story.story_id === (
-    reuseStoryId || stories.find((story) => story.story_id !== effectiveStoryId)?.story_id
-  ));
-  const targetSegments = targetStory?.script?.segments ?? [];
-  const effectiveReuseSegmentId = targetSegments.some((segment) => segment.segment_id === reuseSegmentId)
-    ? reuseSegmentId
-    : targetSegments[0]?.segment_id ?? '';
-  const refreshSelectedAssets = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({queryKey: queryKeys.stories()}),
-      queryClient.invalidateQueries({queryKey: queryKeys.visualDiscoveryAssets(effectiveStoryId)}),
-    ]);
-  };
-  const reviewMutation = useMutation({
-    mutationFn: ({assetId, decision}: {assetId: string; decision: 'approve' | 'reject'}) => {
-      if (selectedStory === undefined) throw new Error('当前故事上下文不可用。');
+  const lifecycleMutation = useMutation({
+    mutationFn: (asset: MediaCatalogEntry) => {
       const body = {
-        expected_story_version: selectedStory.version,
-        note: decision === 'approve'
-          ? 'Approved from the visual asset library after rights and source review.'
-          : 'Rejected from the visual asset library after editorial review.',
+        expected_version: asset.lifecycle_version,
+        operator_id: 'frontend-operator',
+        reason: reason.trim(),
       };
-      return decision === 'approve'
-        ? approveVisualDiscoveryAsset(assetId, body)
-        : rejectVisualDiscoveryAsset(assetId, body);
-    },
-    onSuccess: refreshSelectedAssets,
-  });
-  const reuseMutation = useMutation({
-    mutationFn: () => {
-      if (
-        reuseAssetId === null
-        || targetStory?.story_id === undefined
-        || targetStory.script === null
-        || targetStory.script === undefined
-        || effectiveReuseSegmentId === ''
-      ) {
-        throw new Error('请选择有效的目标故事和脚本段。');
-      }
-      return reuseApprovedVisualDiscoveryAsset(reuseAssetId, {
-        story_id: targetStory.story_id,
-        segment_id: effectiveReuseSegmentId,
-        expected_story_version: targetStory.version,
-        expected_script_revision: targetStory.script.revision,
-      });
+      return asset.lifecycle === 'active'
+        ? archiveMediaCatalogAsset(asset.catalog_id, body)
+        : restoreMediaCatalogAsset(asset.catalog_id, body);
     },
     onSuccess: async () => {
-      if (targetStory?.story_id !== undefined) {
-        await Promise.all([
-          queryClient.invalidateQueries({queryKey: queryKeys.stories()}),
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.visualDiscoveryAssets(targetStory.story_id),
-          }),
-        ]);
-        setStoryId(targetStory.story_id);
-      }
-      setReuseAssetId(null);
-      setReuseStoryId('');
-      setReuseSegmentId('');
+      setPendingAsset(null);
+      setReason('');
+      await queryClient.invalidateQueries({queryKey: queryKeys.mediaCatalog()});
     },
   });
-  const error = storiesQuery.error
-    ?? storyAssetsQuery.error
-    ?? discoveryQuery.error
-    ?? sourceMediaQuery.error
-    ?? reviewMutation.error
-    ?? reuseMutation.error;
-  const loading = storiesQuery.isLoading
-    || storyAssetsQuery.isLoading
-    || discoveryQuery.isLoading
-    || sourceMediaQuery.isLoading;
+  const items = catalogQuery.data?.items ?? [];
+  const selectableCount = items.filter((item) => item.selectable).length;
+  const archivedCount = items.filter((item) => item.lifecycle === 'archived').length;
+  const error = catalogQuery.error ?? lifecycleMutation.error;
 
   return (
     <div className="page library-page">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">PRODUCTION LIBRARY</p>
+          <p className="eyebrow">GLOBAL MEDIA CATALOG</p>
           <h1>画面素材库</h1>
-          <p>按故事查看真实素材、来源和权利状态。素材仍由故事脚本拥有，库只负责检索和审计。</p>
+          <p>统一检索图片与视频，核对来源、权利、故事绑定和成片使用记录。归档只阻止新制作继续选用，不删除历史证据或文件。</p>
         </div>
-        {selectedStory?.story_id === undefined ? null : (
-          <Link className="button" to={`/stories/${selectedStory.story_id}`}>
-            打开故事工作台
-          </Link>
-        )}
       </div>
 
       <div className="library-toolbar">
-        <label className="field">
-          <span>故事</span>
-          <select className="select" value={effectiveStoryId} onChange={(event) => setStoryId(event.target.value)}>
-            {stories.map((story) => (
-              <option key={story.story_id ?? story.trace_id} value={story.story_id}>
-                {storyLabel(story)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>素材类型</span>
-          <select className="select" value={kind} onChange={(event) => setKind(event.target.value as LibraryKind)}>
-            <option value="all">全部素材</option>
-            <option value="story">上传与网页截图</option>
-            <option value="commons">Commons 审核素材</option>
-            <option value="source-video">源视频证据</option>
-          </select>
-        </label>
         <label className="search-control library-search">
           <Search size={16} aria-hidden="true" />
           <input
             className="input"
             type="search"
-            placeholder="搜索文件、作者或许可…"
+            placeholder="搜索文件、作者、许可或来源"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             aria-label="搜索画面素材"
           />
         </label>
+        <label className="field">
+          <span>来源</span>
+          <select className="select" value={source} onChange={(event) => setSource(event.target.value as SourceFilter)}>
+            <option value="all">全部来源</option>
+            <option value="visual_asset">编辑上传 / 网页截图</option>
+            <option value="visual_discovery">Commons</option>
+            <option value="source_media">来源视频</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>媒介</span>
+          <select className="select" value={kind} onChange={(event) => setKind(event.target.value as KindFilter)}>
+            <option value="all">图片与视频</option>
+            <option value="image">图片</option>
+            <option value="video">视频</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>生命周期</span>
+          <select className="select" value={lifecycle} onChange={(event) => setLifecycle(event.target.value as LifecycleFilter)}>
+            <option value="active">使用中</option>
+            <option value="archived">已归档</option>
+            <option value="all">全部</option>
+          </select>
+        </label>
       </div>
 
       {error === null ? null : <ApiErrorNotice error={error} />}
-      {loading ? (
+      {catalogQuery.isLoading ? (
         <div className="asset-library-grid" aria-label="正在加载画面素材">
           {[0, 1, 2].map((item) => <div className="library-asset-card skeleton-card" key={item} />)}
         </div>
-      ) : stories.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="empty-state">
-          <ImageIcon size={28} aria-hidden="true" />
-          <h2>还没有进入脚本阶段的故事</h2>
-          <p>素材绑定到不可变的脚本段。先完成初审并生成口播，再添加、搜集和审核画面。</p>
-        </div>
-      ) : visibleAssets.length === 0 ? (
-        <div className="empty-state">
-          <Film size={28} aria-hidden="true" />
-          <h2>当前故事没有匹配素材</h2>
-          <p>素材不会脱离故事上下文单独存在。请打开故事工作台添加画面或采集源视频。</p>
+          <Library size={28} aria-hidden="true" />
+          <h2>没有符合条件的素材</h2>
+          <p>调整筛选条件，或在故事工作台上传画面、审核 Commons 素材、采集来源视频。</p>
         </div>
       ) : (
         <>
           <div className="library-summary" aria-live="polite">
-            <strong>{visibleAssets.length}</strong> 个素材
-            <span>{assets.filter((asset) => asset.status === 'approved').length} 个可用于制作</span>
-            <span>{assets.filter((asset) => asset.status === 'review').length} 个待权利审核</span>
+            <strong>{catalogQuery.data?.total ?? items.length}</strong> 个目录项
+            <span>{selectableCount} 个可进入新制作</span>
+            <span>{archivedCount} 个已归档</span>
           </div>
           <div className="asset-library-grid">
-            {visibleAssets.map((asset) => (
-              <AssetPreview
+            {items.map((asset) => (
+              <AssetCard
                 asset={asset}
-                busy={reviewMutation.isPending || reuseMutation.isPending}
-                key={`${asset.kind}-${asset.id}`}
-                onApprove={() => reviewMutation.mutate({assetId: asset.id, decision: 'approve'})}
-                onReject={() => reviewMutation.mutate({assetId: asset.id, decision: 'reject'})}
-                onReuse={() => setReuseAssetId(asset.id)}
+                busy={lifecycleMutation.isPending}
+                key={asset.catalog_id}
+                onLifecycleChange={(item) => {
+                  setPendingAsset(item);
+                  setReason('');
+                }}
               />
             ))}
           </div>
         </>
       )}
-      {reuseAssetId === null ? null : (
-        <ModalDialog
-          open
-          className="create-drawer"
-          labelledBy="reuse-visual-heading"
-          onClose={() => setReuseAssetId(null)}
+
+      <ModalDialog
+        open={pendingAsset !== null}
+        className="create-drawer"
+        labelledBy="asset-lifecycle-title"
+        onClose={() => setPendingAsset(null)}
+      >
+        <form
+          className="panel-body form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (pendingAsset !== null) lifecycleMutation.mutate(pendingAsset);
+          }}
         >
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">REUSE VERIFIED ASSET</p>
-              <h2 id="reuse-visual-heading">复用已批准素材</h2>
-            </div>
-            <button className="icon-button" type="button" aria-label="关闭" onClick={() => setReuseAssetId(null)}>
-              ×
+          <div className="wide">
+            <p className="eyebrow">RECOVERABLE LIFECYCLE</p>
+            <h2 id="asset-lifecycle-title">
+              {pendingAsset?.lifecycle === 'active' ? '归档素材' : '恢复素材'}
+            </h2>
+            <p className="field-hint">
+              {pendingAsset?.lifecycle === 'active'
+                ? '归档后新视频批次不会再选用该素材；现有故事绑定、历史批次和审计证据保持可查。'
+                : '恢复前后端会重新核对文件大小与 SHA-256，发现缺失或篡改会拒绝恢复。'}
+            </p>
+          </div>
+          <label className="field wide">
+            <span>操作原因</span>
+            <textarea
+              className="textarea"
+              required
+              minLength={3}
+              maxLength={500}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="记录本次生命周期变更的原因"
+            />
+          </label>
+          <div className="form-actions wide">
+            <button className="button" type="button" onClick={() => setPendingAsset(null)}>取消</button>
+            <button className="button primary" type="submit" disabled={lifecycleMutation.isPending || reason.trim().length < 3}>
+              {lifecycleMutation.isPending ? '正在提交…' : '确认变更'}
             </button>
           </div>
-          <form
-            className="panel-body form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              reuseMutation.mutate();
-            }}
-          >
-            <p className="field-hint wide">
-              已校验字节会被复用，但目标故事仍会得到新的 staged 记录并再次人工审核。
-            </p>
-            <label className="field wide">
-              <span>目标故事</span>
-              <select
-                className="select"
-                required
-                value={targetStory?.story_id ?? ''}
-                onChange={(event) => {
-                  setReuseStoryId(event.target.value);
-                  setReuseSegmentId('');
-                }}
-              >
-                {stories.filter((story) => story.story_id !== effectiveStoryId).map((story) => (
-                  <option key={story.story_id} value={story.story_id}>{storyLabel(story)}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field wide">
-              <span>目标脚本段</span>
-              <select
-                className="select"
-                required
-                value={effectiveReuseSegmentId}
-                onChange={(event) => setReuseSegmentId(event.target.value)}
-              >
-                {targetSegments.map((segment, index) => (
-                  <option key={segment.segment_id} value={segment.segment_id}>
-                    第 {index + 1} 段 · {segment.spoken_text.slice(0, 46)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="form-actions wide">
-              <button className="button" type="button" onClick={() => setReuseAssetId(null)}>取消</button>
-              <button
-                className="button primary"
-                type="submit"
-                disabled={reuseMutation.isPending || targetStory === undefined || effectiveReuseSegmentId === ''}
-              >
-                {reuseMutation.isPending ? '正在复用…' : '创建待审复用记录'}
-              </button>
-            </div>
-          </form>
-        </ModalDialog>
-      )}
+        </form>
+      </ModalDialog>
     </div>
   );
 }

@@ -38,6 +38,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/media-assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Media Catalog Assets */
+        get: operations["listMediaCatalogAssets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media-assets/{catalog_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Media Catalog Asset */
+        get: operations["getMediaCatalogAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media-assets/{catalog_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Media Catalog Asset */
+        post: operations["archiveMediaCatalogAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media-assets/{catalog_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Media Catalog Asset Content */
+        get: operations["getMediaCatalogAssetContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/media-assets/{catalog_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Media Catalog Asset */
+        post: operations["restoreMediaCatalogAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/metrics/classification": {
         parameters: {
             query?: never;
@@ -901,6 +986,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/video/registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Video Capability Registry */
+        get: operations["getVideoCapabilityRegistry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/video/registry/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Video Capability Policy */
+        put: operations["setVideoCapabilityPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/video/templates": {
         parameters: {
             query?: never;
@@ -1187,6 +1306,15 @@ export interface components {
             language: string;
             /** Text */
             text: string;
+        };
+        /** ChangeMediaLifecycleRequest */
+        ChangeMediaLifecycleRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Operator Id */
+            operator_id: string;
+            /** Reason */
+            reason: string;
         };
         /** ClassificationMetrics */
         ClassificationMetrics: {
@@ -2097,6 +2225,128 @@ export interface components {
              */
             alive: boolean;
         };
+        /** MediaAssetUsage */
+        MediaAssetUsage: {
+            /** Batch Id */
+            batch_id?: string | null;
+            /** Batch Version */
+            batch_version?: number | null;
+            purpose: components["schemas"]["MediaUsagePurpose"];
+            /** Render Input Sha256 */
+            render_input_sha256?: string | null;
+            /** Scene Sequence */
+            scene_sequence?: number | null;
+            /** Script Revision */
+            script_revision?: number | null;
+            /** Segment Id */
+            segment_id?: string | null;
+            state: components["schemas"]["MediaUsageState"];
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+        };
+        /** MediaCatalogEntry */
+        MediaCatalogEntry: {
+            /** Archive Reason */
+            archive_reason?: string | null;
+            /** Archived At */
+            archived_at?: string | null;
+            /** Archived By */
+            archived_by?: string | null;
+            /** Attribution */
+            attribution?: string | null;
+            /** Catalog Id */
+            catalog_id: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Editorial State */
+            editorial_state: string;
+            /** External Preview Url */
+            external_preview_url?: string | null;
+            /** Filename */
+            filename: string;
+            /** Has Local Content */
+            has_local_content: boolean;
+            /** Height */
+            height?: number | null;
+            /** License Label */
+            license_label?: string | null;
+            lifecycle: components["schemas"]["MediaCatalogLifecycle"];
+            /** Lifecycle Version */
+            lifecycle_version: number;
+            media_kind: components["schemas"]["MediaCatalogKind"];
+            /** Mime Type */
+            mime_type: string;
+            /** Publish Eligible */
+            publish_eligible: boolean;
+            /** Reusable */
+            reusable: boolean;
+            /** Script Revision */
+            script_revision?: number | null;
+            /** Segment Id */
+            segment_id?: string | null;
+            /** Selectable */
+            selectable: boolean;
+            /** Sha256 */
+            sha256?: string | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /**
+             * Source Asset Id
+             * Format: uuid
+             */
+            source_asset_id: string;
+            source_kind: components["schemas"]["MediaCatalogSourceKind"];
+            /** Source Url */
+            source_url?: string | null;
+            /**
+             * Story Id
+             * Format: uuid
+             */
+            story_id: string;
+            /** Usages */
+            usages?: components["schemas"]["MediaAssetUsage"][];
+            /** Width */
+            width?: number | null;
+        };
+        /**
+         * MediaCatalogKind
+         * @enum {string}
+         */
+        MediaCatalogKind: "image" | "video";
+        /**
+         * MediaCatalogLifecycle
+         * @enum {string}
+         */
+        MediaCatalogLifecycle: "active" | "archived";
+        /** MediaCatalogPage */
+        MediaCatalogPage: {
+            /** Items */
+            items: components["schemas"]["MediaCatalogEntry"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * MediaCatalogSourceKind
+         * @enum {string}
+         */
+        MediaCatalogSourceKind: "visual_asset" | "visual_discovery" | "source_media";
+        /**
+         * MediaUsagePurpose
+         * @enum {string}
+         */
+        MediaUsagePurpose: "story_segment" | "story_evidence" | "batch_scene";
+        /**
+         * MediaUsageState
+         * @enum {string}
+         */
+        MediaUsageState: "active" | "frozen";
         /** NarrationReview */
         NarrationReview: {
             decision: components["schemas"]["NarrationReviewDecision"];
@@ -3938,6 +4188,19 @@ export interface components {
              */
             segment_id: string;
         };
+        /** SetVideoCapabilityPolicy */
+        SetVideoCapabilityPolicy: {
+            /** Enabled For New Batches */
+            enabled_for_new_batches: boolean;
+            /** Expected Version */
+            expected_version: number;
+            /** Key */
+            key: string;
+            /** Operator Id */
+            operator_id: string;
+            /** Reason */
+            reason: string;
+        };
         /** SourceHealth */
         SourceHealth: {
             /**
@@ -4828,6 +5091,67 @@ export interface components {
          */
         VideoBatchStatus: "PENDING_NARRATION_REVIEW" | "PENDING_BATCH_TTS" | "PROCESSING_BATCH_TTS" | "PENDING_TIMELINE_REVIEW" | "READY_TO_RENDER" | "RENDERING" | "RENDERED" | "REJECTED" | "CANCELLED" | "FAILED";
         /**
+         * VideoCapabilityKind
+         * @enum {string}
+         */
+        VideoCapabilityKind: "template" | "module" | "variant" | "preset";
+        /** VideoCapabilityPolicy */
+        VideoCapabilityPolicy: {
+            /**
+             * Enabled For New Batches
+             * @default true
+             */
+            enabled_for_new_batches: boolean;
+            /** Key */
+            key: string;
+            /** Reason */
+            reason?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Updated By */
+            updated_by?: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /** VideoCapabilityView */
+        VideoCapabilityView: {
+            /** Active Batch Ids */
+            active_batch_ids?: string[];
+            /** Configurable */
+            configurable: boolean;
+            /** Dependencies */
+            dependencies?: string[];
+            /** Disabled By */
+            disabled_by?: string[];
+            /** Display Name */
+            display_name: string;
+            /** Effective Enabled */
+            effective_enabled: boolean;
+            /** Key */
+            key: string;
+            kind: components["schemas"]["VideoCapabilityKind"];
+            policy: components["schemas"]["VideoCapabilityPolicy"];
+            /**
+             * Registered
+             * @default true
+             */
+            registered: boolean;
+            /** Supported Host Slots */
+            supported_host_slots?: components["schemas"]["EpisodeHostSlot"][];
+            /** Supported Profiles */
+            supported_profiles?: components["schemas"]["VideoOutputProfileId"][];
+            /**
+             * Usage Count
+             * @default 0
+             */
+            usage_count: number;
+            /** Used By */
+            used_by?: string[];
+        };
+        /**
          * VideoLayout
          * @enum {string}
          */
@@ -4875,6 +5199,11 @@ export interface components {
          * @enum {string}
          */
         VideoOutputProfileId: "douyin_vertical" | "bilibili_horizontal";
+        /** VideoRegistryView */
+        VideoRegistryView: {
+            /** Capabilities */
+            capabilities: components["schemas"]["VideoCapabilityView"][];
+        };
         /** VideoRenderFailure */
         VideoRenderFailure: {
             /** Message */
@@ -5202,6 +5531,309 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthReport"];
+                };
+            };
+        };
+    };
+    listMediaCatalogAssets: {
+        parameters: {
+            query?: {
+                search?: string | null;
+                source_kind?: components["schemas"]["MediaCatalogSourceKind"] | null;
+                media_kind?: components["schemas"]["MediaCatalogKind"] | null;
+                lifecycle?: components["schemas"]["MediaCatalogLifecycle"] | null;
+                story_id?: string | null;
+                publish_eligible?: boolean | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaCatalogPage"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getMediaCatalogAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaCatalogEntry"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    archiveMediaCatalogAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeMediaLifecycleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaCatalogEntry"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getMediaCatalogAssetContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    restoreMediaCatalogAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeMediaLifecycleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaCatalogEntry"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -9419,6 +10051,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BgmTrack"][];
+                };
+            };
+            /** @description Requested video batch or BGM track was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video batch state, input evidence, or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local video rendering failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getVideoCapabilityRegistry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoRegistryView"];
+                };
+            };
+            /** @description Requested video batch or BGM track was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video batch state, input evidence, or version conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Request validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Local video rendering failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Video orchestration or renderer is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    setVideoCapabilityPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetVideoCapabilityPolicy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoRegistryView"];
                 };
             };
             /** @description Requested video batch or BGM track was not found. */

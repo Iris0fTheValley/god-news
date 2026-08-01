@@ -398,6 +398,34 @@
         "title": "CaptionVariant",
         "type": "object"
       },
+      "ChangeMediaLifecycleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "operator_id": {
+            "minLength": 1,
+            "title": "Operator Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "operator_id",
+          "reason"
+        ],
+        "title": "ChangeMediaLifecycleRequest",
+        "type": "object"
+      },
       "ClassificationMetrics": {
         "additionalProperties": false,
         "properties": {
@@ -2723,6 +2751,430 @@
         },
         "title": "Liveness",
         "type": "object"
+      },
+      "MediaAssetUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Id"
+          },
+          "batch_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Version"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/MediaUsagePurpose"
+          },
+          "render_input_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Input Sha256"
+          },
+          "scene_sequence": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Sequence"
+          },
+          "script_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script Revision"
+          },
+          "segment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MediaUsageState"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose",
+          "state",
+          "story_id"
+        ],
+        "title": "MediaAssetUsage",
+        "type": "object"
+      },
+      "MediaCatalogEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "archive_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Reason"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "archived_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived By"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
+          },
+          "catalog_id": {
+            "pattern": "^(visual_asset|visual_discovery|source_media):[0-9a-f-]{36}$",
+            "title": "Catalog Id",
+            "type": "string"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "editorial_state": {
+            "minLength": 1,
+            "title": "Editorial State",
+            "type": "string"
+          },
+          "external_preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Preview Url"
+          },
+          "filename": {
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "has_local_content": {
+            "title": "Has Local Content",
+            "type": "boolean"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "license_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Label"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/MediaCatalogLifecycle"
+          },
+          "lifecycle_version": {
+            "minimum": 1.0,
+            "title": "Lifecycle Version",
+            "type": "integer"
+          },
+          "media_kind": {
+            "$ref": "#/components/schemas/MediaCatalogKind"
+          },
+          "mime_type": {
+            "minLength": 1,
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "publish_eligible": {
+            "title": "Publish Eligible",
+            "type": "boolean"
+          },
+          "reusable": {
+            "title": "Reusable",
+            "type": "boolean"
+          },
+          "script_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script Revision"
+          },
+          "segment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Id"
+          },
+          "selectable": {
+            "title": "Selectable",
+            "type": "boolean"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "source_asset_id": {
+            "format": "uuid",
+            "title": "Source Asset Id",
+            "type": "string"
+          },
+          "source_kind": {
+            "$ref": "#/components/schemas/MediaCatalogSourceKind"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "story_id": {
+            "format": "uuid",
+            "title": "Story Id",
+            "type": "string"
+          },
+          "usages": {
+            "items": {
+              "$ref": "#/components/schemas/MediaAssetUsage"
+            },
+            "maxItems": 100,
+            "title": "Usages",
+            "type": "array"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "catalog_id",
+          "source_kind",
+          "source_asset_id",
+          "media_kind",
+          "lifecycle",
+          "lifecycle_version",
+          "story_id",
+          "filename",
+          "mime_type",
+          "has_local_content",
+          "editorial_state",
+          "publish_eligible",
+          "selectable",
+          "reusable"
+        ],
+        "title": "MediaCatalogEntry",
+        "type": "object"
+      },
+      "MediaCatalogKind": {
+        "enum": [
+          "image",
+          "video"
+        ],
+        "title": "MediaCatalogKind",
+        "type": "string"
+      },
+      "MediaCatalogLifecycle": {
+        "enum": [
+          "active",
+          "archived"
+        ],
+        "title": "MediaCatalogLifecycle",
+        "type": "string"
+      },
+      "MediaCatalogPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaCatalogEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "MediaCatalogPage",
+        "type": "object"
+      },
+      "MediaCatalogSourceKind": {
+        "enum": [
+          "visual_asset",
+          "visual_discovery",
+          "source_media"
+        ],
+        "title": "MediaCatalogSourceKind",
+        "type": "string"
+      },
+      "MediaUsagePurpose": {
+        "enum": [
+          "story_segment",
+          "story_evidence",
+          "batch_scene"
+        ],
+        "title": "MediaUsagePurpose",
+        "type": "string"
+      },
+      "MediaUsageState": {
+        "enum": [
+          "active",
+          "frozen"
+        ],
+        "title": "MediaUsageState",
+        "type": "string"
       },
       "NarrationReview": {
         "additionalProperties": false,
@@ -7650,6 +8102,45 @@
         "title": "SegmentVisualAssetBinding",
         "type": "object"
       },
+      "SetVideoCapabilityPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled_for_new_batches": {
+            "title": "Enabled For New Batches",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "key": {
+            "pattern": "^(template|module|variant|preset):[A-Za-z0-9_.:@-]+$",
+            "title": "Key",
+            "type": "string"
+          },
+          "operator_id": {
+            "minLength": 1,
+            "title": "Operator Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "enabled_for_new_batches",
+          "expected_version",
+          "reason",
+          "operator_id"
+        ],
+        "title": "SetVideoCapabilityPolicy",
+        "type": "object"
+      },
       "SourceHealth": {
         "additionalProperties": false,
         "properties": {
@@ -9967,6 +10458,172 @@
         "title": "VideoBatchStatus",
         "type": "string"
       },
+      "VideoCapabilityKind": {
+        "enum": [
+          "template",
+          "module",
+          "variant",
+          "preset"
+        ],
+        "title": "VideoCapabilityKind",
+        "type": "string"
+      },
+      "VideoCapabilityPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled_for_new_batches": {
+            "default": true,
+            "title": "Enabled For New Batches",
+            "type": "boolean"
+          },
+          "key": {
+            "pattern": "^(template|module|variant|preset):[A-Za-z0-9_.:@-]+$",
+            "title": "Key",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
+          },
+          "version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "VideoCapabilityPolicy",
+        "type": "object"
+      },
+      "VideoCapabilityView": {
+        "additionalProperties": false,
+        "properties": {
+          "active_batch_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Active Batch Ids",
+            "type": "array"
+          },
+          "configurable": {
+            "title": "Configurable",
+            "type": "boolean"
+          },
+          "dependencies": {
+            "items": {
+              "pattern": "^(template|module|variant|preset):[A-Za-z0-9_.:@-]+$",
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "disabled_by": {
+            "items": {
+              "pattern": "^(template|module|variant|preset):[A-Za-z0-9_.:@-]+$",
+              "type": "string"
+            },
+            "title": "Disabled By",
+            "type": "array"
+          },
+          "display_name": {
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "effective_enabled": {
+            "title": "Effective Enabled",
+            "type": "boolean"
+          },
+          "key": {
+            "pattern": "^(template|module|variant|preset):[A-Za-z0-9_.:@-]+$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VideoCapabilityKind"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/VideoCapabilityPolicy"
+          },
+          "registered": {
+            "default": true,
+            "title": "Registered",
+            "type": "boolean"
+          },
+          "supported_host_slots": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodeHostSlot"
+            },
+            "title": "Supported Host Slots",
+            "type": "array"
+          },
+          "supported_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/VideoOutputProfileId"
+            },
+            "title": "Supported Profiles",
+            "type": "array"
+          },
+          "usage_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Usage Count",
+            "type": "integer"
+          },
+          "used_by": {
+            "items": {
+              "pattern": "^(template|module|variant|preset):[A-Za-z0-9_.:@-]+$",
+              "type": "string"
+            },
+            "title": "Used By",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "display_name",
+          "configurable",
+          "policy",
+          "effective_enabled"
+        ],
+        "title": "VideoCapabilityView",
+        "type": "object"
+      },
       "VideoLayout": {
         "enum": [
           "vertical",
@@ -10090,6 +10747,23 @@
         ],
         "title": "VideoOutputProfileId",
         "type": "string"
+      },
+      "VideoRegistryView": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/VideoCapabilityView"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "capabilities"
+        ],
+        "title": "VideoRegistryView",
+        "type": "object"
       },
       "VideoRenderFailure": {
         "additionalProperties": false,
@@ -10672,6 +11346,490 @@
         "summary": "Ready",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/media-assets": {
+      "get": {
+        "operationId": "listMediaCatalogAssets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MediaCatalogSourceKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "media_kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MediaCatalogKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Media Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MediaCatalogLifecycle"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lifecycle"
+            }
+          },
+          {
+            "in": "query",
+            "name": "story_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Story Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "publish_eligible",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Publish Eligible"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaCatalogPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Media Catalog Assets",
+        "tags": [
+          "media-catalog"
+        ]
+      }
+    },
+    "/api/v1/media-assets/{catalog_id}": {
+      "get": {
+        "operationId": "getMediaCatalogAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaCatalogEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Media Catalog Asset",
+        "tags": [
+          "media-catalog"
+        ]
+      }
+    },
+    "/api/v1/media-assets/{catalog_id}/archive": {
+      "post": {
+        "operationId": "archiveMediaCatalogAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMediaLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaCatalogEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Archive Media Catalog Asset",
+        "tags": [
+          "media-catalog"
+        ]
+      }
+    },
+    "/api/v1/media-assets/{catalog_id}/content": {
+      "get": {
+        "operationId": "getMediaCatalogAssetContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Media Catalog Asset Content",
+        "tags": [
+          "media-catalog"
+        ]
+      }
+    },
+    "/api/v1/media-assets/{catalog_id}/restore": {
+      "post": {
+        "operationId": "restoreMediaCatalogAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMediaLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaCatalogEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Restore Media Catalog Asset",
+        "tags": [
+          "media-catalog"
         ]
       }
     },
@@ -16201,6 +17359,158 @@
           }
         },
         "summary": "List Bgm",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/v1/video/registry": {
+      "get": {
+        "operationId": "getVideoCapabilityRegistry",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoRegistryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "Get Video Capability Registry",
+        "tags": [
+          "video"
+        ]
+      }
+    },
+    "/api/v1/video/registry/policy": {
+      "put": {
+        "operationId": "setVideoCapabilityPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetVideoCapabilityPolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoRegistryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Requested video batch or BGM track was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video batch state, input evidence, or version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Request validation failed."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Local video rendering failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Video orchestration or renderer is unavailable."
+          }
+        },
+        "summary": "Set Video Capability Policy",
         "tags": [
           "video"
         ]

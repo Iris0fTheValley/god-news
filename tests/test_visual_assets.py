@@ -21,12 +21,18 @@ from god_news.domain.models import (
     utc_now,
 )
 from god_news.domain.visual_assets import (
+    DeleteSegmentVisualAssetRequest,
     ImageContentType,
     StoredVisualAsset,
     UploadSegmentVisualAssetRequest,
     VisualAssetOrigin,
 )
-from god_news.errors import ConcurrentWriteError, VisualAssetNotFoundError, VisualAssetUploadError
+from god_news.errors import (
+    ConcurrentWriteError,
+    MediaCatalogConflictError,
+    VisualAssetNotFoundError,
+    VisualAssetUploadError,
+)
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.repositories import SqlAlchemyStoryRepository
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
@@ -154,6 +160,15 @@ class InMemoryVisualAssetRepository:
             expected_version=expected_version,
         )
         return saved.version
+
+
+@dataclass
+class _ArchivedAssetReader:
+    archived_ids: set[UUID] = field(default_factory=set)
+
+    async def is_archived(self, source_kind, source_asset_id: UUID) -> bool:  # type: ignore[no-untyped-def]
+        del source_kind
+        return source_asset_id in self.archived_ids
 
 
 async def _script_ready(stack: Stack):  # type: ignore[no-untyped-def]
@@ -335,6 +350,67 @@ async def test_visual_asset_api_rejects_bad_bytes_and_post_script_review_edits(
             )
             assert immutable.status_code == 409
             assert immutable.json()["code"] == "story_invariant_violated"
+
+
+@pytest.mark.asyncio
+async def test_archived_visual_must_be_restored_before_replace_or_delete(
+    stack: Stack,
+    tmp_path: Path,
+) -> None:
+    ready = await _script_ready(stack)
+    assert ready.script is not None
+    segment_id = ready.script.segments[0].segment_id
+    repository = InMemoryVisualAssetRepository(stack.repository)
+    lifecycle = _ArchivedAssetReader()
+    service = VisualAssetService(
+        stories=stack.repository,
+        repository=repository,
+        store=LocalVisualAssetStore(
+            tmp_path / "visual-assets",
+            max_upload_bytes=1024,
+            max_pixels=100,
+        ),
+        catalog_lifecycle=lifecycle,
+    )
+    uploaded = await service.upload_segment(
+        story_id=ready.story_id,
+        segment_id=segment_id,
+        request=UploadSegmentVisualAssetRequest(
+            expected_story_version=ready.version,
+            expected_script_revision=ready.script.revision,
+            filename="archived.jpg",
+        ),
+        declared_content_type="image/jpeg",
+        body=_body(_MINIMAL_JPEG),
+    )
+    lifecycle.archived_ids.add(uploaded.asset.asset_id)
+    current = await stack.repository.get(ready.story_id)
+
+    with pytest.raises(MediaCatalogConflictError, match="restored"):
+        await service.upload_segment(
+            story_id=ready.story_id,
+            segment_id=segment_id,
+            request=UploadSegmentVisualAssetRequest(
+                expected_story_version=current.version,
+                expected_script_revision=ready.script.revision,
+                filename="replacement.jpg",
+            ),
+            declared_content_type="image/jpeg",
+            body=_body(_MINIMAL_JPEG),
+        )
+    with pytest.raises(MediaCatalogConflictError, match="restored"):
+        await service.delete_segment(
+            story_id=ready.story_id,
+            segment_id=segment_id,
+            request=DeleteSegmentVisualAssetRequest(
+                expected_story_version=current.version,
+                expected_script_revision=ready.script.revision,
+            ),
+        )
+
+    stored = repository.assets[uploaded.asset.asset_id]
+    assert await service.media_path(ready.story_id, stored.asset_id)
+    assert (await stack.repository.get(ready.story_id)).version == current.version
 
 
 @pytest.mark.asyncio

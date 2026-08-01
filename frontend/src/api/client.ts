@@ -4,6 +4,7 @@ import type {paths} from './generated';
 import type {
   AcquireSourceMediaRequest,
   BgmTrack,
+  ChangeMediaLifecycleRequest,
   CreateStoryRequest,
   CreateVideoBatch,
   FirstReviewSubmission,
@@ -16,6 +17,7 @@ import type {
   RoleProfileCreate,
   RoleProfileReplace,
   ScheduleSnapshot,
+  SetVideoCapabilityPolicy,
   ScriptReviewSubmission,
   SecondReviewSubmission,
   StageCommonsVisualRequest,
@@ -44,6 +46,17 @@ export interface SourceRunListParams {
 
 export interface VideoBatchListParams {
   status?: VideoBatchStatus | null;
+  limit?: number;
+  offset?: number;
+}
+
+export interface MediaCatalogListParams {
+  search?: string | null;
+  source_kind?: 'visual_asset' | 'visual_discovery' | 'source_media' | null;
+  media_kind?: 'image' | 'video' | null;
+  lifecycle?: 'active' | 'archived' | null;
+  story_id?: string | null;
+  publish_eligible?: boolean | null;
   limit?: number;
   offset?: number;
 }
@@ -80,6 +93,18 @@ export async function getReadiness(): Promise<HealthReport> {
 
 export async function listVideoTemplates() {
   const result = await api.GET('/api/v1/video/templates');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function getVideoCapabilityRegistry() {
+  const result = await api.GET('/api/v1/video/registry');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function setVideoCapabilityPolicy(body: SetVideoCapabilityPolicy) {
+  const result = await api.PUT('/api/v1/video/registry/policy', {body});
   if (result.error !== undefined) throwProblem(result.error, result.response);
   return result.data;
 }
@@ -426,6 +451,42 @@ export async function reuseApprovedVisualDiscoveryAsset(
 
 export function visualDiscoveryAssetContentUrl(assetId: string): string {
   return `/api/v1/visual-discovery-assets/${encodeURIComponent(assetId)}/content`;
+}
+
+/* ── Global media catalog ── */
+
+export async function listMediaCatalogAssets(params?: MediaCatalogListParams) {
+  const result = await api.GET('/api/v1/media-assets', {params: {query: params}});
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function archiveMediaCatalogAsset(
+  catalogId: string,
+  body: ChangeMediaLifecycleRequest,
+) {
+  const result = await api.POST('/api/v1/media-assets/{catalog_id}/archive', {
+    params: {path: {catalog_id: catalogId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function restoreMediaCatalogAsset(
+  catalogId: string,
+  body: ChangeMediaLifecycleRequest,
+) {
+  const result = await api.POST('/api/v1/media-assets/{catalog_id}/restore', {
+    params: {path: {catalog_id: catalogId}},
+    body,
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export function mediaCatalogAssetContentUrl(catalogId: string): string {
+  return `/api/v1/media-assets/${encodeURIComponent(catalogId)}/content`;
 }
 
 /* ── Roles ── */

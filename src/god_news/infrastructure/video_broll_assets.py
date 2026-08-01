@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
+from god_news.domain.media_catalog import MediaCatalogSourceKind
+from god_news.domain.media_catalog_ports import MediaCatalogRepository
 from god_news.domain.ports import StoryRepository
 from god_news.domain.video import BrollVideoRenderAsset
 from god_news.domain.visual_discovery import CommonsMediaKind, VisualDiscoveryStatus
@@ -21,10 +23,12 @@ class ApprovedVisualDiscoveryBrollLibrary:
         stories: StoryRepository,
         repository: VisualDiscoveryRepository,
         store: VisualDiscoveryStore,
+        media_catalog: MediaCatalogRepository | None = None,
     ) -> None:
         self._stories = stories
         self._repository = repository
         self._store = store
+        self._media_catalog = media_catalog
 
     async def approved_for_stories(
         self,
@@ -49,6 +53,13 @@ class ApprovedVisualDiscoveryBrollLibrary:
                     or asset.sha256 is None
                     or asset.downloaded_size_bytes is None
                     or asset.probed_duration_ms is None
+                    or (
+                        self._media_catalog is not None
+                        and await self._media_catalog.is_archived(
+                            MediaCatalogSourceKind.VISUAL_DISCOVERY,
+                            asset.asset_id,
+                        )
+                    )
                 ):
                     continue
                 path = await self._store.resolve(asset.storage_key)

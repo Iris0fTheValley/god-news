@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from god_news.domain.enums import StoryStatus
+from god_news.domain.media_catalog import MediaCatalogSourceKind
+from god_news.domain.media_catalog_ports import MediaCatalogArchiveReader
 from god_news.domain.models import Story, utc_now
 from god_news.domain.ports import StoryRepository
 from god_news.domain.visual_assets import (
@@ -26,6 +28,7 @@ from god_news.domain.visual_ports import VisualAssetRepository, VisualAssetStore
 from god_news.errors import (
     ArtifactNotReadyError,
     ConcurrentWriteError,
+    MediaCatalogConflictError,
     StoryInvariantError,
     VisualAssetNotFoundError,
     VisualAssetStorageError,
@@ -60,11 +63,13 @@ class VisualAssetService:
         stories: StoryRepository,
         repository: VisualAssetRepository,
         store: VisualAssetStore,
+        catalog_lifecycle: MediaCatalogArchiveReader | None = None,
         asset_lifecycle_lock: asyncio.Lock | None = None,
     ) -> None:
         self._stories = stories
         self._repository = repository
         self._store = store
+        self._catalog_lifecycle = catalog_lifecycle
         self._asset_lifecycle_lock = asset_lifecycle_lock or asyncio.Lock()
 
     async def list(self, story_id: UUID) -> StoryVisualAssets:
@@ -134,6 +139,12 @@ class VisualAssetService:
             expected_story_version=request.expected_story_version,
             expected_script_revision=request.expected_script_revision,
         )
+        await self._require_current_assets_mutable(
+            story_id,
+            script_revision=request.expected_script_revision,
+            segment_id=segment_id,
+            origin=VisualAssetOrigin.EDITOR_UPLOAD,
+        )
         content_type = _parse_content_type(story_id, declared_content_type)
         asset_id = uuid4()
         storage_key, digest, size_bytes = await self._store.write(
@@ -192,6 +203,12 @@ class VisualAssetService:
             segment_id=segment_id,
             expected_story_version=request.expected_story_version,
             expected_script_revision=request.expected_script_revision,
+        )
+        await self._require_current_assets_mutable(
+            story_id,
+            script_revision=request.expected_script_revision,
+            segment_id=segment_id,
+            origin=VisualAssetOrigin.EDITOR_UPLOAD,
         )
         removed, _story_version = await self._repository.delete_segment_upload(
             story_id=story_id,
@@ -264,6 +281,12 @@ class VisualAssetService:
             raise ConcurrentWriteError(story_id)
         if _safe_source_page_url(story) is None:
             raise StoryInvariantError(story_id, "Story has no safe HTTPS source-page candidate.")
+        await self._require_current_assets_mutable(
+            story_id,
+            script_revision=story.script.revision if story.script is not None else 1,
+            segment_id=None,
+            origin=VisualAssetOrigin.SOURCE_PAGE_SCREENSHOT,
+        )
         content_type = _parse_content_type(story_id, declared_content_type)
         asset_id = uuid4()
         storage_key, digest, size_bytes = await self._store.write(
@@ -324,6 +347,33 @@ class VisualAssetService:
             return
         await self._store.remove(asset.storage_key)
         logger.info("replaced visual asset removed asset_id=%s", asset.asset_id)
+
+    async def _require_current_assets_mutable(
+        self,
+        story_id: UUID,
+        *,
+        script_revision: int,
+        segment_id: UUID | None,
+        origin: VisualAssetOrigin,
+    ) -> None:
+        if self._catalog_lifecycle is None:
+            return
+        current = await self._repository.list_for_script(
+            story_id,
+            script_revision=script_revision,
+        )
+        for asset in current:
+            if asset.origin is not origin:
+                continue
+            if origin is VisualAssetOrigin.EDITOR_UPLOAD and asset.segment_id != segment_id:
+                continue
+            if await self._catalog_lifecycle.is_archived(
+                MediaCatalogSourceKind.VISUAL_ASSET,
+                asset.asset_id,
+            ):
+                raise MediaCatalogConflictError(
+                    "Archived visual assets must be restored before replacement or deletion."
+                )
 
 
 def _public(asset: StoredVisualAsset) -> VisualAsset:

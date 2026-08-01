@@ -69,6 +69,7 @@ from god_news.domain.video_ports import (
     VideoBatchRepository,
     VisualAssetLibrary,
 )
+from god_news.domain.video_registry_ports import EffectiveVideoTemplateResolver
 from god_news.domain.video_templates import (
     TemplateRegistry,
     create_default_template_registry,
@@ -131,6 +132,7 @@ class VideoBatchService:
         broll_video_library: BrollVideoAssetLibrary | None = None,
         visual_asset_library: VisualAssetLibrary | None = None,
         template_registry: TemplateRegistry | None = None,
+        template_policy: EffectiveVideoTemplateResolver | None = None,
         candidate_scan_limit: int = 1_000,
         asset_lifecycle_lock: asyncio.Lock | None = None,
     ) -> None:
@@ -148,6 +150,7 @@ class VideoBatchService:
         self._require_visual_assets = visual_asset_library is not None
         self._visual_asset_library = visual_asset_library or _EmptyVisualAssetLibrary()
         self._template_registry = template_registry or create_default_template_registry()
+        self._template_policy = template_policy
         self._audio_root = audio_root.expanduser().resolve()
         self._candidate_scan_limit = candidate_scan_limit
         self._asset_lifecycle_lock = asset_lifecycle_lock or asyncio.Lock()
@@ -189,11 +192,21 @@ class VideoBatchService:
 
             batch_id = uuid4()
             stories = await self._build_batch_stories(ordered, reserved_at=utc_now())
-            template = self._template_registry.resolve(
-                request.template_id,
-                request.template_version,
+            template = (
+                await self._template_policy.resolve_template_for_new_batch(
+                    request.template_id,
+                    request.template_version,
+                )
+                if self._template_policy is not None
+                else self._template_registry.resolve(
+                    request.template_id,
+                    request.template_version,
+                )
             )
             approved_source_videos = await self._source_video_library.approved_for_stories(
+                [story.story_id for story in stories]
+            )
+            approved_broll_videos = await self._broll_video_library.approved_for_stories(
                 [story.story_id for story in stories]
             )
             directed = await self._program_director.direct(
@@ -209,6 +222,15 @@ class VideoBatchService:
                 stories_by_id[story_id].model_copy(update={"sequence": sequence})
                 for sequence, story_id in enumerate(directed.direction.story_order)
             ]
+            reserved_source_videos = self._select_directed_source_videos(
+                directed.direction,
+                stories,
+                approved_source_videos,
+            )
+            reserved_broll_videos = self._select_broll_videos(
+                stories,
+                approved_broll_videos,
+            )
             # A new batch owns its own revision history.  Composer internals
             # cannot accidentally leak a source-story revision into it.
             script = directed.script.model_copy(update={"revision": 1})
@@ -225,6 +247,9 @@ class VideoBatchService:
                 subtitle=request.subtitle,
                 template=template,
                 stories=stories,
+                reserved_source_videos=reserved_source_videos,
+                reserved_broll_videos=reserved_broll_videos,
+                media_reservations_frozen=True,
                 narration=narration,
                 bgm=bgm,
                 visual_reservations=HostVisualReservations(),
@@ -360,16 +385,23 @@ class VideoBatchService:
                 script=running.narration.script,
                 audio=audio,
             )
-            source_videos = list(
-                await self._source_video_library.approved_for_stories(
-                    [story.story_id for story in running.stories]
+            if running.media_reservations_frozen:
+                source_videos = list(running.reserved_source_videos)
+                broll_videos = list(running.reserved_broll_videos)
+            else:
+                # Compatibility path for batches persisted before media
+                # reservations were introduced. New batches never re-read
+                # mutable libraries after the director has committed.
+                source_videos = list(
+                    await self._source_video_library.approved_for_stories(
+                        [story.story_id for story in running.stories]
+                    )
                 )
-            )
-            broll_videos = list(
-                await self._broll_video_library.approved_for_stories(
-                    [story.story_id for story in running.stories]
+                broll_videos = list(
+                    await self._broll_video_library.approved_for_stories(
+                        [story.story_id for story in running.stories]
+                    )
                 )
-            )
             props = self._build_remotion_props(
                 batch_id=running.batch_id,
                 title=running.title,

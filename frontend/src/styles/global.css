@@ -3419,7 +3419,7 @@ time {
 
 .library-toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) minmax(190px, 0.7fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(240px, 1.4fr) repeat(3, minmax(150px, 0.55fr));
   align-items: end;
   gap: 12px;
   margin-bottom: 20px;
@@ -3464,6 +3464,10 @@ time {
   box-shadow: var(--shadow-sm);
 }
 
+.library-asset-card.archived {
+  opacity: 0.82;
+}
+
 .library-asset-preview {
   position: relative;
   aspect-ratio: 16 / 9;
@@ -3478,6 +3482,17 @@ time {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.asset-preview-placeholder {
+  display: grid;
+  height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .asset-rights-state {
@@ -3574,6 +3589,42 @@ time {
   background: var(--bg);
   font-family: var(--font-mono);
   font-size: 9px;
+}
+
+.asset-usage-details {
+  border-top: 1px solid var(--rule);
+  padding-top: 10px;
+}
+
+.asset-usage-details summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.asset-usage-details ul {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asset-usage-details li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.asset-usage-details a {
+  overflow: hidden;
+  color: var(--primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .skeleton-card {
@@ -3715,6 +3766,17 @@ time {
   font-size: 13px;
 }
 
+.module-policy-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.module-policy-actions .button {
+  min-height: 36px;
+}
+
 .module-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr);
@@ -3793,6 +3855,30 @@ time {
 .module-contract-grid span,
 .module-contract-grid strong {
   display: block;
+}
+
+.module-usage-list {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--elevated);
+}
+
+.module-usage-list > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.module-usage-list a {
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+  background: var(--color-accent-subtle);
+  font-family: var(--font-mono);
+  font-size: 9px;
 }
 
 .module-contract-grid span {
@@ -3884,6 +3970,15 @@ time {
 
   .module-contract-grid {
     gap: 1px;
+  }
+
+  .module-inspector-heading {
+    flex-direction: column;
+  }
+
+  .module-policy-actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
 }
 

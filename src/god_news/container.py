@@ -5,12 +5,14 @@ from dataclasses import dataclass
 
 import httpx
 
+from god_news.application.media_catalog import MediaCatalogService
 from god_news.application.memory import MemoryCoordinator
 from god_news.application.source_media import SourceMediaService
 from god_news.application.source_runs import SourceRunService
 from god_news.application.source_schedule import SourceCollectionScheduler
 from god_news.application.source_transcriptions import SourceMediaTranscriptionService
 from god_news.application.video_batches import VideoBatchService
+from god_news.application.video_registry import VideoRegistryService
 from god_news.application.visual_assets import VisualAssetService
 from god_news.application.visual_discovery import VisualDiscoveryApplication
 from god_news.application.workflow import StoryWorkflow
@@ -25,6 +27,7 @@ from god_news.domain.ports import (
 )
 from god_news.domain.source_transcription import TimedCaptionTranslator
 from god_news.domain.video_ports import HostRenderer, ProgramDirector
+from god_news.domain.video_templates import create_default_template_registry
 from god_news.infrastructure.database import Database
 from god_news.infrastructure.fetchers.chain import FetcherChain
 from god_news.infrastructure.fetchers.drission import DrissionPageFetcher
@@ -38,6 +41,9 @@ from god_news.infrastructure.llm.openai_compatible import (
     UnavailableProgramDirector,
     UnavailableTextGenerator,
     UnavailableTimedCaptionTranslator,
+)
+from god_news.infrastructure.media_catalog_repository import (
+    SqlAlchemyMediaCatalogRepository,
 )
 from god_news.infrastructure.memory import ChromaDBMemoryProvider, NoopMemoryProvider
 from god_news.infrastructure.repositories import (
@@ -70,6 +76,9 @@ from god_news.infrastructure.video_host import (
     UnavailableBatchVideoRenderer,
 )
 from god_news.infrastructure.video_live2d import LocalLive2DHostRenderer
+from god_news.infrastructure.video_registry_repository import (
+    SqlAlchemyVideoCapabilityPolicyRepository,
+)
 from god_news.infrastructure.video_remotion import LocalRemotionBatchVideoRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
 from god_news.infrastructure.video_source_assets import ApprovedSourceVideoAssetLibrary
@@ -105,9 +114,11 @@ class AppContainer:
     source_runs: SourceRunService | None = None
     source_scheduler: SourceCollectionScheduler | None = None
     video_batches: VideoBatchService | None = None
+    video_registry: VideoRegistryService | None = None
     role_profiles: RoleProfileService | None = None
     visual_assets: VisualAssetService | None = None
     visual_discovery: VisualDiscoveryApplication | None = None
+    media_catalog: MediaCatalogService | None = None
     source_media: SourceMediaService | None = None
     source_transcriptions: SourceMediaTranscriptionService | None = None
     operations: OperationDispatcher | None = None
@@ -247,6 +258,12 @@ async def build_container(settings: Settings) -> AppContainer:
         database.sessions,
         storage_root=settings.source_media_root,
     )
+    media_catalog_repository = SqlAlchemyMediaCatalogRepository(
+        database.sessions,
+        visual_root=settings.visual_asset_root,
+        discovery_root=settings.visual_discovery_root,
+        source_media_root=settings.source_media_root,
+    )
     source_transcription_repository = SqlAlchemySourceTranscriptionRepository(database.sessions)
     live_script_role_usage_guard = SqlAlchemyLiveScriptRoleUsageGuard(database.sessions)
     role_profiles = RoleProfileService(role_profile_repository, live_script_role_usage_guard)
@@ -261,7 +278,9 @@ async def build_container(settings: Settings) -> AppContainer:
         asset_protector=CompositeRetentionAssetProtector(
             video_batch_repository,
             visual_asset_repository,
+            visual_discovery_repository,
             source_media_repository,
+            media_catalog_repository,
         ),
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
@@ -446,6 +465,7 @@ async def build_container(settings: Settings) -> AppContainer:
         stories=repository,
         repository=visual_asset_repository,
         store=visual_asset_store,
+        catalog_lifecycle=media_catalog_repository,
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
     ffprobe = FFprobeSourceVideoInspector.discover(settings.video_remotion_package_dir.parent)
@@ -479,6 +499,10 @@ async def build_container(settings: Settings) -> AppContainer:
             if ffprobe is not None
             else None
         ),
+        asset_lifecycle_lock=asset_lifecycle_lock,
+    )
+    media_catalog = MediaCatalogService(
+        repository=media_catalog_repository,
         asset_lifecycle_lock=asset_lifecycle_lock,
     )
     source_transcriber = (
@@ -575,6 +599,12 @@ async def build_container(settings: Settings) -> AppContainer:
         )
     else:
         host_renderer = PlaceholderHostRenderer()
+    template_registry = create_default_template_registry()
+    video_registry = VideoRegistryService(
+        templates=template_registry,
+        policies=SqlAlchemyVideoCapabilityPolicyRepository(database.sessions),
+        batches=video_batch_repository,
+    )
     video_batches = VideoBatchService(
         story_pool=workflow,
         repository=video_batch_repository,
@@ -587,18 +617,23 @@ async def build_container(settings: Settings) -> AppContainer:
             media_repository=source_media_repository,
             transcription_repository=source_transcription_repository,
             media_reader=source_media,
+            media_catalog=media_catalog_repository,
         ),
         broll_video_library=ApprovedVisualDiscoveryBrollLibrary(
             stories=repository,
             repository=visual_discovery_repository,
             store=visual_discovery_store,
+            media_catalog=media_catalog_repository,
         ),
         visual_asset_library=ApprovedVisualAssetLibrary(
             repository=visual_asset_repository,
             store=visual_asset_store,
             discovery_repository=visual_discovery_repository,
             discovery_store=visual_discovery_store,
+            media_catalog=media_catalog_repository,
         ),
+        template_registry=template_registry,
+        template_policy=video_registry,
         audio_root=settings.output_dir,
         candidate_scan_limit=settings.video_candidate_scan_limit,
         asset_lifecycle_lock=asset_lifecycle_lock,
@@ -616,9 +651,11 @@ async def build_container(settings: Settings) -> AppContainer:
         source_runs=source_runs,
         source_scheduler=source_scheduler,
         video_batches=video_batches,
+        video_registry=video_registry,
         role_profiles=role_profiles,
         visual_assets=visual_assets,
         visual_discovery=visual_discovery,
+        media_catalog=media_catalog,
         source_media=source_media,
         source_transcriptions=source_transcriptions,
         operations=operations,

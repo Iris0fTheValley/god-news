@@ -1453,6 +1453,15 @@ class VideoBatch(DomainModel):
     subtitle: str | None = None
     template: TemplateDefinition | None = None
     stories: list[VideoBatchStory] = Field(min_length=1, max_length=15)
+    reserved_source_videos: list[SourceVideoRenderAsset] = Field(
+        default_factory=list,
+        max_length=100,
+    )
+    reserved_broll_videos: list[BrollVideoRenderAsset] = Field(
+        default_factory=list,
+        max_length=100,
+    )
+    media_reservations_frozen: bool = False
     narration: BatchNarrationArtifact
     bgm: BgmSelection | None = None
     visual_reservations: HostVisualReservations = Field(default_factory=HostVisualReservations)
@@ -1482,6 +1491,23 @@ class VideoBatch(DomainModel):
             raise ValueError("batch story IDs must be unique")
         if [story.sequence for story in self.stories] != list(range(len(self.stories))):
             raise ValueError("batch story sequence must be contiguous and zero-based")
+        if self.media_reservations_frozen:
+            reserved_ids = [
+                asset.asset_id for asset in self.reserved_source_videos
+            ] + [asset.asset_id for asset in self.reserved_broll_videos]
+            if len(reserved_ids) != len(set(reserved_ids)):
+                raise ValueError("batch media reservation IDs must be unique")
+            story_id_set = set(story_ids)
+            if any(
+                asset.story_id not in story_id_set
+                for asset in self.reserved_source_videos
+            ) or any(
+                asset.story_id not in story_id_set
+                for asset in self.reserved_broll_videos
+            ):
+                raise ValueError("batch media reservations must belong to reserved stories")
+        elif self.reserved_source_videos or self.reserved_broll_videos:
+            raise ValueError("unfrozen batches cannot contain media reservations")
 
         expected_evidence = [
             BatchNarrationSourceEvidence(

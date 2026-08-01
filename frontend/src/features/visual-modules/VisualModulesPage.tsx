@@ -1,5 +1,5 @@
 import {Player} from '@remotion/player';
-import {useQuery} from '@tanstack/react-query';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {
   createTemplateLabFixture,
   GodNewsShortVideo,
@@ -8,13 +8,26 @@ import {
   type EpisodeSceneModule,
   type OutputProfileId,
 } from '@god-news/video/player';
-import {Box, CheckCircle2, ExternalLink, MonitorPlay, ShieldCheck} from 'lucide-react';
+import {
+  Box,
+  CheckCircle2,
+  ExternalLink,
+  MonitorPlay,
+  Power,
+  ShieldCheck,
+} from 'lucide-react';
 import {useState} from 'react';
 import {Link} from 'react-router-dom';
 
-import {listVideoTemplates} from '../../api/client';
+import {
+  getVideoCapabilityRegistry,
+  listVideoTemplates,
+  setVideoCapabilityPolicy,
+} from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
+import type {VideoCapabilityView} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
+import {ModalDialog} from '../../components/ModalDialog';
 
 const MODULE_LABELS: Record<EpisodeSceneModule, string> = {
   host_evidence: '主持人与证据',
@@ -36,17 +49,30 @@ const profileConfig: Record<OutputProfileId, {width: number; height: number; lab
 };
 
 export function VisualModulesPage() {
+  const queryClient = useQueryClient();
   const [moduleId, setModuleId] = useState<EpisodeSceneModule>('evidence_fullscreen');
   const [profileId, setProfileId] = useState<OutputProfileId>('bilibili_horizontal');
+  const [policyTarget, setPolicyTarget] = useState<VideoCapabilityView | null>(null);
+  const [policyReason, setPolicyReason] = useState('');
   const templatesQuery = useQuery({
     queryKey: queryKeys.videoTemplates(),
     queryFn: listVideoTemplates,
+  });
+  const registryQuery = useQuery({
+    queryKey: queryKeys.videoRegistry(),
+    queryFn: getVideoCapabilityRegistry,
   });
   const registryTemplate = templatesQuery.data?.find((template) => (
     template.template_id === worldWarmthTemplate.template_id
     && template.template_version === worldWarmthTemplate.template_version
   ));
   const registeredModules = registryTemplate?.capabilities.supported_modules ?? [];
+  const moduleCapabilities = new Map(
+    (registryQuery.data?.capabilities ?? [])
+      .filter((item) => item.kind === 'module')
+      .map((item) => [item.key.replace('module:', ''), item]),
+  );
+  const selectedCapability = moduleCapabilities.get(moduleId);
   const variants = (registryTemplate?.scene_variants ?? []).filter(
     (variant) => variant.module_id === moduleId,
   );
@@ -80,6 +106,21 @@ export function VisualModulesPage() {
   const registryParity = registryTemplate !== undefined
     && backendVariantIds === rendererVariantIds
     && registeredModules.join('|') === worldWarmthTemplate.capabilities.supported_modules.join('|');
+  const policyMutation = useMutation({
+    mutationFn: (capability: VideoCapabilityView) => setVideoCapabilityPolicy({
+      key: capability.key,
+      enabled_for_new_batches: !capability.policy.enabled_for_new_batches,
+      expected_version: capability.policy.version,
+      reason: policyReason.trim(),
+      operator_id: 'frontend-operator',
+    }),
+    onSuccess: async () => {
+      setPolicyTarget(null);
+      setPolicyReason('');
+      await queryClient.invalidateQueries({queryKey: queryKeys.videoRegistry()});
+    },
+  });
+  const error = templatesQuery.error ?? registryQuery.error ?? policyMutation.error;
 
   return (
     <div className="page visual-modules-page">
@@ -87,7 +128,7 @@ export function VisualModulesPage() {
         <div>
           <p className="eyebrow">VISUAL SYSTEM REGISTRY</p>
           <h1>视觉模块</h1>
-          <p>这是生产渲染器的只读能力注册表，不是另一套模板。导演模型只能选择这里存在的模块与变体。</p>
+          <p>这是生产渲染器的能力注册表。模块策略只影响新批次，已审核批次继续使用冻结快照。</p>
         </div>
         <Link className="button primary" to={`/visual/scene-lab?scene=${moduleId}&variant=${variantId}&profile=${profileId}`}>
           在场景实验室检查 <ExternalLink size={15} aria-hidden="true" />
@@ -112,10 +153,16 @@ export function VisualModulesPage() {
         </div>
       </div>
 
-      {templatesQuery.error === null ? null : (
-        <ApiErrorNotice error={templatesQuery.error} onRetry={() => void templatesQuery.refetch()} />
+      {error === null ? null : (
+        <ApiErrorNotice
+          error={error}
+          onRetry={() => {
+            void templatesQuery.refetch();
+            void registryQuery.refetch();
+          }}
+        />
       )}
-      {templatesQuery.isLoading ? (
+      {templatesQuery.isLoading || registryQuery.isLoading ? (
         <div className="loading-state">正在读取生产模板注册表…</div>
       ) : registryTemplate === undefined ? (
         <div className="empty-state">
@@ -130,6 +177,7 @@ export function VisualModulesPage() {
             const count = registryTemplate.scene_variants.filter(
               (variant) => variant.module_id === candidate,
             ).length;
+            const capability = moduleCapabilities.get(candidate);
             return (
               <button
                 className={candidate === moduleId ? 'module-index-item active' : 'module-index-item'}
@@ -144,7 +192,9 @@ export function VisualModulesPage() {
                   <strong>{MODULE_LABELS[candidate]}</strong>
                   <small>{candidate}</small>
                 </span>
-                <em>{count}</em>
+                <em title={`${capability?.usage_count ?? 0} 个批次使用`}>
+                  {capability?.effective_enabled === false ? '停' : count}
+                </em>
               </button>
             );
           })}
@@ -157,7 +207,25 @@ export function VisualModulesPage() {
               <h2>{MODULE_LABELS[moduleId]}</h2>
               <p>{MODULE_DESCRIPTIONS[moduleId]}</p>
             </div>
-            <span className="badge success"><CheckCircle2 size={14} aria-hidden="true" /> 已注册</span>
+            <div className="module-policy-actions">
+              <span className={`badge ${selectedCapability?.effective_enabled === false ? 'warning' : 'success'}`}>
+                <CheckCircle2 size={14} aria-hidden="true" />
+                {selectedCapability?.effective_enabled === false ? '新批次已停用' : '新批次可用'}
+              </span>
+              {selectedCapability === undefined ? null : (
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    setPolicyTarget(selectedCapability);
+                    setPolicyReason('');
+                  }}
+                >
+                  <Power size={15} aria-hidden="true" />
+                  {selectedCapability.policy.enabled_for_new_batches ? '停用模块' : '启用模块'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="module-controls">
@@ -184,6 +252,7 @@ export function VisualModulesPage() {
           <div className={`module-preview-frame ${profileId === 'douyin_vertical' ? 'vertical' : 'horizontal'}`}>
             {canPreview && fixtureResult?.props !== null ? (
               <Player
+                acknowledgeRemotionLicense
                 component={GodNewsShortVideo}
                 inputProps={fixtureResult.props}
                 durationInFrames={180}
@@ -230,10 +299,91 @@ export function VisualModulesPage() {
                   : `${selectedVariant.minimum_visual_assets}–${selectedVariant.maximum_visual_assets} 个`}
               </strong>
             </div>
+            <div>
+              <span>依赖位置</span>
+              <strong>{selectedCapability?.used_by?.length ?? 0} 处注册表引用</strong>
+            </div>
+            <div>
+              <span>历史使用</span>
+              <strong>{selectedCapability?.usage_count ?? 0} 个视频批次</strong>
+            </div>
+            <div>
+              <span>策略版本</span>
+              <strong>v{selectedCapability?.policy.version ?? 1}</strong>
+            </div>
+            <div>
+              <span>停用传播</span>
+              <strong>
+                {selectedCapability?.disabled_by?.length
+                  ? selectedCapability.disabled_by.join(' / ')
+                  : '无阻塞依赖'}
+              </strong>
+            </div>
           </div>
+          {selectedCapability?.active_batch_ids?.length ? (
+            <div className="module-usage-list">
+              <p className="eyebrow">USAGE LOCATIONS</p>
+              <div>
+                {(selectedCapability.active_batch_ids ?? []).map((batchId) => (
+                  <Link
+                    key={batchId}
+                    to={`/production/batches?batch=${encodeURIComponent(batchId)}`}
+                  >
+                    批次 {batchId.slice(0, 8)}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
       )}
+      <ModalDialog
+        open={policyTarget !== null}
+        className="create-drawer"
+        labelledBy="module-policy-title"
+        onClose={() => setPolicyTarget(null)}
+      >
+        <form
+          className="panel-body form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (policyTarget !== null) policyMutation.mutate(policyTarget);
+          }}
+        >
+          <div className="wide">
+            <p className="eyebrow">NEW-BATCH POLICY</p>
+            <h2 id="module-policy-title">
+              {policyTarget?.policy.enabled_for_new_batches ? '停用视觉模块' : '启用视觉模块'}
+            </h2>
+            <p className="field-hint">
+              变更只作用于之后创建的视频批次。已有批次保留完整模板快照，不会因实时策略改变而失去可复现性。
+            </p>
+          </div>
+          <label className="field wide">
+            <span>操作原因</span>
+            <textarea
+              className="textarea"
+              required
+              minLength={3}
+              maxLength={500}
+              value={policyReason}
+              onChange={(event) => setPolicyReason(event.target.value)}
+              placeholder="记录停用、维护或恢复的原因"
+            />
+          </label>
+          <div className="form-actions wide">
+            <button className="button" type="button" onClick={() => setPolicyTarget(null)}>取消</button>
+            <button
+              className="button primary"
+              type="submit"
+              disabled={policyMutation.isPending || policyReason.trim().length < 3}
+            >
+              {policyMutation.isPending ? '正在提交…' : '确认策略变更'}
+            </button>
+          </div>
+        </form>
+      </ModalDialog>
     </div>
   );
 }

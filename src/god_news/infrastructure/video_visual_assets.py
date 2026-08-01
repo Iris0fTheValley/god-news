@@ -4,6 +4,8 @@ from collections.abc import Sequence
 from urllib.parse import urlsplit
 from uuid import UUID
 
+from god_news.domain.media_catalog import MediaCatalogSourceKind
+from god_news.domain.media_catalog_ports import MediaCatalogRepository
 from god_news.domain.models import Story
 from god_news.domain.video import VisualAssetType, VisualRenderAsset
 from god_news.domain.visual_assets import (
@@ -29,11 +31,13 @@ class ApprovedVisualAssetLibrary:
         store: VisualAssetStore,
         discovery_repository: VisualDiscoveryRepository | None = None,
         discovery_store: VisualDiscoveryStore | None = None,
+        media_catalog: MediaCatalogRepository | None = None,
     ) -> None:
         self._repository = repository
         self._store = store
         self._discovery_repository = discovery_repository
         self._discovery_store = discovery_store
+        self._media_catalog = media_catalog
 
     async def approved_for_stories(
         self,
@@ -48,7 +52,15 @@ class ApprovedVisualAssetLibrary:
                 story.story_id,
                 script_revision=story.script.revision,
             )
-            rendered = [await self._to_render_asset(story, asset) for asset in assets]
+            rendered = [
+                await self._to_render_asset(story, asset)
+                for asset in assets
+                if self._media_catalog is None
+                or not await self._media_catalog.is_archived(
+                    MediaCatalogSourceKind.VISUAL_ASSET,
+                    asset.asset_id,
+                )
+            ]
             if self._discovery_repository is not None and self._discovery_store is not None:
                 discovered = await self._discovery_repository.list_for_story(
                     story.story_id,
@@ -63,6 +75,13 @@ class ApprovedVisualAssetLibrary:
                         or asset.storage_key is None
                         or asset.sha256 is None
                         or asset.downloaded_size_bytes is None
+                        or (
+                            self._media_catalog is not None
+                            and await self._media_catalog.is_archived(
+                                MediaCatalogSourceKind.VISUAL_DISCOVERY,
+                                asset.asset_id,
+                            )
+                        )
                     ):
                         continue
                     path = await self._discovery_store.resolve(asset.storage_key)

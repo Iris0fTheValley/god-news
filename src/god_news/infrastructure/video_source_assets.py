@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
+from god_news.domain.media_catalog import MediaCatalogSourceKind
+from god_news.domain.media_catalog_ports import MediaCatalogRepository
 from god_news.domain.source_media import SourceMediaRepository
 from god_news.domain.source_transcription import (
     SourceTranscriptionRepository,
@@ -21,10 +23,12 @@ class ApprovedSourceVideoAssetLibrary:
         media_repository: SourceMediaRepository,
         transcription_repository: SourceTranscriptionRepository,
         media_reader: VerifiedSourceMediaReader,
+        media_catalog: MediaCatalogRepository | None = None,
     ) -> None:
         self._media_repository = media_repository
         self._transcription_repository = transcription_repository
         self._media_reader = media_reader
+        self._media_catalog = media_catalog
 
     async def approved_for_stories(
         self,
@@ -34,7 +38,13 @@ class ApprovedSourceVideoAssetLibrary:
         for story_id in story_ids:
             artifacts = await self._media_repository.list_for_story(story_id)
             for artifact in artifacts:
-                if not artifact.publish_eligible:
+                if not artifact.publish_eligible or (
+                    self._media_catalog is not None
+                    and await self._media_catalog.is_archived(
+                        MediaCatalogSourceKind.SOURCE_MEDIA,
+                        artifact.artifact_id,
+                    )
+                ):
                     continue
                 transcriptions = await self._transcription_repository.list_for_artifact(
                     artifact.artifact_id

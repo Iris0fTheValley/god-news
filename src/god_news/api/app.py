@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from god_news.api.media_catalog_routes import router as media_catalog_router
 from god_news.api.operations_routes import router as operations_router
 from god_news.api.routes import router
 from god_news.api.schemas import ProblemDetail
@@ -110,5 +111,6 @@ def create_app(
     app.include_router(source_transcription_router, prefix="/api/v1")
     app.include_router(visual_asset_router, prefix="/api/v1")
     app.include_router(visual_discovery_router, prefix="/api/v1")
+    app.include_router(media_catalog_router, prefix="/api/v1")
     app.include_router(video_router, prefix="/api/v1")
     return app
