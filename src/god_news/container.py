@@ -25,6 +25,7 @@ from god_news.domain.ports import (
     StoryRepository,
     TextGenerator,
 )
+from god_news.domain.runtime_control_ports import RuntimeController
 from god_news.domain.source_transcription import TimedCaptionTranslator
 from god_news.domain.video_ports import HostRenderer, ProgramDirector
 from god_news.domain.video_templates import create_default_template_registry
@@ -51,6 +52,7 @@ from god_news.infrastructure.repositories import (
     SqlAlchemyStoryRepository,
 )
 from god_news.infrastructure.role_profiles import SqlAlchemyRoleProfileRepository
+from god_news.infrastructure.runtime_control import FileRuntimeController
 from god_news.infrastructure.source_health import (
     HttpSourceReachabilityProbe,
     build_source_policies,
@@ -125,6 +127,7 @@ class AppContainer:
     operation_scheduler: IntervalScheduler | None = None
     database: Database | None = None
     http_client: httpx.AsyncClient | None = None
+    runtime_control: RuntimeController | None = None
 
     async def start(self) -> None:
         if self.source_runs is not None:
@@ -358,6 +361,11 @@ async def build_container(settings: Settings) -> AppContainer:
         )
     fetcher = FetcherChain(url_fetchers)
     source_normalizers = create_default_source_registry()
+    runtime_control = FileRuntimeController(
+        command_path=settings.runtime_control_command_path,
+        enabled=settings.runtime_control_enabled,
+        supervised=settings.runtime_control_supervised,
+    )
     source_health = SourceHealthMonitor(
         normalizers=source_normalizers,
         policies=build_source_policies(settings),
@@ -553,7 +561,6 @@ async def build_container(settings: Settings) -> AppContainer:
             "reddit": settings.source_reddit_collection_limit,
             "guardian": settings.source_guardian_collection_limit,
             "pikabu": settings.source_pikabu_collection_limit,
-            "nasa": settings.source_nasa_collection_limit,
         },
     )
     video_renderer = (
@@ -662,4 +669,5 @@ async def build_container(settings: Settings) -> AppContainer:
         operation_scheduler=operation_scheduler,
         database=database,
         http_client=http_client,
+        runtime_control=runtime_control,
     )

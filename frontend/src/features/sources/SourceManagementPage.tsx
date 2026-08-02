@@ -7,12 +7,11 @@ import {queryKeys} from '../../api/queryKeys';
 import type {SourceHealth} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 
-const SOURCE_LABELS: Record<SourceHealth['source'], string> = {
+const SOURCE_LABELS: Partial<Record<SourceHealth['source'], string>> = {
   dazhong: '大众新闻 · 开屏见好',
   reddit: 'Reddit · HumansBeingBros',
   guardian: 'The Guardian · Kindness',
   pikabu: 'Pikabu · Доброта',
-  nasa: 'NASA · Official RSS',
 };
 
 const ACCESS_LABELS: Record<SourceHealth['access_method'], string> = {
@@ -51,7 +50,7 @@ export function SourceManagementPage() {
     queryKey: queryKeys.sourceCollectors(),
     queryFn: getSourceCollectors,
   });
-  const diagnostic = useMutation({mutationFn: (source: SourceHealth['source']) => diagnoseSource(source)});
+  const diagnostic = useMutation({mutationFn: (source: 'reddit') => diagnoseSource(source)});
   const readinessBySource = new Map(
     collectorsQuery.data?.collectors.map((collector) => [collector.source, collector]),
   );
@@ -113,7 +112,7 @@ export function SourceManagementPage() {
                   <header>
                     <div>
                       <p className="metadata">{item.source}</p>
-                      <h2>{SOURCE_LABELS[item.source]}</h2>
+                      <h2>{SOURCE_LABELS[item.source] ?? item.source}</h2>
                     </div>
                     <span className={`source-state ${state.tone}`}>{state.label}</span>
                   </header>

@@ -1,10 +1,12 @@
 import {
+  Boxes,
   Clapperboard,
   Component,
   DatabaseZap,
   FolderOpen,
   Image as ImageIcon,
   LayoutTemplate,
+  LibraryBig,
   Music,
   Rows3,
   UserCog,
@@ -26,7 +28,15 @@ export interface NavigationGroup {
   items: NavigationItem[];
 }
 
-export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
+export interface NavigationSection {
+  id: 'main' | 'library';
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  groups: readonly NavigationGroup[];
+}
+
+const MAIN_GROUPS: readonly NavigationGroup[] = [
   {
     label: '编辑流程',
     items: [
@@ -75,7 +85,23 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     ],
   },
   {
-    label: '资源库',
+    label: '系统',
+    items: [
+      {
+        to: '/system/operations',
+        label: '运维与留存',
+        shortLabel: '运维',
+        description: '查看调度、清理与操作历史',
+        icon: Wrench,
+        shortcut: '9',
+      },
+    ],
+  },
+] as const;
+
+const LIBRARY_GROUPS: readonly NavigationGroup[] = [
+  {
+    label: '素材与角色',
     items: [
       {
         to: '/library/visual-assets',
@@ -123,22 +149,35 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
       },
     ],
   },
+] as const;
+
+export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
   {
-    label: '系统',
-    items: [
-      {
-        to: '/system/operations',
-        label: '运维与留存',
-        shortLabel: '运维',
-        description: '查看调度、清理与操作历史',
-        icon: Wrench,
-        shortcut: '9',
-      },
-    ],
+    id: 'main',
+    label: '主功能',
+    description: '采集、审核与节目生产',
+    icon: Boxes,
+    groups: MAIN_GROUPS,
+  },
+  {
+    id: 'library',
+    label: '素材库',
+    description: '素材、角色与视觉模块',
+    icon: LibraryBig,
+    groups: LIBRARY_GROUPS,
   },
 ] as const;
 
+export const NAVIGATION_GROUPS = NAVIGATION_SECTIONS.flatMap((section) => section.groups);
 export const NAVIGATION_ITEMS = NAVIGATION_GROUPS.flatMap((group) => group.items);
+
+export function navigationSectionForPath(pathname: string): NavigationSection {
+  return NAVIGATION_SECTIONS.find((section) => section.groups.some((group) =>
+    group.items.some(
+      (item) => pathname === item.to || pathname.startsWith(`${item.to}/`),
+    ),
+  )) ?? NAVIGATION_SECTIONS[0];
+}
 
 export function navigationItemForPath(pathname: string): NavigationItem {
   return NAVIGATION_ITEMS.find(

@@ -61,16 +61,6 @@ const report = {
       access_method: 'authorized_public_page',
       notes: [],
     },
-    {
-      source: 'nasa',
-      enabled: true,
-      configured: true,
-      authorized: true,
-      reachable: null,
-      contract_ok: true,
-      access_method: 'official_feed',
-      notes: ['official_rss_feed'],
-    },
   ],
 } as const;
 
@@ -104,11 +94,9 @@ describe('SourceManagementPage', () => {
 
     expect(await screen.findByText('大众新闻 · 开屏见好')).toBeVisible();
     expect(screen.getByText('等待授权')).toBeVisible();
-    expect(screen.getByText('3/5 已授权')).toBeVisible();
-    expect(screen.getAllByText('网络尚未探测')).toHaveLength(5);
-    expect(screen.getAllByText('采集器就绪度：ready')).toHaveLength(3);
-    expect(screen.getByText('NASA · Official RSS')).toBeVisible();
-    expect(screen.getByText('官方 RSS / Atom')).toBeVisible();
+    expect(screen.getByText('2/4 已授权')).toBeVisible();
+    expect(screen.getAllByText('网络尚未探测')).toHaveLength(4);
+    expect(screen.getAllByText('采集器就绪度：ready')).toHaveLength(2);
 
     await user.click(screen.getByRole('button', {name: '核验网络'}));
     expect(apiMocks.getSourceHealth).toHaveBeenLastCalledWith(true);

@@ -34,6 +34,7 @@ import {
   SPEECH_EMOTIONS,
   SPEECH_EMOTION_LABELS,
 } from '../../components/narrationOptions';
+import {SPOKEN_LANGUAGE_OPTIONS} from '../../components/spokenLanguages';
 
 const ACCEPTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
@@ -425,12 +426,16 @@ function ScriptEditorInner({
               <div className="segment-text">
                 <label className="field">
                   <span>口播语言</span>
-                <input
-                  className="input"
+                <select
+                  className="select mono"
                   value={segment.spoken_language}
-                  readOnly={readOnly}
+                  disabled={readOnly}
                   onChange={(event) => replaceSegment(index, withSpokenLanguage(segment, event.target.value))}
-                />
+                >
+                  {SPOKEN_LANGUAGE_OPTIONS.map((language) => (
+                    <option key={language.value} value={language.value}>{language.label}</option>
+                  ))}
+                </select>
                 </label>
                 <label className="field">
                   <span>口播文本</span>

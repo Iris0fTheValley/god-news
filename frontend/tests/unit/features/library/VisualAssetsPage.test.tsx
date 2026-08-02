@@ -8,6 +8,7 @@ import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   archiveMediaCatalogAsset: vi.fn(),
+  listStories: vi.fn(),
   listMediaCatalogAssets: vi.fn(),
   restoreMediaCatalogAsset: vi.fn(),
 }));
@@ -52,6 +53,9 @@ const asset = {
   archived_at: null,
   archived_by: null,
   archive_reason: null,
+  member_catalog_ids: [`visual_discovery:${assetId}`],
+  story_references: [storyId],
+  content_occurrence_count: 1,
   usages: [
     {
       purpose: 'story_segment',
@@ -88,6 +92,7 @@ const page = {
 describe('VisualAssetsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMocks.listStories.mockResolvedValue([]);
     apiMocks.listMediaCatalogAssets.mockResolvedValue(page);
     apiMocks.archiveMediaCatalogAsset.mockResolvedValue({
       ...asset,
@@ -138,6 +143,28 @@ describe('VisualAssetsPage', () => {
           operator_id: 'frontend-operator',
           reason: '素材已过期',
         },
+      );
+    });
+  });
+
+  it('filters the catalog by a selected story reference', async () => {
+    const user = userEvent.setup();
+    apiMocks.listStories.mockResolvedValue([
+      {
+        story_id: storyId,
+        title: '社区花园重新开放',
+        source: {title: 'Community garden'},
+      },
+    ]);
+    renderWithApp(<VisualAssetsPage />, ['/library/visual-assets']);
+
+    const storyFilter = await screen.findByRole('combobox', {name: '故事引用'});
+    await screen.findByRole('option', {name: '社区花园重新开放 · 11111111'});
+    await user.selectOptions(storyFilter, storyId);
+
+    await waitFor(() => {
+      expect(apiMocks.listMediaCatalogAssets).toHaveBeenLastCalledWith(
+        expect.objectContaining({story_id: storyId}),
       );
     });
   });

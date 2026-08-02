@@ -52,12 +52,8 @@ async def test_source_health_distinguishes_all_four_dimensions() -> None:
     assert by_source["guardian"].reachable is True
     assert by_source["pikabu"].authorized is True
     assert by_source["pikabu"].reachable is False
-    assert by_source["nasa"].configured is True
-    assert by_source["nasa"].authorized is True
-    assert by_source["nasa"].reachable is True
-    assert by_source["nasa"].access_method == "official_feed"
     assert all(item.contract_ok for item in report.sources)
-    assert len(probe.calls) == 4
+    assert len(probe.calls) == 3
 
 
 @pytest.mark.asyncio

@@ -2899,6 +2899,12 @@
             "title": "Catalog Id",
             "type": "string"
           },
+          "content_occurrence_count": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Content Occurrence Count",
+            "type": "integer"
+          },
           "duration_ms": {
             "anyOf": [
               {
@@ -2969,6 +2975,14 @@
           },
           "media_kind": {
             "$ref": "#/components/schemas/MediaCatalogKind"
+          },
+          "member_catalog_ids": {
+            "items": {
+              "pattern": "^(visual_asset|visual_discovery|source_media):[0-9a-f-]{36}$",
+              "type": "string"
+            },
+            "title": "Member Catalog Ids",
+            "type": "array"
           },
           "mime_type": {
             "minLength": 1,
@@ -3057,6 +3071,14 @@
             "format": "uuid",
             "title": "Story Id",
             "type": "string"
+          },
+          "story_references": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Story References",
+            "type": "array"
           },
           "usages": {
             "items": {
@@ -3240,6 +3262,7 @@
       },
       "NasaSourceFields": {
         "additionalProperties": false,
+        "description": "Legacy provenance retained solely for historical record compatibility.",
         "properties": {
           "article_id": {
             "minLength": 1,
@@ -5837,257 +5860,6 @@
         "title": "RawGuardianVideo",
         "type": "object"
       },
-      "RawNasaImage": {
-        "additionalProperties": false,
-        "properties": {
-          "alt_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Alt Text"
-          },
-          "credit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Credit"
-          },
-          "height": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height"
-          },
-          "kind": {
-            "const": "image",
-            "default": "image",
-            "title": "Kind",
-            "type": "string"
-          },
-          "role": {
-            "default": "body",
-            "enum": [
-              "main",
-              "body",
-              "thumbnail"
-            ],
-            "title": "Role",
-            "type": "string"
-          },
-          "url": {
-            "format": "uri",
-            "minLength": 1,
-            "title": "Url",
-            "type": "string"
-          },
-          "width": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Width"
-          }
-        },
-        "required": [
-          "url"
-        ],
-        "title": "RawNasaImage",
-        "type": "object"
-      },
-      "RawNasaItem": {
-        "additionalProperties": false,
-        "description": "Typed compatibility contract emitted by the NASA RSS connector adapter.",
-        "properties": {
-          "article_id": {
-            "minLength": 1,
-            "title": "Article Id",
-            "type": "string"
-          },
-          "author": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Author"
-          },
-          "body": {
-            "minLength": 1,
-            "title": "Body",
-            "type": "string"
-          },
-          "categories": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "maxItems": 100,
-            "title": "Categories",
-            "type": "array"
-          },
-          "language": {
-            "default": "en-US",
-            "minLength": 1,
-            "title": "Language",
-            "type": "string"
-          },
-          "media": {
-            "items": {
-              "discriminator": {
-                "mapping": {
-                  "image": "#/components/schemas/RawNasaImage",
-                  "video": "#/components/schemas/RawNasaVideo"
-                },
-                "propertyName": "kind"
-              },
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/RawNasaImage"
-                },
-                {
-                  "$ref": "#/components/schemas/RawNasaVideo"
-                }
-              ]
-            },
-            "maxItems": 100,
-            "title": "Media",
-            "type": "array"
-          },
-          "published_at": {
-            "format": "date-time",
-            "title": "Published At",
-            "type": "string"
-          },
-          "publisher": {
-            "default": "NASA",
-            "minLength": 1,
-            "title": "Publisher",
-            "type": "string"
-          },
-          "rights": {
-            "$ref": "#/components/schemas/RawRightsDeclaration"
-          },
-          "source": {
-            "const": "nasa",
-            "default": "nasa",
-            "title": "Source",
-            "type": "string"
-          },
-          "title": {
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          },
-          "url": {
-            "format": "uri",
-            "minLength": 1,
-            "title": "Url",
-            "type": "string"
-          }
-        },
-        "required": [
-          "article_id",
-          "url",
-          "title",
-          "body",
-          "published_at"
-        ],
-        "title": "RawNasaItem",
-        "type": "object"
-      },
-      "RawNasaVideo": {
-        "additionalProperties": false,
-        "properties": {
-          "caption": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Caption"
-          },
-          "credit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Credit"
-          },
-          "duration_ms": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duration Ms"
-          },
-          "kind": {
-            "const": "video",
-            "default": "video",
-            "title": "Kind",
-            "type": "string"
-          },
-          "poster_url": {
-            "anyOf": [
-              {
-                "format": "uri",
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Poster Url"
-          },
-          "url": {
-            "format": "uri",
-            "minLength": 1,
-            "title": "Url",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url"
-        ],
-        "title": "RawNasaVideo",
-        "type": "object"
-      },
       "RawPikabuItem": {
         "additionalProperties": false,
         "properties": {
@@ -7591,6 +7363,80 @@
         "title": "RoleVisualAssets",
         "type": "object"
       },
+      "RuntimeAction": {
+        "enum": [
+          "restart",
+          "shutdown"
+        ],
+        "title": "RuntimeAction",
+        "type": "string"
+      },
+      "RuntimeCommandReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "title": "Accepted At",
+            "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/RuntimeAction"
+          },
+          "command_id": {
+            "format": "uuid",
+            "title": "Command Id",
+            "type": "string"
+          },
+          "process_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Process Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "command_id",
+          "action",
+          "accepted_at",
+          "process_id"
+        ],
+        "title": "RuntimeCommandReceipt",
+        "type": "object"
+      },
+      "RuntimeControlStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "pending_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "process_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Process Id",
+            "type": "integer"
+          },
+          "supervised": {
+            "title": "Supervised",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "supervised",
+          "process_id"
+        ],
+        "title": "RuntimeControlStatus",
+        "type": "object"
+      },
       "SceneTransition": {
         "description": "Outgoing visual transition requested for a narration segment.",
         "enum": [
@@ -8228,8 +8074,8 @@
             "items": {
               "$ref": "#/components/schemas/SourceHealth"
             },
-            "maxItems": 5,
-            "minItems": 5,
+            "maxItems": 4,
+            "minItems": 4,
             "title": "Sources",
             "type": "array"
           }
@@ -8254,7 +8100,6 @@
               "mapping": {
                 "dazhong": "#/components/schemas/RawDazhongItem",
                 "guardian": "#/components/schemas/RawGuardianItem",
-                "nasa": "#/components/schemas/RawNasaItem",
                 "pikabu": "#/components/schemas/RawPikabuItem",
                 "reddit": "#/components/schemas/RawRedditItem"
               },
@@ -8272,9 +8117,6 @@
               },
               {
                 "$ref": "#/components/schemas/RawPikabuItem"
-              },
-              {
-                "$ref": "#/components/schemas/RawNasaItem"
               }
             ],
             "title": "Item"
@@ -8852,8 +8694,8 @@
             "items": {
               "$ref": "#/components/schemas/CollectorReadiness"
             },
-            "maxItems": 5,
-            "minItems": 5,
+            "maxItems": 4,
+            "minItems": 4,
             "title": "Collectors",
             "type": "array"
           }
@@ -9317,6 +9159,83 @@
           "expected_script_revision"
         ],
         "title": "StageCommonsVisualRequest",
+        "type": "object"
+      },
+      "StartSourceRunRequest": {
+        "additionalProperties": false,
+        "description": "New runs are restricted to adapters that are currently supported.",
+        "properties": {
+          "emotion": {
+            "$ref": "#/components/schemas/SpeechEmotion",
+            "default": "happiness"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "pitch": {
+            "default": 0.0,
+            "maximum": 12.0,
+            "minimum": -12.0,
+            "title": "Pitch",
+            "type": "number"
+          },
+          "requested_by": {
+            "minLength": 1,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "dazhong",
+              "reddit",
+              "guardian",
+              "pikabu"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "speaker_id": {
+            "default": "narrator",
+            "minLength": 1,
+            "title": "Speaker Id",
+            "type": "string"
+          },
+          "speed": {
+            "default": 1.0,
+            "maximum": 1.65,
+            "minimum": 0.6,
+            "title": "Speed",
+            "type": "number"
+          },
+          "style": {
+            "default": "clear, accurate short-video narration",
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "target_duration_seconds": {
+            "default": 20,
+            "maximum": 600.0,
+            "minimum": 5.0,
+            "title": "Target Duration Seconds",
+            "type": "integer"
+          },
+          "target_language": {
+            "default": "zh-CN",
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "requested_by"
+        ],
+        "title": "StartSourceRunRequest",
         "type": "object"
       },
       "StartSourceTranscriptionRequest": {
@@ -12636,7 +12555,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SourceRunRequest"
+                "$ref": "#/components/schemas/StartSourceRunRequest"
               }
             }
           },
@@ -13324,8 +13243,7 @@
                 "dazhong",
                 "reddit",
                 "guardian",
-                "pikabu",
-                "nasa"
+                "pikabu"
               ],
               "title": "Source",
               "type": "string"
@@ -16307,6 +16225,128 @@
         "summary": "List Story Visual Discovery Assets",
         "tags": [
           "visual-discovery"
+        ]
+      }
+    },
+    "/api/v1/system/runtime": {
+      "get": {
+        "operationId": "getRuntimeControlStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeControlStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Runtime Control Status",
+        "tags": [
+          "runtime"
+        ]
+      }
+    },
+    "/api/v1/system/runtime/{action}": {
+      "post": {
+        "operationId": "requestRuntimeAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RuntimeAction"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeCommandReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Request Runtime Action",
+        "tags": [
+          "runtime"
         ]
       }
     },

@@ -15,6 +15,7 @@ import {Link} from 'react-router-dom';
 
 import {
   archiveMediaCatalogAsset,
+  listStories,
   listMediaCatalogAssets,
   mediaCatalogAssetContentUrl,
   restoreMediaCatalogAsset,
@@ -70,6 +71,10 @@ function AssetCard({
   const usageLabel = usages.length === 0
     ? '尚未使用'
     : `${usages.length} 条使用记录`;
+  const groupedStoryReferences = asset.story_references ?? [];
+  const storyReferences = groupedStoryReferences.length > 0
+    ? groupedStoryReferences
+    : [asset.story_id];
   const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : null;
   const duration = formatDuration(asset.duration_ms);
   return (
@@ -113,6 +118,10 @@ function AssetCard({
           <li>{formatBytes(asset.size_bytes)}</li>
           <li>{asset.license_label || '项目内来源证据'}</li>
           <li>{EDITORIAL_LABELS[asset.editorial_state] || asset.editorial_state}</li>
+          {(asset.content_occurrence_count ?? 1) > 1 ? (
+            <li>{asset.content_occurrence_count} 个相同目录绑定</li>
+          ) : null}
+          <li>{storyReferences.length} 个故事引用</li>
         </ul>
         <details className="asset-usage-details">
           <summary>{usageLabel}</summary>
@@ -143,7 +152,7 @@ function AssetCard({
               原始来源 <ExternalLink size={14} aria-hidden="true" />
             </a>
           )}
-          <Link className="button secondary" to={`/stories/${asset.story_id}`}>
+          <Link className="button secondary" to={`/stories/${storyReferences[0]}`}>
             故事工作台
           </Link>
           <button
@@ -170,6 +179,7 @@ export function VisualAssetsPage() {
   const [source, setSource] = useState<SourceFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>('active');
+  const [storyReference, setStoryReference] = useState('all');
   const [pendingAsset, setPendingAsset] = useState<MediaCatalogEntry | null>(null);
   const [reason, setReason] = useState('');
   const params = useMemo(() => ({
@@ -177,8 +187,9 @@ export function VisualAssetsPage() {
     source_kind: source === 'all' ? undefined : source,
     media_kind: kind === 'all' ? undefined : kind,
     lifecycle: lifecycle === 'all' ? undefined : lifecycle,
+    story_id: storyReference === 'all' ? undefined : storyReference,
     limit: 200,
-  }), [kind, lifecycle, search, source]);
+  }), [kind, lifecycle, search, source, storyReference]);
   const catalogQuery = useQuery({
     queryKey: [...queryKeys.mediaCatalog(), params],
     queryFn: () => listMediaCatalogAssets(params),
@@ -200,6 +211,10 @@ export function VisualAssetsPage() {
       await queryClient.invalidateQueries({queryKey: queryKeys.mediaCatalog()});
     },
   });
+  const storiesQuery = useQuery({
+    queryKey: queryKeys.stories(),
+    queryFn: () => listStories(),
+  });
   const items = catalogQuery.data?.items ?? [];
   const selectableCount = items.filter((item) => item.selectable).length;
   const archivedCount = items.filter((item) => item.lifecycle === 'archived').length;
@@ -215,78 +230,113 @@ export function VisualAssetsPage() {
         </div>
       </div>
 
-      <div className="library-toolbar">
-        <label className="search-control library-search">
-          <Search size={16} aria-hidden="true" />
-          <input
-            className="input"
-            type="search"
-            placeholder="搜索文件、作者、许可或来源"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            aria-label="搜索画面素材"
-          />
-        </label>
-        <label className="field">
-          <span>来源</span>
-          <select className="select" value={source} onChange={(event) => setSource(event.target.value as SourceFilter)}>
-            <option value="all">全部来源</option>
-            <option value="visual_asset">编辑上传 / 网页截图</option>
-            <option value="visual_discovery">Commons</option>
-            <option value="source_media">来源视频</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>媒介</span>
-          <select className="select" value={kind} onChange={(event) => setKind(event.target.value as KindFilter)}>
-            <option value="all">图片与视频</option>
-            <option value="image">图片</option>
-            <option value="video">视频</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>生命周期</span>
-          <select className="select" value={lifecycle} onChange={(event) => setLifecycle(event.target.value as LifecycleFilter)}>
-            <option value="active">使用中</option>
-            <option value="archived">已归档</option>
-            <option value="all">全部</option>
-          </select>
-        </label>
-      </div>
-
       {error === null ? null : <ApiErrorNotice error={error} />}
-      {catalogQuery.isLoading ? (
-        <div className="asset-library-grid" aria-label="正在加载画面素材">
-          {[0, 1, 2].map((item) => <div className="library-asset-card skeleton-card" key={item} />)}
-        </div>
-      ) : items.length === 0 ? (
-        <div className="empty-state">
-          <Library size={28} aria-hidden="true" />
-          <h2>没有符合条件的素材</h2>
-          <p>调整筛选条件，或在故事工作台上传画面、审核 Commons 素材、采集来源视频。</p>
-        </div>
-      ) : (
-        <>
-          <div className="library-summary" aria-live="polite">
-            <strong>{catalogQuery.data?.total ?? items.length}</strong> 个目录项
-            <span>{selectableCount} 个可进入新制作</span>
-            <span>{archivedCount} 个已归档</span>
+      <div className="library-layout">
+        <aside className="library-filter-rail" aria-label="素材筛选">
+          <div>
+            <p className="eyebrow">FILTER</p>
+            <h2>筛选素材</h2>
           </div>
-          <div className="asset-library-grid">
-            {items.map((asset) => (
-              <AssetCard
-                asset={asset}
-                busy={lifecycleMutation.isPending}
-                key={asset.catalog_id}
-                onLifecycleChange={(item) => {
-                  setPendingAsset(item);
-                  setReason('');
-                }}
-              />
-            ))}
-          </div>
-        </>
-      )}
+          <label className="search-control library-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type="search"
+              placeholder="文件、作者、许可或来源"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="搜索画面素材"
+            />
+          </label>
+          <label className="field">
+            <span>故事引用</span>
+            <select className="select" value={storyReference} onChange={(event) => setStoryReference(event.target.value)}>
+              <option value="all">全部故事</option>
+              {(storiesQuery.data ?? []).filter(
+                (story): story is typeof story & {story_id: string} => story.story_id !== undefined,
+              ).map((story) => (
+                <option key={story.story_id} value={story.story_id}>
+                  {story.title || story.source.title || '未命名故事'}
+                  {' · '}
+                  {story.story_id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>来源</span>
+            <select className="select" value={source} onChange={(event) => setSource(event.target.value as SourceFilter)}>
+              <option value="all">全部来源</option>
+              <option value="visual_asset">编辑上传 / 网页截图</option>
+              <option value="visual_discovery">Commons</option>
+              <option value="source_media">来源视频</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>媒介</span>
+            <select className="select" value={kind} onChange={(event) => setKind(event.target.value as KindFilter)}>
+              <option value="all">图片与视频</option>
+              <option value="image">图片</option>
+              <option value="video">视频</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>生命周期</span>
+            <select className="select" value={lifecycle} onChange={(event) => setLifecycle(event.target.value as LifecycleFilter)}>
+              <option value="active">使用中</option>
+              <option value="archived">已归档</option>
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <button
+            className="button ghost"
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setSource('all');
+              setKind('all');
+              setLifecycle('active');
+              setStoryReference('all');
+            }}
+          >
+            重置筛选
+          </button>
+        </aside>
+        <section className="library-results" aria-label="素材结果">
+          {catalogQuery.isLoading ? (
+            <div className="asset-library-grid" aria-label="正在加载画面素材">
+              {[0, 1, 2].map((item) => <div className="library-asset-card skeleton-card" key={item} />)}
+            </div>
+          ) : items.length === 0 ? (
+            <div className="empty-state">
+              <Library size={28} aria-hidden="true" />
+              <h2>没有符合条件的素材</h2>
+              <p>调整筛选条件，或在故事工作台上传画面、审核 Commons 素材、采集来源视频。</p>
+            </div>
+          ) : (
+            <>
+              <div className="library-summary" aria-live="polite">
+                <strong>{catalogQuery.data?.total ?? items.length}</strong> 个唯一素材
+                <span>{selectableCount} 个可进入新制作</span>
+                <span>{archivedCount} 个已归档</span>
+              </div>
+              <div className="asset-library-grid">
+                {items.map((asset) => (
+                  <AssetCard
+                    asset={asset}
+                    busy={lifecycleMutation.isPending}
+                    key={asset.catalog_id}
+                    onLifecycleChange={(item) => {
+                      setPendingAsset(item);
+                      setReason('');
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
 
       <ModalDialog
         open={pendingAsset !== null}

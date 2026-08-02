@@ -11,6 +11,7 @@ import pytest
 
 from god_news.api.app import create_app
 from god_news.application.source_media import SourceMediaService
+from god_news.demo.adapters import InMemoryStoryRepository
 from god_news.domain.enums import StoryStatus
 from god_news.domain.models import (
     FetchedDocument,
@@ -31,7 +32,6 @@ from god_news.infrastructure.source_media_repository import SqlAlchemySourceMedi
 from god_news.infrastructure.source_media_store import LocalSourceMediaStore
 from god_news.sources.models import parse_raw_source_json
 from god_news.sources.registry import create_default_source_registry
-from god_news.testing.fakes import InMemoryStoryRepository
 
 from .conftest import Stack
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from pathlib import Path
 from uuid import UUID
 
@@ -40,16 +41,23 @@ class MediaCatalogService:
         offset: int,
     ) -> MediaCatalogPage:
         normalized = (search or "").strip().casefold()
-        items = [
+        source_filtered = [
             item
             for item in await self._repository.list_entries()
             if (source_kind is None or item.source_kind is source_kind)
             and (media_kind is None or item.media_kind is media_kind)
             and (lifecycle is None or item.lifecycle is lifecycle)
-            and (story_id is None or item.story_id == story_id)
             and (
                 publish_eligible is None
                 or item.publish_eligible is publish_eligible
+            )
+        ]
+        items = [
+            item
+            for item in self._group_by_content(source_filtered)
+            if (
+                story_id is None
+                or story_id in item.story_references
             )
             and (
                 not normalized
@@ -71,6 +79,71 @@ class MediaCatalogService:
             limit=limit,
             offset=offset,
         )
+
+    @staticmethod
+    def _group_by_content(
+        entries: builtins.list[MediaCatalogEntry],
+    ) -> builtins.list[MediaCatalogEntry]:
+        groups: dict[str, builtins.list[MediaCatalogEntry]] = {}
+        for entry in entries:
+            key = (
+                f"{entry.media_kind.value}:{entry.sha256}"
+                if entry.sha256 is not None
+                else entry.catalog_id
+            )
+            groups.setdefault(key, []).append(entry)
+
+        grouped: builtins.list[MediaCatalogEntry] = []
+        for members in groups.values():
+            representative = min(
+                members,
+                key=lambda item: (
+                    not item.has_local_content,
+                    item.lifecycle is MediaCatalogLifecycle.ARCHIVED,
+                    item.catalog_id,
+                ),
+            )
+            usages = {
+                (
+                    usage.purpose,
+                    usage.state,
+                    usage.story_id,
+                    usage.segment_id,
+                    usage.script_revision,
+                    usage.batch_id,
+                    usage.scene_sequence,
+                    usage.batch_version,
+                    usage.render_input_sha256,
+                ): usage
+                for member in members
+                for usage in member.usages
+            }
+            story_references = sorted(
+                {
+                    member.story_id
+                    for member in members
+                }
+                | {usage.story_id for usage in usages.values()},
+                key=str,
+            )
+            grouped.append(
+                representative.model_copy(
+                    update={
+                        "member_catalog_ids": sorted(
+                            (member.catalog_id for member in members),
+                        ),
+                        "story_references": story_references,
+                        "content_occurrence_count": len(members),
+                        "usages": list(usages.values())[:100],
+                        "selectable": any(member.selectable for member in members),
+                        "publish_eligible": any(
+                            member.publish_eligible for member in members
+                        ),
+                        "reusable": any(member.reusable for member in members),
+                    }
+                )
+            )
+        return sorted(grouped, key=lambda item: (item.filename.casefold(), item.catalog_id))
 
     async def get(self, catalog_id: str) -> MediaCatalogEntry:
         return await self._repository.get_entry(catalog_id)

@@ -1,4 +1,4 @@
-"""Deterministic video adapters for tests and offline workflow verification."""
+"""Deterministic video adapters used only by the Python test suite."""
 
 from __future__ import annotations
 

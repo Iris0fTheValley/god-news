@@ -5,6 +5,7 @@ import {Link, Navigate, Route, Routes, useLocation, useNavigate} from 'react-rou
 
 import {getReadiness} from '../api/client';
 import {KeyboardShortcuts} from '../components/KeyboardShortcuts';
+import {RuntimeControls} from '../components/RuntimeControls';
 import {ToastProvider} from '../components/Toast';
 import {BgmPage} from '../features/bgm/BgmPage';
 import {VisualAssetsPage} from '../features/library/VisualAssetsPage';
@@ -19,9 +20,10 @@ import {VideoBatchesPage} from '../features/video/VideoBatchesPage';
 import {VisualModulesPage} from '../features/visual-modules/VisualModulesPage';
 import {queryKeys} from '../api/queryKeys';
 import {
-  NAVIGATION_GROUPS,
   NAVIGATION_ITEMS,
+  NAVIGATION_SECTIONS,
   navigationItemForPath,
+  navigationSectionForPath,
 } from './navigation';
 
 function NavigationLink({
@@ -38,7 +40,9 @@ function NavigationLink({
     <Link
       className={active ? 'side-nav-link active' : 'side-nav-link'}
       to={item.to}
+      aria-label={`${item.label}：${item.description}`}
       aria-current={active ? 'page' : undefined}
+      title={item.label}
       onClick={onNavigate}
     >
       <item.icon size={18} aria-hidden="true" />
@@ -71,6 +75,8 @@ function Shell() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const currentItem = navigationItemForPath(location.pathname);
+  const currentSection = navigationSectionForPath(location.pathname);
+  const currentGroup = currentSection.groups.find((group) => group.items.includes(currentItem));
   const readiness = useQuery({
     queryKey: queryKeys.readiness,
     queryFn: getReadiness,
@@ -136,8 +142,8 @@ function Shell() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <aside className={mobileNavOpen ? 'side-rail open' : 'side-rail'} aria-label="主导航">
-        <div className="side-rail-brand">
+      <header className="top-rail">
+        <div className="top-rail-inner">
           <Link className="brand" to="/stories" aria-label="god-news 故事制作台">
             <span className="brand-mark" aria-hidden="true">
               <Radio size={20} strokeWidth={2.2} />
@@ -147,31 +153,28 @@ function Shell() {
               <small>好消息节目制作台</small>
             </span>
           </Link>
-          <button
-            className="icon-button side-rail-close"
-            type="button"
-            aria-label="关闭导航"
-            onClick={() => setMobileNavOpen(false)}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-        <nav className="side-navigation">
-          {NAVIGATION_GROUPS.map((group) => (
-            <section className="side-nav-group" key={group.label}>
-              <h2>{group.label}</h2>
-              {group.items.map((item) => (
-                <NavigationLink
-                  key={item.to}
-                  item={item}
-                  pathname={location.pathname}
-                  onNavigate={() => setMobileNavOpen(false)}
-                />
-              ))}
-            </section>
-          ))}
-        </nav>
-        <div className="side-rail-footer">
+          <nav className="top-navigation" aria-label="一级导航">
+            {NAVIGATION_SECTIONS.map((section) => {
+              const active = section.id === currentSection.id;
+              const destination = section.groups[0]?.items[0]?.to ?? '/stories';
+              return (
+                <Link
+                  className={active ? 'top-section-link active' : 'top-section-link'}
+                  key={section.id}
+                  to={destination}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  <section.icon size={16} aria-hidden="true" />
+                  <span>
+                    <strong>{section.label}</strong>
+                    <small>{section.description}</small>
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="top-rail-actions">
           <Link
             className={`system-readiness ${systemState.tone}`}
             to="/collection/sources"
@@ -179,48 +182,71 @@ function Shell() {
           >
             <span aria-hidden="true" />
             <strong>{systemState.label}</strong>
-            <small>
-              {readiness.data?.checks.length ?? 0} 项检查
-            </small>
           </Link>
+          <RuntimeControls />
           <button
-            className="shortcut-trigger"
+            className="icon-button mobile-nav-trigger"
             type="button"
+            aria-label={mobileNavOpen ? '关闭侧边导航' : '打开侧边导航'}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((open) => !open)}
+          >
+            {mobileNavOpen
+              ? <X size={18} aria-hidden="true" />
+              : <Menu size={18} aria-hidden="true" />}
+          </button>
+          <button
+            className="icon-button shortcut-trigger"
+            type="button"
+            aria-label="查看快捷键"
+            title="快捷键"
             onClick={() => setShortcutsOpen(true)}
           >
             <Keyboard size={15} aria-hidden="true" />
-            快捷键
-            <kbd>?</kbd>
           </button>
+          </div>
         </div>
-      </aside>
+      </header>
+      <div className="shell-body">
+        <aside
+          className={mobileNavOpen ? 'section-sidebar open' : 'section-sidebar'}
+          aria-label={`${currentSection.label}侧边导航`}
+        >
+          <div className="section-sidebar-heading">
+            <span>{currentSection.label}</span>
+            <strong>{currentSection.description}</strong>
+          </div>
+          <nav className="side-navigation">
+            {currentSection.groups.map((group) => (
+              <section className="side-nav-group" key={group.label}>
+                <h2>{group.label}</h2>
+                {group.items.map((item) => (
+                  <NavigationLink
+                    key={item.to}
+                    item={item}
+                    pathname={location.pathname}
+                    onNavigate={() => setMobileNavOpen(false)}
+                  />
+                ))}
+              </section>
+            ))}
+          </nav>
+        </aside>
       {mobileNavOpen ? (
         <button
           className="nav-backdrop"
           type="button"
-          aria-label="关闭导航"
+          aria-label="关闭侧边导航"
           onClick={() => setMobileNavOpen(false)}
         />
       ) : null}
       <div className="app-workspace">
         <header className="workspace-bar">
-          <button
-            className="icon-button mobile-nav-trigger"
-            type="button"
-            aria-label="打开导航"
-            aria-expanded={mobileNavOpen}
-            onClick={() => setMobileNavOpen(true)}
-          >
-            <Menu size={19} aria-hidden="true" />
-          </button>
           <div>
-            <span>{NAVIGATION_GROUPS.find((group) => group.items.includes(currentItem))?.label}</span>
+            <span>{currentGroup?.label}</span>
             <strong>{currentItem.label}</strong>
           </div>
-          <div className={`workspace-health ${systemState.tone}`} role="status">
-            <span aria-hidden="true" />
-            {systemState.label}
-          </div>
+          <span className="workspace-context">{currentItem.description}</span>
         </header>
         <main id="main-content" tabIndex={-1}>
           <Routes>
@@ -246,6 +272,7 @@ function Shell() {
             <Route path="*" element={<Navigate replace to="/stories" />} />
           </Routes>
         </main>
+      </div>
       </div>
       <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>

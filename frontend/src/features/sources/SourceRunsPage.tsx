@@ -13,7 +13,11 @@ import {
   stopSourceSchedule,
 } from '../../api/client';
 import {queryKeys} from '../../api/queryKeys';
-import type {SourceRun, SourceRunRequest, SourceRunStatus} from '../../api/types';
+import type {
+  SourceRun,
+  SourceRunStatus,
+  StartSourceRunRequest,
+} from '../../api/types';
 import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {EmptyState} from '../../components/EmptyState';
@@ -43,9 +47,9 @@ function formatElapsed(startedAt?: string | null, finishedAt?: string | null): s
   return Number.isFinite(elapsed) && elapsed >= 0 ? `${(elapsed / 1000).toFixed(1)}s` : '—';
 }
 
-function initialRequest(): SourceRunRequest {
+function initialRequest(): StartSourceRunRequest {
   return {
-    source: 'nasa',
+    source: 'guardian',
     limit: 10,
     target_language: 'zh-CN',
     style: 'clear, accurate short-video narration',
@@ -190,7 +194,7 @@ export function SourceRunsPage() {
     }, {replace: true});
   };
   const [startOpen, setStartOpen] = useState(false);
-  const [request, setRequest] = useState<SourceRunRequest>(initialRequest);
+  const [request, setRequest] = useState<StartSourceRunRequest>(initialRequest);
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
   const listQuery = useQuery({
@@ -332,7 +336,7 @@ export function SourceRunsPage() {
         <ModalDialog open className="create-drawer" labelledBy="start-collection-heading" onClose={() => setStartOpen(false)}>
           <div className="panel-header"><div><p className="eyebrow">START COLLECTION</p><h2 id="start-collection-heading">开始采集</h2></div><button className="icon-button" type="button" onClick={() => setStartOpen(false)} aria-label="关闭">✕</button></div>
           <form className="panel-body form-grid" onSubmit={(event) => { event.preventDefault(); startMutation.mutate(request); }}>
-            <label className="field"><span>来源</span><select className="select" value={request.source} onChange={(event) => setRequest({...request, source: event.target.value as SourceRunRequest['source']})}><option value="nasa">NASA Official RSS</option><option value="guardian">Guardian</option><option value="reddit">Reddit</option><option value="dazhong">大众网</option><option value="pikabu">Pikabu</option></select></label>
+            <label className="field"><span>来源</span><select className="select" value={request.source} onChange={(event) => setRequest({...request, source: event.target.value as StartSourceRunRequest['source']})}><option value="guardian">Guardian</option><option value="reddit">Reddit</option><option value="dazhong">大众新闻</option><option value="pikabu">Pikabu</option></select></label>
             <label className="field"><span>条数上限</span><input className="input" type="number" min={1} max={50} required value={Number.isFinite(request.limit) ? request.limit : ''} onChange={(event) => setRequest({...request, limit: event.target.valueAsNumber})} onBlur={() => { if (!Number.isFinite(request.limit)) setRequest({...request, limit: 10}); }} /></label>
             <label className="field"><span>目标语言</span><input className="input" value={request.target_language} onChange={(event) => setRequest({...request, target_language: event.target.value})} /></label>
             <label className="field"><span>请求人</span><input className="input" value={request.requested_by} onChange={(event) => setRequest({...request, requested_by: event.target.value})} /></label>

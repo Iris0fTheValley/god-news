@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from god_news.demo.adapters import InMemoryStoryRepository
 from god_news.domain.enums import StoryStatus
 from god_news.domain.fsm import transition_story
 from god_news.domain.models import utc_now
@@ -14,7 +15,6 @@ from god_news.domain.visual_discovery import (
     VisualDiscoveryStatus,
 )
 from god_news.infrastructure.video_broll_assets import ApprovedVisualDiscoveryBrollLibrary
-from god_news.testing.fakes import InMemoryStoryRepository
 
 from .test_fsm import make_artifacts, make_story
 

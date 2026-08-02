@@ -10,6 +10,7 @@ import pytest
 
 from god_news.api.app import create_app
 from god_news.application.visual_assets import VisualAssetService
+from god_news.demo.adapters import InMemoryStoryRepository
 from god_news.domain.enums import ReviewDecision, SourceKind, StoryStatus
 from god_news.domain.fsm import transition_story
 from god_news.domain.models import (
@@ -37,7 +38,6 @@ from god_news.infrastructure.database import Database
 from god_news.infrastructure.repositories import SqlAlchemyStoryRepository
 from god_news.infrastructure.visual_asset_store import LocalVisualAssetStore
 from god_news.infrastructure.visual_repository import SqlAlchemyVisualAssetRepository
-from god_news.testing.fakes import InMemoryStoryRepository
 
 from .conftest import Stack
 from .test_fsm import make_artifacts, make_story

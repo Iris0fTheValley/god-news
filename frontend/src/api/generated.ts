@@ -804,6 +804,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runtime Control Status */
+        get: operations["getRuntimeControlStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/runtime/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Runtime Action */
+        post: operations["requestRuntimeAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/video/batches": {
         parameters: {
             query?: never;
@@ -2259,6 +2293,11 @@ export interface components {
             attribution?: string | null;
             /** Catalog Id */
             catalog_id: string;
+            /**
+             * Content Occurrence Count
+             * @default 1
+             */
+            content_occurrence_count: number;
             /** Duration Ms */
             duration_ms?: number | null;
             /** Editorial State */
@@ -2277,6 +2316,8 @@ export interface components {
             /** Lifecycle Version */
             lifecycle_version: number;
             media_kind: components["schemas"]["MediaCatalogKind"];
+            /** Member Catalog Ids */
+            member_catalog_ids?: string[];
             /** Mime Type */
             mime_type: string;
             /** Publish Eligible */
@@ -2306,6 +2347,8 @@ export interface components {
              * Format: uuid
              */
             story_id: string;
+            /** Story References */
+            story_references?: string[];
             /** Usages */
             usages?: components["schemas"]["MediaAssetUsage"][];
             /** Width */
@@ -2371,7 +2414,10 @@ export interface components {
          * @enum {string}
          */
         NarrationReviewDecision: "approve" | "revise" | "reject";
-        /** NasaSourceFields */
+        /**
+         * NasaSourceFields
+         * @description Legacy provenance retained solely for historical record compatibility.
+         */
         NasaSourceFields: {
             /** Article Id */
             article_id: string;
@@ -3297,98 +3343,6 @@ export interface components {
              */
             url: string;
         };
-        /** RawNasaImage */
-        RawNasaImage: {
-            /** Alt Text */
-            alt_text?: string | null;
-            /** Credit */
-            credit?: string | null;
-            /** Height */
-            height?: number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "image";
-            /**
-             * Role
-             * @default body
-             * @enum {string}
-             */
-            role: "main" | "body" | "thumbnail";
-            /**
-             * Url
-             * Format: uri
-             */
-            url: string;
-            /** Width */
-            width?: number | null;
-        };
-        /**
-         * RawNasaItem
-         * @description Typed compatibility contract emitted by the NASA RSS connector adapter.
-         */
-        RawNasaItem: {
-            /** Article Id */
-            article_id: string;
-            /** Author */
-            author?: string | null;
-            /** Body */
-            body: string;
-            /** Categories */
-            categories?: string[];
-            /**
-             * Language
-             * @default en-US
-             */
-            language: string;
-            /** Media */
-            media?: (components["schemas"]["RawNasaImage"] | components["schemas"]["RawNasaVideo"])[];
-            /**
-             * Published At
-             * Format: date-time
-             */
-            published_at: string;
-            /**
-             * Publisher
-             * @default NASA
-             */
-            publisher: string;
-            rights?: components["schemas"]["RawRightsDeclaration"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            source: "nasa";
-            /** Title */
-            title: string;
-            /**
-             * Url
-             * Format: uri
-             */
-            url: string;
-        };
-        /** RawNasaVideo */
-        RawNasaVideo: {
-            /** Caption */
-            caption?: string | null;
-            /** Credit */
-            credit?: string | null;
-            /** Duration Ms */
-            duration_ms?: number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "video";
-            /** Poster Url */
-            poster_url?: string | null;
-            /**
-             * Url
-             * Format: uri
-             */
-            url: string;
-        };
         /** RawPikabuItem */
         RawPikabuItem: {
             /** Author Username */
@@ -3997,6 +3951,37 @@ export interface components {
             live2d_asset_ref?: string | null;
         };
         /**
+         * RuntimeAction
+         * @enum {string}
+         */
+        RuntimeAction: "restart" | "shutdown";
+        /** RuntimeCommandReceipt */
+        RuntimeCommandReceipt: {
+            /**
+             * Accepted At
+             * Format: date-time
+             */
+            accepted_at: string;
+            action: components["schemas"]["RuntimeAction"];
+            /**
+             * Command Id
+             * Format: uuid
+             */
+            command_id: string;
+            /** Process Id */
+            process_id: number;
+        };
+        /** RuntimeControlStatus */
+        RuntimeControlStatus: {
+            /** Enabled */
+            enabled: boolean;
+            pending_action?: components["schemas"]["RuntimeAction"] | null;
+            /** Process Id */
+            process_id: number;
+            /** Supervised */
+            supervised: boolean;
+        };
+        /**
          * SceneTransition
          * @description Outgoing visual transition requested for a narration segment.
          * @enum {string}
@@ -4250,7 +4235,7 @@ export interface components {
             /** @default happiness */
             emotion: components["schemas"]["SpeechEmotion"];
             /** Item */
-            item: components["schemas"]["RawDazhongItem"] | components["schemas"]["RawRedditItem"] | components["schemas"]["RawGuardianItem"] | components["schemas"]["RawPikabuItem"] | components["schemas"]["RawNasaItem"];
+            item: components["schemas"]["RawDazhongItem"] | components["schemas"]["RawRedditItem"] | components["schemas"]["RawGuardianItem"] | components["schemas"]["RawPikabuItem"];
             /**
              * Pitch
              * @default 0
@@ -4673,6 +4658,56 @@ export interface components {
              * Format: uuid
              */
             story_id: string;
+        };
+        /**
+         * StartSourceRunRequest
+         * @description New runs are restricted to adapters that are currently supported.
+         */
+        StartSourceRunRequest: {
+            /** @default happiness */
+            emotion: components["schemas"]["SpeechEmotion"];
+            /**
+             * Limit
+             * @default 10
+             */
+            limit: number;
+            /**
+             * Pitch
+             * @default 0
+             */
+            pitch: number;
+            /** Requested By */
+            requested_by: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "dazhong" | "reddit" | "guardian" | "pikabu";
+            /**
+             * Speaker Id
+             * @default narrator
+             */
+            speaker_id: string;
+            /**
+             * Speed
+             * @default 1
+             */
+            speed: number;
+            /**
+             * Style
+             * @default clear, accurate short-video narration
+             */
+            style: string;
+            /**
+             * Target Duration Seconds
+             * @default 20
+             */
+            target_duration_seconds: number;
+            /**
+             * Target Language
+             * @default zh-CN
+             */
+            target_language: string;
         };
         /** StartSourceTranscriptionRequest */
         StartSourceTranscriptionRequest: {
@@ -6465,7 +6500,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SourceRunRequest"];
+                "application/json": components["schemas"]["StartSourceRunRequest"];
             };
         };
         responses: {
@@ -7042,7 +7077,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                source: "dazhong" | "reddit" | "guardian" | "pikabu" | "nasa";
+                source: "dazhong" | "reddit" | "guardian" | "pikabu";
             };
             cookie?: never;
         };
@@ -9269,6 +9304,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    getRuntimeControlStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeControlStatus"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    requestRuntimeAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: components["schemas"]["RuntimeAction"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeCommandReceipt"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Service Unavailable */

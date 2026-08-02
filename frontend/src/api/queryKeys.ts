@@ -1,5 +1,6 @@
 export const queryKeys = {
   readiness: ['health', 'readiness'] as const,
+  runtimeControl: ['system', 'runtime-control'] as const,
   stories: (status?: string) => (
     status === undefined ? ['stories'] as const : ['stories', {status}] as const
   ),

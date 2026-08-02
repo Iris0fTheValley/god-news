@@ -1,4 +1,5 @@
-import {fireEvent, screen, within} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {useLocation} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -7,6 +8,8 @@ import {renderWithApp} from '@test/render';
 
 const apiMocks = vi.hoisted(() => ({
   getReadiness: vi.fn(),
+  getRuntimeControlStatus: vi.fn(),
+  requestRuntimeAction: vi.fn(),
 }));
 
 vi.mock('@/api/client', () => apiMocks);
@@ -56,24 +59,35 @@ describe('App shell', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.getReadiness.mockResolvedValue({ready: true, checks: []});
+    apiMocks.getRuntimeControlStatus.mockResolvedValue({
+      enabled: true,
+      supervised: true,
+      process_id: 1234,
+      pending_action: null,
+    });
     Object.defineProperty(window, 'scrollTo', {
       configurable: true,
       value: vi.fn(),
     });
   });
 
-  it('renders grouped navigation and redirects legacy routes to their new owner', async () => {
+  it('renders two primary sections with contextual side navigation', async () => {
     renderWithApp(<App />, ['/template-lab?fixture=host-volunteers&host=1']);
 
     expect(
       await screen.findByText('scene-lab-page?fixture=host-volunteers&host=1'),
     ).toBeVisible();
-    const navigation = screen.getByLabelText('主导航');
-    for (const heading of ['编辑流程', '采集', '节目制作', '资源库', '视觉系统', '系统']) {
-      expect(within(navigation).getByRole('heading', {name: heading})).toBeVisible();
-    }
+    const navigation = screen.getByLabelText('一级导航');
+    expect(within(navigation).getAllByRole('link')).toHaveLength(2);
+    expect(within(navigation).getByRole('link', {name: /主功能/u})).toBeVisible();
     expect(
-      within(navigation).getByRole('link', {name: /Scene Lab/u}),
+      within(navigation).getByRole('link', {name: /素材库/u}),
+    ).toHaveAttribute('aria-current', 'page');
+    const sidebar = screen.getByLabelText('素材库侧边导航');
+    expect(within(sidebar).getByRole('heading', {name: '素材与角色'})).toBeVisible();
+    expect(within(sidebar).getByRole('heading', {name: '视觉系统'})).toBeVisible();
+    expect(
+      within(sidebar).getByRole('link', {name: /Scene Lab/u}),
     ).toHaveAttribute('aria-current', 'page');
   });
 
@@ -93,5 +107,26 @@ describe('App shell', () => {
     search.blur();
     fireEvent.keyDown(window, {key: '7'});
     expect(await screen.findByText('visual-modules-page')).toBeVisible();
+  });
+
+  it('keeps backend restart behind an explicit header confirmation', async () => {
+    const user = userEvent.setup();
+    apiMocks.requestRuntimeAction.mockResolvedValue({
+      command_id: '22222222-2222-4222-8222-222222222222',
+      action: 'restart',
+      accepted_at: new Date().toISOString(),
+      process_id: 1234,
+    });
+    renderWithApp(<App />, ['/stories']);
+    await screen.findByText('stories-page');
+
+    const restart = screen.getByRole('button', {name: '重启后端'});
+    await waitFor(() => expect(restart).toBeEnabled());
+    await user.click(restart);
+    const dialog = screen.getByRole('dialog', {name: '重启后端'});
+    expect(apiMocks.requestRuntimeAction).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', {name: '确认重启'}));
+
+    expect(apiMocks.requestRuntimeAction.mock.calls[0]?.[0]).toBe('restart');
   });
 });

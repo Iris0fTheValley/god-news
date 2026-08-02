@@ -88,6 +88,9 @@ class MediaCatalogEntry(DomainModel):
     archived_by: str | None = None
     archive_reason: str | None = None
     usages: list[MediaAssetUsage] = Field(default_factory=list, max_length=100)
+    member_catalog_ids: list[CatalogId] = Field(default_factory=list)
+    story_references: list[UUID] = Field(default_factory=list)
+    content_occurrence_count: int = Field(default=1, ge=1)
 
 
 class MediaCatalogPage(DomainModel):

@@ -1,4 +1,4 @@
-import {cleanup, screen, waitFor} from '@testing-library/react';
+import {cleanup, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -46,6 +46,13 @@ describe('FirstReviewPanel', () => {
     apiMocks.submitFirstReview.mockResolvedValue(storyFixture);
     renderWithApp(<FirstReviewPanel story={storyFixture} />);
 
+    const spokenLanguage = screen.getByRole('combobox', {name: '口播语言'});
+    expect(within(spokenLanguage).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      '中文',
+      '日语',
+      '英语',
+      '法语',
+    ]);
     const keyPoints = screen.getByLabelText('关键点（每行一条）');
     await user.clear(keyPoints);
     await user.type(keyPoints, '核对原始证据\n主人已确认接回');

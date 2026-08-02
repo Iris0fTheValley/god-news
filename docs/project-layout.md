@@ -4,7 +4,7 @@
 
 - `src/god_news/`：Python 领域、应用与基础设施。
 - `src/god_news/workers/`：随 Python 包发布、通过 `python -m` 启动的隔离子进程入口。
-- `src/god_news/testing/`：确定性测试替身和离线演示应用，与生产适配器隔离。
+- `src/god_news/demo/`：可运行的确定性离线演示应用及其适配器，不进入生产启动路径。
 - `frontend/src/`：React 正式前端代码，不放测试实现。
 - `video/src/`：Remotion 渲染器、模板、布局编译器和 Studio fixture。
 - `assets/demo-owned/`：项目自有且带 provenance 的演示素材唯一来源。
@@ -21,15 +21,17 @@ Template Lab 所需的浏览器静态文件由
 
 ## 测试
 
-- `tests/`：Python 单元、集成和契约测试，复用夹具放在 `tests/fixtures/`。
+- `tests/`：Python 单元、集成和契约测试。
+- `tests/fixtures/`：只存放静态测试输入。
+- `tests/support/`：只存放 Python 测试替身和辅助代码，不随 wheel 发布。
 - `frontend/tests/unit/`：前端组件与状态单测，目录结构镜像 `frontend/src/`。
 - `frontend/tests/support/`：单测夹具、渲染器与全局测试初始化。
 - `frontend/tests/e2e/`：浏览器端到端测试。
 - `video/tests/`：渲染契约、模板和布局测试。
 
 前端单测通过 `@/` 引用正式代码、通过 `@test/` 引用测试支撑，避免把测试实现重新混入
-`frontend/src/`。Python 确定性适配器保留在可导入的 `god_news.testing` 命名空间中，
-但生产启动路径不得依赖它。
+`frontend/src/`。Python 离线演示使用 `god_news.demo`；纯测试替身必须放在
+`tests/support/`。生产启动路径不得依赖两者。
 
 ## 文档与工具
 

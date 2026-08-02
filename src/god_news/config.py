@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
     readiness_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    runtime_control_enabled: bool = False
+    runtime_control_supervised: bool = False
+    runtime_control_command_path: Path = Path("./data/dev-backend-command.json")
     database_url: str = "sqlite+aiosqlite:///./data/god_news.db"
     database_auto_create: bool = True
     database_busy_timeout_ms: int = Field(default=5_000, ge=0, le=60_000)
@@ -270,11 +273,6 @@ class Settings(BaseSettings):
     source_pikabu_public_page_use_authorized: bool = False
     source_pikabu_collection_limit: int = Field(default=10, ge=1, le=50)
     source_pikabu_allowed_host_suffixes: tuple[str, ...] = ("pikabu.ru",)
-    source_nasa_enabled: bool = True
-    source_nasa_feed_url: str = "https://www.nasa.gov/feed/"
-    source_nasa_collection_limit: int = Field(default=10, ge=1, le=100)
-    source_nasa_max_retries: int = Field(default=2, ge=0, le=5)
-
     tts_enabled: bool = True
     gpt_sovits_root: Path = Path("J:/AI friend/GPT-SoVITS-v2pro-20250604")
     gpt_sovits_python: Path = Path("J:/AI friend/GPT-SoVITS-v2pro-20250604/runtime/python.exe")
@@ -412,7 +410,6 @@ class Settings(BaseSettings):
         "source_reddit_token_endpoint",
         "source_guardian_endpoint",
         "source_pikabu_endpoint",
-        "source_nasa_feed_url",
     )
     @classmethod
     def require_https_source_endpoint(cls, value: str) -> str:
@@ -434,10 +431,6 @@ class Settings(BaseSettings):
             "source_guardian_endpoint": (
                 self.source_guardian_endpoint,
                 {"content.guardianapis.com"},
-            ),
-            "source_nasa_feed_url": (
-                self.source_nasa_feed_url,
-                {"www.nasa.gov"},
             ),
         }
         for field_name, (value, allowed_hosts) in endpoints.items():

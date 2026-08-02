@@ -1,4 +1,4 @@
-"""Deterministic browser-test/demo application; never used by production startup."""
+"""Deterministic offline demo application; never used by production startup."""
 
 from __future__ import annotations
 
@@ -11,10 +11,7 @@ from god_news.application.memory import MemoryCoordinator
 from god_news.application.workflow import StoryWorkflow
 from god_news.config import Environment, Settings
 from god_news.container import AppContainer
-from god_news.infrastructure.source_health import build_source_policies
-from god_news.sources.health import SourceHealthMonitor
-from god_news.sources.registry import create_default_source_registry
-from god_news.testing.fakes import (
+from god_news.demo.adapters import (
     DeterministicFetcher,
     DeterministicSpeechSynthesizer,
     DeterministicTextGenerator,
@@ -22,6 +19,10 @@ from god_news.testing.fakes import (
     InMemoryMemoryProvider,
     InMemoryStoryRepository,
 )
+from god_news.infrastructure.runtime_control import FileRuntimeController
+from god_news.infrastructure.source_health import build_source_policies
+from god_news.sources.health import SourceHealthMonitor
+from god_news.sources.registry import create_default_source_registry
 
 settings = Settings(
     _env_file=None,
@@ -31,7 +32,7 @@ settings = Settings(
 )
 
 
-async def build_testing_container(_: Settings) -> AppContainer:
+async def build_demo_container(_: Settings) -> AppContainer:
     repository = InMemoryStoryRepository()
     fetcher = DeterministicFetcher()
     generator = DeterministicTextGenerator()
@@ -63,7 +64,12 @@ async def build_testing_container(_: Settings) -> AppContainer:
         workflow=workflow,
         source_normalizers=source_normalizers,
         source_health=source_health,
+        runtime_control=FileRuntimeController(
+            command_path=settings.runtime_control_command_path,
+            enabled=settings.runtime_control_enabled,
+            supervised=settings.runtime_control_supervised,
+        ),
     )
 
 
-app = create_app(settings, container_factory=build_testing_container)
+app = create_app(settings, container_factory=build_demo_container)

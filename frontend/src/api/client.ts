@@ -22,6 +22,7 @@ import type {
   SecondReviewSubmission,
   StageCommonsVisualRequest,
   SourceRunRequest,
+  StartSourceRunRequest,
   SourceRunStatus,
   StartSourceTranscriptionRequest,
   StoryStatus,
@@ -61,6 +62,8 @@ export interface MediaCatalogListParams {
   offset?: number;
 }
 
+export type RuntimeAction = 'restart' | 'shutdown';
+
 const api = createClient<paths>({baseUrl: ''});
 
 export class ApiProblem extends Error {
@@ -89,6 +92,20 @@ export async function getReadiness(): Promise<HealthReport> {
     return result.error;
   }
   throwProblem(result.error, result.response);
+}
+
+export async function getRuntimeControlStatus() {
+  const result = await api.GET('/api/v1/system/runtime');
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
+}
+
+export async function requestRuntimeAction(action: RuntimeAction) {
+  const result = await api.POST('/api/v1/system/runtime/{action}', {
+    params: {path: {action}},
+  });
+  if (result.error !== undefined) throwProblem(result.error, result.response);
+  return result.data;
 }
 
 export async function listVideoTemplates() {
@@ -539,7 +556,7 @@ export async function getSourceCollectors() {
   return result.data;
 }
 
-export async function diagnoseSource(source: SourceRunRequest['source']) {
+export async function diagnoseSource(source: StartSourceRunRequest['source']) {
   const result = await api.POST('/api/v1/sources/{source}/diagnostics', {
     params: {path: {source}},
   });
@@ -547,7 +564,7 @@ export async function diagnoseSource(source: SourceRunRequest['source']) {
   return result.data;
 }
 
-export async function startSourceRun(body: SourceRunRequest) {
+export async function startSourceRun(body: StartSourceRunRequest) {
   const result = await api.POST('/api/v1/source-runs', {body});
   if (result.error !== undefined) throwProblem(result.error, result.response);
   return result.data;

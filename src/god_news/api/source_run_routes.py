@@ -13,12 +13,12 @@ from god_news.container import AppContainer
 from god_news.errors import ConfigurationError
 from god_news.logging import trace_id_var
 from god_news.sources.collectors.models import CollectorDiagnostic
-from god_news.sources.models import SourceName
+from god_news.sources.models import ActiveSourceName, SourceName
 from god_news.sources.run_models import (
     SourceRun,
     SourceRunReadiness,
-    SourceRunRequest,
     SourceRunStatus,
+    StartSourceRunRequest,
 )
 from god_news.sources.schedule_models import SourceScheduleSnapshot
 
@@ -59,7 +59,7 @@ async def collector_readiness(container: ContainerDependency) -> SourceRunReadin
     operation_id="runSourceDiagnostic",
 )
 async def run_source_diagnostic(
-    source: SourceName,
+    source: ActiveSourceName,
     container: ContainerDependency,
 ) -> CollectorDiagnostic:
     return await _service(container).diagnose(source)
@@ -99,7 +99,7 @@ async def stop_source_schedule(container: ContainerDependency) -> SourceSchedule
     operation_id="startSourceRun",
 )
 async def start_source_run(
-    request: SourceRunRequest,
+    request: StartSourceRunRequest,
     container: ContainerDependency,
 ) -> SourceRun:
     return await _service(container).start(request, trace_id=UUID(trace_id_var.get()))

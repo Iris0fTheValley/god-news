@@ -15,7 +15,7 @@ from god_news.sources.collectors.models import (
     CollectionOutcome,
     CollectorReadiness,
 )
-from god_news.sources.models import SOURCE_ORDER, SourceName
+from god_news.sources.models import SOURCE_ORDER, ActiveSourceName, SourceName
 
 NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -51,6 +51,12 @@ class SourceRunRequest(DomainModel):
     @classmethod
     def normalize_legacy_emotion(cls, value: object) -> object:
         return normalize_legacy_speech_emotion(value)
+
+
+class StartSourceRunRequest(SourceRunRequest):
+    """New runs are restricted to adapters that are currently supported."""
+
+    source: ActiveSourceName
 
 
 class SourceItemIngestionResult(DomainModel):

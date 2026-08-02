@@ -17,6 +17,7 @@ import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {EmptyState} from '../../components/EmptyState';
 import {ModalDialog} from '../../components/ModalDialog';
 import {SPEECH_EMOTIONS, SPEECH_EMOTION_LABELS} from '../../components/narrationOptions';
+import {SPOKEN_LANGUAGE_OPTIONS} from '../../components/spokenLanguages';
 import {useToast} from '../../components/toastContext';
 
 function slugify(name: string): string {
@@ -333,7 +334,7 @@ export function RolesPage() {
                 <label className="field"><span>SoVITS 权重路径</span><input className="input mono" placeholder="…/model.pth" value={editing.sovitsWeightsPath} onChange={(event) => setEditing({...editing, sovitsWeightsPath: event.target.value})} /></label>
                 <label className="field"><span>TTS 模型配置</span><input className="input mono" placeholder="v2Pro" value={editing.ttsModelProfile} onChange={(event) => setEditing({...editing, ttsModelProfile: event.target.value})} /></label>
                 <label className="field"><span>参考文本语言</span><input className="input mono" placeholder="all_zh / all_ja（可选）" value={editing.referenceLanguage} onChange={(event) => setEditing({...editing, referenceLanguage: event.target.value})} /></label>
-                <label className="field"><span>默认口播语言</span><input className="input mono" required placeholder="zh-CN / en-US / ja-JP" value={editing.defaultSpokenLanguage} onChange={(event) => setEditing({...editing, defaultSpokenLanguage: event.target.value})} /></label>
+                <label className="field"><span>默认口播语言</span><select className="select mono" required value={editing.defaultSpokenLanguage} onChange={(event) => setEditing({...editing, defaultSpokenLanguage: event.target.value})}>{SPOKEN_LANGUAGE_OPTIONS.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</select></label>
                 <label className="field"><span>默认情绪</span><select className="select" value={editing.defaultEmotion} onChange={(event) => setEditing({...editing, defaultEmotion: event.target.value})}>{!isSpeechEmotion(editing.defaultEmotion) ? <option value={editing.defaultEmotion}>保留历史值：{editing.defaultEmotion}</option> : null}{SPEECH_EMOTIONS.map((emotion) => <option key={emotion} value={emotion}>{SPEECH_EMOTION_LABELS[emotion]}</option>)}</select></label>
                 <label className="field"><span>默认语速</span><input className="input" type="number" min={0.6} max={1.65} step={0.05} required value={Number.isFinite(editing.defaultSpeed) ? editing.defaultSpeed : ''} onChange={(event) => setEditing({...editing, defaultSpeed: event.target.valueAsNumber})} onBlur={() => { if (!Number.isFinite(editing.defaultSpeed)) setEditing({...editing, defaultSpeed: 1}); }} /></label>
                 <label className="field"><span>默认音高</span><input className="input" type="number" min={-12} max={12} step={0.5} required value={Number.isFinite(editing.defaultPitch) ? editing.defaultPitch : ''} onChange={(event) => setEditing({...editing, defaultPitch: event.target.valueAsNumber})} onBlur={() => { if (!Number.isFinite(editing.defaultPitch)) setEditing({...editing, defaultPitch: 0}); }} /></label>

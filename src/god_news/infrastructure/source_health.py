@@ -85,17 +85,4 @@ def build_source_policies(settings: Settings) -> tuple[SourceAdapterPolicy, ...]
                 "per_item_rights_review_still_required",
             ],
         ),
-        SourceAdapterPolicy(
-            source="nasa",
-            enabled=settings.source_nasa_enabled,
-            configured=True,
-            endpoint=settings.source_nasa_feed_url,
-            access_method="official_feed",
-            authorized=True,
-            notes=[
-                "official_rss_feed",
-                "credential_free",
-                "per_media_rights_review_still_required",
-            ],
-        ),
     )

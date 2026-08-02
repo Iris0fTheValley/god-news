@@ -309,62 +309,85 @@ class SqlAlchemyMediaCatalogRepository:
         operator_id: str,
         reason: str,
     ) -> MediaCatalogEntry:
-        entry = await self.get_entry(catalog_id)
+        entries = list(await self.list_entries())
+        entry = next((item for item in entries if item.catalog_id == catalog_id), None)
+        if entry is None:
+            raise MediaCatalogNotFoundError()
         if entry.lifecycle_version != expected_version:
             raise ConcurrentMediaCatalogWriteError()
-        if entry.lifecycle is lifecycle:
+        members = [
+            candidate
+            for candidate in entries
+            if (
+                candidate.catalog_id == entry.catalog_id
+                or (
+                    entry.sha256 is not None
+                    and candidate.sha256 == entry.sha256
+                    and candidate.media_kind is entry.media_kind
+                )
+            )
+        ]
+        changing = [member for member in members if member.lifecycle is not lifecycle]
+        if not changing:
             return entry
         if lifecycle is MediaCatalogLifecycle.ACTIVE:
-            await self._verify_content(entry)
+            for member in changing:
+                await self._verify_content(member)
         now = datetime.now(UTC)
         archived = lifecycle is MediaCatalogLifecycle.ARCHIVED
-        next_version = expected_version + 1
         try:
             async with self._sessions() as session:
                 async with session.begin():
-                    existing = await session.get(MediaCatalogLifecycleRow, catalog_id)
-                    if existing is None:
-                        if expected_version != 1:
-                            raise ConcurrentMediaCatalogWriteError()
+                    for member in changing:
+                        current_version = member.lifecycle_version
+                        next_version = current_version + 1
+                        existing = await session.get(
+                            MediaCatalogLifecycleRow,
+                            member.catalog_id,
+                        )
+                        if existing is None:
+                            if current_version != 1:
+                                raise ConcurrentMediaCatalogWriteError()
+                            session.add(
+                                MediaCatalogLifecycleRow(
+                                    catalog_id=member.catalog_id,
+                                    archived=archived,
+                                    version=next_version,
+                                    archived_at=now if archived else None,
+                                    archived_by=operator_id if archived else None,
+                                    archive_reason=reason if archived else None,
+                                    updated_at=now,
+                                )
+                            )
+                        else:
+                            result = await session.execute(
+                                update(MediaCatalogLifecycleRow)
+                                .where(
+                                    MediaCatalogLifecycleRow.catalog_id
+                                    == member.catalog_id,
+                                    MediaCatalogLifecycleRow.version == current_version,
+                                )
+                                .values(
+                                    archived=archived,
+                                    version=next_version,
+                                    archived_at=now if archived else None,
+                                    archived_by=operator_id if archived else None,
+                                    archive_reason=reason if archived else None,
+                                    updated_at=now,
+                                )
+                            )
+                            if cast(CursorResult[Any], result).rowcount != 1:
+                                raise ConcurrentMediaCatalogWriteError()
                         session.add(
-                            MediaCatalogLifecycleRow(
-                                catalog_id=catalog_id,
-                                archived=archived,
-                                version=next_version,
-                                archived_at=now if archived else None,
-                                archived_by=operator_id if archived else None,
-                                archive_reason=reason if archived else None,
-                                updated_at=now,
+                            MediaCatalogEventRow(
+                                catalog_id=member.catalog_id,
+                                action="archived" if archived else "restored",
+                                operator_id=operator_id,
+                                reason=reason,
+                                resulting_version=next_version,
+                                occurred_at=now,
                             )
                         )
-                    else:
-                        result = await session.execute(
-                            update(MediaCatalogLifecycleRow)
-                            .where(
-                                MediaCatalogLifecycleRow.catalog_id == catalog_id,
-                                MediaCatalogLifecycleRow.version == expected_version,
-                            )
-                            .values(
-                                archived=archived,
-                                version=next_version,
-                                archived_at=now if archived else None,
-                                archived_by=operator_id if archived else None,
-                                archive_reason=reason if archived else None,
-                                updated_at=now,
-                            )
-                        )
-                        if cast(CursorResult[Any], result).rowcount != 1:
-                            raise ConcurrentMediaCatalogWriteError()
-                    session.add(
-                        MediaCatalogEventRow(
-                            catalog_id=catalog_id,
-                            action="archived" if archived else "restored",
-                            operator_id=operator_id,
-                            reason=reason,
-                            resulting_version=next_version,
-                            occurred_at=now,
-                        )
-                    )
         except IntegrityError as exc:
             raise ConcurrentMediaCatalogWriteError() from exc
         return await self.get_entry(catalog_id)

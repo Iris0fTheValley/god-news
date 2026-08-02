@@ -163,7 +163,6 @@ def test_registry_rejects_duplicate_normalizer() -> None:
         "reddit",
         "guardian",
         "pikabu",
-        "nasa",
     }
 
 

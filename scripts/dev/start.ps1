@@ -43,8 +43,24 @@ function Wait-Http([string]$Uri, [int]$Seconds, [System.Diagnostics.Process]$Pro
     throw "Timed out waiting for $Uri."
 }
 
+function Stop-Descendants([int]$ParentId) {
+    $children = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.ParentProcessId -eq $ParentId }
+    foreach ($child in $children) {
+        Stop-Descendants ([int]$child.ProcessId)
+        Stop-Process -Id ([int]$child.ProcessId) -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Stop-ProcessTree([System.Diagnostics.Process]$Process) {
+    if ($null -eq $Process -or $Process.HasExited) { return }
+    Stop-Descendants $Process.Id
+    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+}
+
 Require-Command "uv"
 Require-Command "pnpm"
+Require-Command "node"
 Set-Location $root
 
 $apiUri = "http://${ApiHost}:${ApiPort}/api/v1/health/live"
@@ -68,45 +84,124 @@ if (-not $SkipInstall) {
 
 New-Item -ItemType Directory -Path $stateDirectory, $logDirectory -Force | Out-Null
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$uv = (Get-Command uv).Source
-$pnpm = (Get-Command pnpm).Source
-$appModule = if ($OfflineDemo) { "god_news.testing.app:app" } else { "god_news.main:app" }
+$python = Join-Path $root ".venv\Scripts\python.exe"
+$node = (Get-Command node).Source
+$vite = Join-Path $root "frontend\node_modules\vite\bin\vite.js"
+$viteArgument = "node_modules/vite/bin/vite.js"
+$prepareFrontendAssets = Join-Path $root "frontend\scripts\build\prepare-template-lab-assets.mjs"
+if (-not (Test-Path -LiteralPath $python)) {
+    throw "Project Python environment is missing: $python"
+}
+if (-not (Test-Path -LiteralPath $vite)) {
+    throw "Frontend Vite entry point is missing: $vite"
+}
+$appModule = if ($OfflineDemo) { "god_news.demo.app:app" } else { "god_news.main:app" }
+$commandPath = Join-Path $stateDirectory "dev-backend-command.json"
+$commandArgument = "data/dev-backend-command.json"
+$restartExitCode = 75
 
-$backend = Start-Process -FilePath $uv `
-    -ArgumentList @("run", "uvicorn", $appModule, "--host", $ApiHost, "--port", "$ApiPort") `
-    -WorkingDirectory $root `
-    -RedirectStandardOutput (Join-Path $logDirectory "backend-$timestamp.out.log") `
-    -RedirectStandardError (Join-Path $logDirectory "backend-$timestamp.err.log") `
-    -WindowStyle Hidden -PassThru
-
-try {
-    Wait-Http $apiUri 45 $backend
-    $frontend = Start-Process -FilePath $pnpm `
-        -ArgumentList @("--filter", "@god-news/frontend", "dev", "--", "--host", $UiHost, "--port", "$UiPort") `
+function Start-Backend {
+    $env:GOD_NEWS_RUNTIME_CONTROL_ENABLED = "true"
+    $env:GOD_NEWS_RUNTIME_CONTROL_SUPERVISED = "true"
+    $env:GOD_NEWS_RUNTIME_CONTROL_COMMAND_PATH = $commandPath
+    return Start-Process -FilePath $python `
+        -ArgumentList @(
+            "scripts/dev/run_backend.py",
+            "--app",
+            $appModule,
+            "--host",
+            $ApiHost,
+            "--port",
+            "$ApiPort",
+            "--command-path",
+            $commandArgument
+        ) `
         -WorkingDirectory $root `
+        -NoNewWindow `
+        -PassThru
+}
+
+function Start-Frontend {
+    & $node $prepareFrontendAssets
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to prepare Template Lab browser assets."
+    }
+    return Start-Process -FilePath $node `
+        -ArgumentList @($viteArgument, "--host", $UiHost, "--port", "$UiPort") `
+        -WorkingDirectory (Join-Path $root "frontend") `
         -RedirectStandardOutput (Join-Path $logDirectory "frontend-$timestamp.out.log") `
         -RedirectStandardError (Join-Path $logDirectory "frontend-$timestamp.err.log") `
-        -WindowStyle Hidden -PassThru
+        -NoNewWindow `
+        -PassThru
+}
+
+function Write-ProcessState(
+    [System.Diagnostics.Process]$Backend,
+    [System.Diagnostics.Process]$Frontend
+) {
+    @{
+        repository_root = $root
+        started_at = [DateTimeOffset]::Now.ToString("O")
+        api_uri = $apiUri
+        ui_uri = $uiUri
+        backend_pid = $Backend.Id
+        backend_started_at = ([DateTimeOffset]$Backend.StartTime).ToString("O")
+        frontend_pid = $Frontend.Id
+        frontend_started_at = ([DateTimeOffset]$Frontend.StartTime).ToString("O")
+    } | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
+}
+
+$backend = $null
+$frontend = $null
+try {
+    $backend = Start-Backend
+    Wait-Http $apiUri 45 $backend
+    $frontend = Start-Frontend
     Wait-Http $uiUri 45 $frontend
-}
-catch {
-    if (-not $backend.HasExited) { Stop-Process -Id $backend.Id -Force }
-    throw
-}
+    Write-ProcessState $backend $frontend
 
-@{
-    repository_root = $root
-    started_at = [DateTimeOffset]::Now.ToString("O")
-    api_uri = $apiUri
-    ui_uri = $uiUri
-    backend_pid = $backend.Id
-    backend_started_at = ([DateTimeOffset]$backend.StartTime).ToString("O")
-    frontend_pid = $frontend.Id
-    frontend_started_at = ([DateTimeOffset]$frontend.StartTime).ToString("O")
-} | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
+    Write-Host ""
+    Write-Host "god-news backend: $apiUri" -ForegroundColor Green
+    Write-Host "god-news frontend: $uiUri" -ForegroundColor Green
+    if ($OfflineDemo) { Write-Host "Mode: deterministic offline demo" -ForegroundColor Yellow }
+    Write-Host "Backend logs stay in this window." -ForegroundColor Cyan
+    Write-Host "Close this window or press Ctrl+C to stop god-news." -ForegroundColor Cyan
+    if (-not $NoBrowser) { Start-Process $uiUri }
 
-Write-Host "god-news backend: $apiUri" -ForegroundColor Green
-Write-Host "god-news frontend: $uiUri" -ForegroundColor Green
-if ($OfflineDemo) { Write-Host "Mode: deterministic offline demo" -ForegroundColor Yellow }
-Write-Host "Stop with: .\scripts\dev\stop.ps1"
-if (-not $NoBrowser) { Start-Process $uiUri }
+    while ($true) {
+        $backend.WaitForExit()
+        $exitCode = $backend.ExitCode
+        $requestedAction = $null
+        if (Test-Path -LiteralPath $commandPath) {
+            try {
+                $requestedAction = (
+                    Get-Content -Raw -LiteralPath $commandPath |
+                        ConvertFrom-Json
+                ).action
+            }
+            catch {
+                Write-Warning "Ignoring an invalid backend supervisor command."
+            }
+            Remove-Item -LiteralPath $commandPath -Force -ErrorAction SilentlyContinue
+        }
+        $restartRequested = $exitCode -eq $restartExitCode -or $requestedAction -eq "restart"
+        if (-not $restartRequested) {
+            if ($exitCode -ne 0) {
+                Write-Warning "Backend exited with code $exitCode."
+            }
+            break
+        }
+        Write-Host ""
+        Write-Host "Restart requested. Starting a fresh backend process..." -ForegroundColor Yellow
+        $backend = Start-Backend
+        Wait-Http $apiUri 45 $backend
+        Write-ProcessState $backend $frontend
+        Write-Host "Backend restarted successfully." -ForegroundColor Green
+    }
+}
+finally {
+    Stop-ProcessTree $backend
+    Stop-ProcessTree $frontend
+    Remove-Item -LiteralPath $commandPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+}

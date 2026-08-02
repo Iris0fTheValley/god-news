@@ -337,6 +337,15 @@ async def test_source_run_api_starts_and_reports_background_progress(stack: Stac
             assert diagnostic.json()["outcome"] == "verified"
             assert diagnostic.json()["credentials_verified"] is True
 
+            removed_source = await client.post(
+                "/api/v1/source-runs",
+                json={
+                    "source": "nasa",
+                    "requested_by": "api-editor",
+                },
+            )
+            assert removed_source.status_code == 422
+
 
 @pytest.mark.asyncio
 async def test_source_run_can_be_cancelled_without_losing_terminal_evidence(stack: Stack) -> None:

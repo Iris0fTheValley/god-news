@@ -56,17 +56,17 @@ from god_news.infrastructure.repositories import (
 from god_news.infrastructure.video_assets import LocalBgmCatalog
 from god_news.infrastructure.video_host import PlaceholderHostRenderer
 from god_news.infrastructure.video_repository import SqlAlchemyVideoBatchRepository
-from god_news.testing.video_fakes import (
-    DeterministicBatchVideoRenderer,
-    DeterministicProgramDirector,
-    EmptySourceVideoAssetLibrary,
-    InMemoryVideoBatchRepository,
-)
 from god_news.video_errors import (
     BgmTrackNotFoundError,
     VideoBatchConflictError,
     VideoRenderingError,
     VideoStoryUnavailableError,
+)
+from tests.support.video_fakes import (
+    DeterministicBatchVideoRenderer,
+    DeterministicProgramDirector,
+    EmptySourceVideoAssetLibrary,
+    InMemoryVideoBatchRepository,
 )
 
 from .conftest import Stack

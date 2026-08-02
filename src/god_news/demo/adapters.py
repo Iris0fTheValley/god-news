@@ -1,4 +1,4 @@
-"""Deterministic test doubles shared by unit tests and the offline demo."""
+"""Deterministic adapters for the offline demo and contract tests."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ from god_news.voice_profiles import ResolvedVoiceProfile, VoiceReference
 
 
 class DeterministicFetcher:
-    """Offline URL/text fixture used by browser tests and the demo launcher."""
+    """Offline URL/text adapter used by the demo launcher and contract tests."""
 
     @property
     def name(self) -> str:
@@ -85,7 +85,7 @@ class DeterministicFetcher:
 
 
 class DeterministicVoiceProfileResolver:
-    """Offline voice-catalogue adapter for tests and the browser demo.
+    """Offline voice-catalogue adapter for the browser demo.
 
     It accepts one fully configured synthetic narrator. This keeps the
     workflow's first-review boundary active in deterministic environments

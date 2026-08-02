@@ -10,6 +10,7 @@ import {ApiErrorNotice} from '../../components/ApiErrorNotice';
 import {ConfirmDialog} from '../../components/ConfirmDialog';
 import {CATEGORY_LABELS} from '../../components/contentCategories';
 import {SPEECH_EMOTIONS} from '../../components/narrationOptions';
+import {SPOKEN_LANGUAGE_OPTIONS} from '../../components/spokenLanguages';
 
 interface ReviewForm {
   reviewerId: string;
@@ -261,7 +262,11 @@ export function FirstReviewPanel({story}: FirstReviewPanelProps) {
           </label>
           <label className="field">
             <span>口播语言</span>
-            <input className="input mono" placeholder={selectedRole?.default_spoken_language ?? 'zh-CN'} {...register('spokenLanguage')} />
+            <select className="select mono" {...register('spokenLanguage')}>
+              {SPOKEN_LANGUAGE_OPTIONS.map((language) => (
+                <option key={language.value} value={language.value}>{language.label}</option>
+              ))}
+            </select>
           </label>
           <label className="field">
             <span>字幕语言</span>

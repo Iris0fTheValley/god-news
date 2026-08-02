@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from god_news.api.media_catalog_routes import router as media_catalog_router
 from god_news.api.operations_routes import router as operations_router
 from god_news.api.routes import router
+from god_news.api.runtime_routes import router as runtime_router
 from god_news.api.schemas import ProblemDetail
 from god_news.api.source_media_routes import router as source_media_router
 from god_news.api.source_run_routes import router as source_run_router
@@ -105,6 +106,7 @@ def create_app(
         return JSONResponse(status_code=500, content=problem.model_dump(mode="json"))
 
     app.include_router(router, prefix="/api/v1")
+    app.include_router(runtime_router, prefix="/api/v1")
     app.include_router(operations_router, prefix="/api/v1")
     app.include_router(source_run_router, prefix="/api/v1")
     app.include_router(source_media_router, prefix="/api/v1")

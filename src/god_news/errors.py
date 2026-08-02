@@ -21,6 +21,34 @@ class ConfigurationError(GodNewsError):
         super().__init__("configuration_error", message, status_code=503)
 
 
+class RuntimeControlUnavailableError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "runtime_control_unavailable",
+            "Runtime control requires the foreground development supervisor.",
+            status_code=503,
+        )
+
+
+class RuntimeControlConflictError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "runtime_control_conflict",
+            "A backend lifecycle command is already pending.",
+            status_code=409,
+            retryable=True,
+        )
+
+
+class RuntimeControlForbiddenError(GodNewsError):
+    def __init__(self) -> None:
+        super().__init__(
+            "runtime_control_forbidden",
+            "Backend lifecycle controls are available only from this machine.",
+            status_code=403,
+        )
+
+
 class StoryNotFoundError(GodNewsError):
     def __init__(self, story_id: UUID) -> None:
         super().__init__(

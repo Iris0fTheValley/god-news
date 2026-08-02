@@ -7,6 +7,7 @@ import sys
 import httpx
 import pytest
 
+from god_news.demo.adapters import DeterministicFetcher
 from god_news.domain.models import FetchedDocument, SourceRequest, TextSource, UrlSource
 from god_news.errors import FetchError, FetchPolicyError
 from god_news.infrastructure.fetchers.chain import FetcherChain
@@ -22,7 +23,6 @@ from god_news.infrastructure.fetchers.scrapy import (
 )
 from god_news.infrastructure.fetchers.url_policy import UrlPolicy, normalize_allowed_ports
 from god_news.infrastructure.processes import run_json_worker
-from god_news.testing.fakes import DeterministicFetcher
 
 
 class FailingFetcher:
