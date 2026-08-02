@@ -9,6 +9,7 @@ from pydantic import SecretStr
 
 from god_news.domain.enums import SourceKind
 from god_news.domain.models import FetchedDocument, SourceSnapshot
+from god_news.infrastructure.fetchers.chain import TracedFetchError
 from god_news.infrastructure.fetchers.telemetry import FetchLayerAttempt, TracedFetchResult
 from god_news.sources.collectors.guardian import GuardianContentAPICollector
 from god_news.sources.collectors.public_pages import (
@@ -24,6 +25,7 @@ def _document(
     title: str,
     content: str,
     published_at: datetime | None = None,
+    outbound_links: list[str] | None = None,
 ) -> FetchedDocument:
     return FetchedDocument(
         source=SourceSnapshot(
@@ -36,6 +38,7 @@ def _document(
             content_sha256="a" * 64,
         ),
         content=content,
+        outbound_links=outbound_links or [],
     )
 
 
@@ -54,6 +57,23 @@ class ScriptedTracedFetcher:
                     layer="jina-reader",
                     outcome="succeeded",
                     duration_ms=1.25,
+                ),
+            ),
+        )
+
+
+class AccessChallengeFetcher:
+    async def fetch_with_trace(self, source):  # type: ignore[no-untyped-def]
+        del source
+        raise TracedFetchError(
+            "Provider refused access.",
+            (
+                FetchLayerAttempt(
+                    layer="scrapy-trafilatura",
+                    outcome="failed",
+                    duration_ms=1,
+                    error_code="access_challenge_detected",
+                    retryable=False,
                 ),
             ),
         )
@@ -199,6 +219,8 @@ async def test_guardian_collector_maps_official_search_contract() -> None:
         assert request.url.params["api-key"] == api_key
         assert request.url.params["show-fields"] == "body,byline,trailText,thumbnail"
         assert request.url.params["show-rights"] == "all"
+        assert request.url.params["q"].startswith("(kindness) AND NOT (")
+        assert "football" in request.url.params["q"]
         return httpx.Response(
             200,
             json={
@@ -257,14 +279,15 @@ async def test_guardian_collector_maps_official_search_contract() -> None:
 
 @pytest.mark.asyncio
 async def test_dazhong_public_pages_use_existing_fetch_layers() -> None:
-    listing_url = "https://m.dzplus.dzng.com/"
+    listing_url = "https://m.dzplus.dzng.com/share/home/1/0"
     story_url = "https://m.dzplus.dzng.com/share/general/0/NEWS123"
     fetcher = ScriptedTracedFetcher(
         {
             listing_url: _document(
                 listing_url,
                 title="大众新闻",
-                content=f"[一则善意新闻]({story_url})",
+                content="大众新闻首页",
+                outbound_links=[story_url],
             ),
             story_url: _document(
                 story_url,
@@ -335,6 +358,24 @@ async def test_pikabu_captcha_stops_before_remaining_story_urls() -> None:
     assert fetcher.calls == [listing_url, first_url]
     assert run.errors[-1].code == "captcha_detected"
     assert run.attempts[-1].outcome == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_pikabu_access_challenge_stops_without_bypass_attempt() -> None:
+    collector = PikabuPublicPageCollector(
+        fetcher=AccessChallengeFetcher(),
+        endpoint="https://pikabu.ru/tag/%D0%94%D0%BE%D0%B1%D1%80%D0%BE%D1%82%D0%B0",
+        enabled=True,
+        public_page_use_authorized=True,
+        default_limit=10,
+        allowed_host_suffixes=("pikabu.ru",),
+    )
+
+    run = await collector.collect(limit=1)
+
+    assert run.outcome == "stopped_access_challenge"
+    assert run.errors[-1].code == "access_challenge_detected"
+    assert run.errors[-1].retryable is False
 
 
 def test_collector_readiness_distinguishes_unconfigured_and_unauthorized() -> None:

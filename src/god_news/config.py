@@ -243,7 +243,7 @@ class Settings(BaseSettings):
     source_auto_collection_interval_seconds: float = Field(default=1_800, ge=30)
     source_auto_collection_poll_seconds: float = Field(default=5, gt=0, le=60)
     source_dazhong_enabled: bool = True
-    source_dazhong_endpoint: str = "https://m.dzplus.dzng.com/"
+    source_dazhong_endpoint: str = "https://m.dzplus.dzng.com/share/home/1/0"
     source_dazhong_public_page_use_authorized: bool = False
     source_dazhong_collection_limit: int = Field(default=10, ge=1, le=50)
     source_dazhong_allowed_host_suffixes: tuple[str, ...] = ("dzng.com",)
@@ -403,6 +403,16 @@ class Settings(BaseSettings):
         if not normalized or any(not suffix or "/" in suffix for suffix in normalized):
             raise ValueError("source host suffix allowlists must contain DNS suffixes")
         return normalized
+
+    @field_validator("source_dazhong_endpoint", mode="before")
+    @classmethod
+    def upgrade_legacy_dazhong_landing_page(cls, value: object) -> object:
+        if (
+            isinstance(value, str)
+            and value.strip().rstrip("/") == "https://m.dzplus.dzng.com"
+        ):
+            return "https://m.dzplus.dzng.com/share/home/1/0"
+        return value
 
     @field_validator(
         "source_dazhong_endpoint",

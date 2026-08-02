@@ -125,6 +125,7 @@ class SourceSnapshot(DomainModel):
 class FetchedDocument(DomainModel):
     source: SourceSnapshot
     content: NonBlankStr
+    outbound_links: list[AnyHttpUrl] = Field(default_factory=list, max_length=500)
 
     @classmethod
     def from_text(cls, request: TextSource) -> FetchedDocument:

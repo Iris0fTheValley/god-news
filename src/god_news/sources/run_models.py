@@ -32,6 +32,7 @@ class SourceRunStatus(StrEnum):
 class SourceItemIngestionOutcome(StrEnum):
     INGESTED = "ingested"
     DUPLICATE = "duplicate"
+    FILTERED = "filtered"
     FAILED = "failed"
 
 
@@ -74,7 +75,7 @@ class SourceItemIngestionResult(DomainModel):
             if self.story_id is None or self.error_code != "duplicate_story":
                 raise ValueError("duplicate items require existing story evidence")
         elif self.error_code is None:
-            raise ValueError("failed items require an error_code")
+            raise ValueError("filtered and failed items require an error_code")
         return self
 
 
@@ -127,6 +128,14 @@ class SourceRun(DomainModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def filtered_count(self) -> int:
+        return sum(
+            result.outcome is SourceItemIngestionOutcome.FILTERED
+            for result in self.item_results
+        )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def failed_count(self) -> int:
         return sum(
             result.outcome is SourceItemIngestionOutcome.FAILED
@@ -136,9 +145,10 @@ class SourceRun(DomainModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def failure_rate(self) -> float | None:
-        if not self.item_results:
+        attempted = self.ingested_count + self.duplicate_count + self.failed_count
+        if attempted == 0:
             return None
-        return self.failed_count / len(self.item_results)
+        return self.failed_count / attempted
 
     @model_validator(mode="after")
     def validate_lifecycle(self) -> SourceRun:

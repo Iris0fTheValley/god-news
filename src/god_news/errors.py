@@ -124,8 +124,14 @@ class IdempotencyConflictError(GodNewsError):
 
 
 class FetchError(GodNewsError):
-    def __init__(self, message: str, *, retryable: bool = True) -> None:
-        super().__init__("fetch_failed", message, status_code=502, retryable=retryable)
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = True,
+        code: str = "fetch_failed",
+    ) -> None:
+        super().__init__(code, message, status_code=502, retryable=retryable)
 
 
 class FetchPolicyError(GodNewsError):

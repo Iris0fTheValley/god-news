@@ -197,13 +197,20 @@ async def test_isolated_browser_and_scrapy_parent_adapters(monkeypatch) -> None:
                 ok=True,
                 final_url="https://8.8.8.8/article",
                 title="Rendered",
-                html="<html><body>" + "rendered " * 40 + "</body></html>",
+                html=(
+                    '<html><head><meta property="article:published_time" '
+                    'content="2026-07-12T08:00:00Z"></head><body>'
+                    '<a href="/next">Next</a>'
+                    + "rendered " * 40
+                    + "</body></html>"
+                ),
             )
         return ScrapyWorkerResponse(
             ok=True,
             final_url="https://8.8.8.8/article",
             title="   ",
             content="extracted " * 40,
+            outbound_links=["https://8.8.8.8/next"],
         )
 
     monkeypatch.setattr(
@@ -229,6 +236,10 @@ async def test_isolated_browser_and_scrapy_parent_adapters(monkeypatch) -> None:
     )
     browser_result = await browser.fetch(source)
     assert browser_result.source.fetcher == "drission-page"
+    assert browser_result.source.published_at is not None
+    assert [str(link) for link in browser_result.outbound_links] == [
+        "https://8.8.8.8/next"
+    ]
 
     scrapy = ScrapyTrafilaturaFetcher(
         policy=policy,
@@ -246,6 +257,9 @@ async def test_isolated_browser_and_scrapy_parent_adapters(monkeypatch) -> None:
     scrapy_result = await scrapy.fetch(source)
     assert scrapy_result.source.fetcher == "scrapy-trafilatura"
     assert scrapy_result.source.title == "Untitled source"
+    assert [str(link) for link in scrapy_result.outbound_links] == [
+        "https://8.8.8.8/next"
+    ]
 
 
 @pytest.mark.asyncio
@@ -262,7 +276,11 @@ async def test_scrapy_worker_conditionally_crawls_same_site_offline() -> None:
             elif path == b"/article":
                 content_type = "text/html; charset=utf-8"
                 body = (
-                    "<html><head><title>Deep fixture</title></head><body>"
+                    '<html><head><title>Deep fixture</title>'
+                    '<script type="application/ld+json">'
+                    '{"headline":"Structured fixture",'
+                    '"datePublished":"2026-07-12T08:00:00+08:00"}'
+                    "</script></head><body>"
                     f"<article><h1>Deep fixture</h1><p>{article}</p></article>"
                     "</body></html>"
                 ).encode()
@@ -310,3 +328,6 @@ async def test_scrapy_worker_conditionally_crawls_same_site_offline() -> None:
     assert response.ok
     assert response.final_url == f"http://127.0.0.1:{port}/article", response.model_dump()
     assert response.content is not None and "verified local article" in response.content
+    assert response.title == "Structured fixture"
+    assert response.published_at is not None
+    assert response.published_at.utcoffset() is not None

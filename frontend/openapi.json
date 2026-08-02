@@ -8171,6 +8171,7 @@
         "enum": [
           "ingested",
           "duplicate",
+          "filtered",
           "failed"
         ],
         "title": "SourceItemIngestionOutcome",
@@ -8502,7 +8503,8 @@
                   "succeeded",
                   "partial",
                   "failed",
-                  "stopped_captcha"
+                  "stopped_captcha",
+                  "stopped_access_challenge"
                 ],
                 "type": "string"
               },
@@ -8594,6 +8596,11 @@
             "readOnly": true,
             "title": "Failure Rate"
           },
+          "filtered_count": {
+            "readOnly": true,
+            "title": "Filtered Count",
+            "type": "integer"
+          },
           "finished_at": {
             "anyOf": [
               {
@@ -8681,6 +8688,7 @@
           "request",
           "ingested_count",
           "duplicate_count",
+          "filtered_count",
           "failed_count",
           "failure_rate"
         ],

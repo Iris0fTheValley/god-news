@@ -23,6 +23,7 @@ CollectionOutcome = Literal[
     "partial",
     "failed",
     "stopped_captcha",
+    "stopped_access_challenge",
 ]
 AttemptOutcome = Literal["succeeded", "failed", "stopped"]
 CollectionOperation = Literal["authenticate", "discover", "listing", "item"]
@@ -143,4 +144,8 @@ class SourceCollectionRun(DomainModel):
             error.code == "captcha_detected" for error in self.errors
         ):
             raise ValueError("CAPTCHA stop must retain captcha_detected evidence")
+        if self.outcome == "stopped_access_challenge" and not any(
+            error.code == "access_challenge_detected" for error in self.errors
+        ):
+            raise ValueError("access challenge stop must retain matching evidence")
         return self

@@ -96,6 +96,7 @@ from god_news.operations.retention import (
 )
 from god_news.operations.roles import RoleProfileService
 from god_news.operations.scheduler import IntervalScheduler, OperationDispatcher
+from god_news.sources.admission import ContentAdmissionPolicy
 from god_news.sources.collectors.factory import create_source_collectors
 from god_news.sources.collectors.rate_limited import RateLimitedSourceCollectorGateway
 from god_news.sources.health import SourceHealthMonitor
@@ -547,6 +548,7 @@ async def build_container(settings: Settings) -> AppContainer:
             )
         ),
         normalizer=source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=workflow,
         max_pending_runs=settings.source_run_max_pending,
     )

@@ -4271,7 +4271,7 @@ export interface components {
          * SourceItemIngestionOutcome
          * @enum {string}
          */
-        SourceItemIngestionOutcome: "ingested" | "duplicate" | "failed";
+        SourceItemIngestionOutcome: "ingested" | "duplicate" | "filtered" | "failed";
         /** SourceItemIngestionResult */
         SourceItemIngestionResult: {
             /** Error Code */
@@ -4410,7 +4410,7 @@ export interface components {
             /** Collection Errors */
             collection_errors?: components["schemas"]["CollectionErrorEvidence"][];
             /** Collector Outcome */
-            collector_outcome?: ("disabled" | "unconfigured" | "unauthorized" | "succeeded" | "partial" | "failed" | "stopped_captcha") | null;
+            collector_outcome?: ("disabled" | "unconfigured" | "unauthorized" | "succeeded" | "partial" | "failed" | "stopped_captcha" | "stopped_access_challenge") | null;
             /**
              * Cooldown Wait Ms
              * @default 0
@@ -4435,6 +4435,8 @@ export interface components {
             readonly failed_count: number;
             /** Failure Rate */
             readonly failure_rate: number | null;
+            /** Filtered Count */
+            readonly filtered_count: number;
             /** Finished At */
             finished_at?: string | null;
             /** Ingested Count */

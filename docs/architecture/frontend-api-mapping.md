@@ -72,10 +72,12 @@ pnpm --dir frontend check
 | 来源凭据诊断 | `POST /api/v1/sources/{source}/diagnostics` | 显式运行来源能力诊断。Reddit 只执行 OAuth client-credentials 换取并返回脱敏证据，不拉取帖子；凭据有效与内容转载授权仍是两个独立事实。 |
 | 自动采集控制 | `GET /api/v1/source-schedule`、`POST /api/v1/source-schedule/start`、`POST /api/v1/source-schedule/stop` | 默认关闭；操作方只控制启停。后端固定轮询与采集间隔不进入公共响应，也不在前端提供频率设置。启停意图持久化，重启后恢复；停止不会强制取消已经开始的 run。 |
 | 启动 | `POST /api/v1/source-runs` | 返回 `202` 和持久化 run；前端不暴露采集频率。每个来源的网络采集间隔和全局并发均由后端固定策略控制。 |
-| 列表/详情 | `GET /api/v1/source-runs`、`GET /api/v1/source-runs/{run_id}` | 包含降级层尝试、标准化导入结果、错误证据，以及运行中当前导入序号、标题、外部 ID 和已移除敏感 query/fragment/userinfo 的展示 URL；终态会清空“当前对象”。 |
+| 列表/详情 | `GET /api/v1/source-runs`、`GET /api/v1/source-runs/{run_id}` | 包含降级层尝试、标准化导入结果、错误证据，以及运行中当前导入序号、标题、外部 ID 和已移除敏感 query/fragment/userinfo 的展示 URL；终态会清空“当前对象”。`filtered_count` 和条目级 `excluded_topic_politics` / `excluded_topic_sports` 表示内容在创建故事前被服务端准入策略拦截，不计为抓取或导入失败。 |
 | 取消 | `POST /api/v1/source-runs/{run_id}/cancel` | 协作式停止；记录 `operator_cancelled`，不删除已完成项目。 |
 
 采集保护是服务端策略，不是可调 UI：同一来源上次网络采集完成后至少等待 30 秒，所有来源合计最多 2 个网络采集同时进行。随仓库启动命令固定为单 worker；多进程部署必须先引入持久化租约协调器，不能依赖内存锁。
+
+政治与体育是产品级排除主题：Guardian 查询先使用官方搜索语法减少无效结果，所有来源随后仍须经过统一、确定性的元数据与编辑标题准入检查。该检查位于故事创建和 LLM 调用之前，不能只靠前端隐藏。
 
 服务关闭导致的停止会独立记录为 `service_shutdown`，不能与操作员取消混淆。
 

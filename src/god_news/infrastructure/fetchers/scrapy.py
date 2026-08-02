@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from hashlib import sha256
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from god_news.domain.enums import SourceKind
 from god_news.domain.models import FetchedDocument, SourceRequest, SourceSnapshot, UrlSource
@@ -38,6 +38,9 @@ class ScrapyWorkerResponse(BaseModel):
     content: str | None = None
     author: str | None = None
     published_at: datetime | None = None
+    outbound_links: list[str] = Field(default_factory=list, max_length=500)
+    http_status: int | None = None
+    error_code: str | None = None
     error: str | None = None
 
 
@@ -102,10 +105,14 @@ class ScrapyTrafilaturaFetcher:
         except Exception as exc:
             raise FetchError("Scrapy worker failed to execute.") from exc
         if not response.ok or not response.content or not response.final_url:
-            raise FetchError(response.error or "Scrapy did not return article content.")
+            raise FetchError(
+                response.error or "Scrapy did not return article content.",
+                retryable=response.error_code != "access_challenge_detected",
+                code=response.error_code or "fetch_failed",
+            )
         final_url = await self._policy.validate(response.final_url)
         content = response.content.strip()
-        if len(content) < self._min_content_characters:
+        if len(content) < self._min_content_characters and not response.outbound_links:
             raise FetchError("Trafilatura returned insufficient article content.")
         return FetchedDocument(
             source=SourceSnapshot(
@@ -119,6 +126,7 @@ class ScrapyTrafilaturaFetcher:
                 content_sha256=sha256(content.encode("utf-8")).hexdigest(),
             ),
             content=content,
+            outbound_links=response.outbound_links,
         )
 
     async def aclose(self) -> None:

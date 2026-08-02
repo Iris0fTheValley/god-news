@@ -11,6 +11,7 @@ from uuid import UUID
 from god_news.domain.models import SourceItemIngestRequest
 from god_news.errors import DuplicateStoryError, GodNewsError
 from god_news.logging import reset_trace_id, set_trace_id
+from god_news.sources.admission import SourceAdmissionPolicy
 from god_news.sources.collectors.models import (
     CollectionErrorEvidence,
     CollectorDiagnostic,
@@ -48,6 +49,7 @@ class SourceRunService:
         repository: SourceRunRepository,
         collectors: SourceCollectorGateway,
         normalizer: SourceItemNormalizer,
+        admission_policy: SourceAdmissionPolicy,
         ingestor: SourceStoryIngestor,
         max_pending_runs: int = 8,
     ) -> None:
@@ -56,6 +58,7 @@ class SourceRunService:
         self._repository = repository
         self._collectors = collectors
         self._normalizer = normalizer
+        self._admission_policy = admission_policy
         self._ingestor = ingestor
         self._max_pending_runs = max_pending_runs
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
@@ -284,6 +287,26 @@ class SourceRunService:
                 current_url=self._sanitized_display_url(str(normalized.canonical_url)),
                 updated_at=datetime.now(UTC),
             )
+            admission = self._admission_policy.evaluate(normalized)
+            if not admission.accepted:
+                assert admission.error_code is not None
+                logger.info(
+                    "source item excluded before ingestion run_id=%s external_id=%s code=%s",
+                    run_id,
+                    normalized.external_id,
+                    admission.error_code,
+                )
+                result = SourceItemIngestionResult(
+                    external_id=normalized.external_id,
+                    outcome=SourceItemIngestionOutcome.FILTERED,
+                    error_code=admission.error_code,
+                )
+                run = await self._save_update(
+                    run,
+                    item_results=[*run.item_results, result],
+                    updated_at=datetime.now(UTC),
+                )
+                continue
             request = SourceItemIngestRequest(
                 item=item,
                 target_language=run.request.target_language,

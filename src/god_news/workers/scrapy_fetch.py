@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+
 # mypy: disable-error-code=misc
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -42,6 +45,46 @@ class UrlSafetyDownloaderMiddleware:
 @dataclass(slots=True)
 class _ResultHolder:
     response: ScrapyWorkerResponse | None = None
+    root_outbound_links: list[str] | None = None
+
+
+def _json_ld_article_metadata(response: TextResponse) -> tuple[str | None, datetime | None]:
+    discovered_headline: str | None = None
+    for raw in response.css('script[type="application/ld+json"]::text').getall():
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        candidates = payload if isinstance(payload, list) else [payload]
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            headline = candidate.get("headline")
+            if isinstance(headline, str) and not discovered_headline:
+                discovered_headline = headline
+            published = candidate.get("datePublished")
+            try:
+                published_at = (
+                    datetime.fromisoformat(published.replace("Z", "+00:00"))
+                    if isinstance(published, str)
+                    else None
+                )
+            except ValueError:
+                published_at = None
+            if published_at is not None:
+                return (
+                    headline if isinstance(headline, str) else discovered_headline,
+                    published_at,
+                )
+    time_value = response.css("time[datetime]::attr(datetime)").get()
+    if time_value:
+        try:
+            return discovered_headline, datetime.fromisoformat(
+                time_value.replace("Z", "+00:00")
+            )
+        except ValueError:
+            pass
+    return discovered_headline, None
 
 
 def _run(request: ScrapyWorkerRequest) -> ScrapyWorkerResponse:
@@ -77,6 +120,22 @@ def _run(request: ScrapyWorkerRequest) -> ScrapyWorkerResponse:
                         error="Scrapy source was not a text document.",
                     )
                 return
+            # Scrapy's detector can misclassify UTF-8 Chinese pages that contain
+            # mostly CJK text. Prefer UTF-8 only when the bytes decode strictly;
+            # otherwise retain the response's declared/detected encoding.
+            try:
+                response.body.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+            else:
+                replacement = response.replace(body=response.body, encoding="utf-8")
+                if isinstance(replacement, TextResponse):
+                    response = replacement
+            outbound_links = [link.url for link in self._links.extract_links(response)][:500]
+            is_requested_page = response.url.rstrip("/") == request.url.rstrip("/")
+            if is_requested_page and outbound_links:
+                holder.root_outbound_links = outbound_links
+            structured_title, structured_published_at = _json_ld_article_metadata(response)
             document = bare_extraction(
                 response.body,
                 url=response.url,
@@ -104,10 +163,15 @@ def _run(request: ScrapyWorkerRequest) -> ScrapyWorkerResponse:
                 candidate = ScrapyWorkerResponse(
                     ok=True,
                     final_url=response.url,
-                    title=str(title) if title else response.css("title::text").get(),
+                    title=(
+                        structured_title
+                        or (str(title) if title else response.css("title::text").get())
+                    ),
                     content=cleaned,
                     author=str(author) if author else None,
-                    published_at=published_at,
+                    published_at=structured_published_at or published_at,
+                    outbound_links=holder.root_outbound_links or outbound_links,
+                    http_status=response.status,
                 )
                 previous_size = (
                     len(holder.response.content)
@@ -125,9 +189,9 @@ def _run(request: ScrapyWorkerRequest) -> ScrapyWorkerResponse:
                     error="Trafilatura could not extract a document.",
                 )
 
-            for link in self._links.extract_links(response):
+            for link in outbound_links:
                 yield scrapy.Request(
-                    link.url,
+                    link,
                     callback=self.parse,
                     errback=self.on_error,
                 )
@@ -135,7 +199,22 @@ def _run(request: ScrapyWorkerRequest) -> ScrapyWorkerResponse:
         def on_error(self, failure: Any) -> None:
             sys.stderr.write(f"Scrapy request error: {type(failure.value).__name__}\n")
             if holder.response is None:
-                holder.response = ScrapyWorkerResponse(ok=False, error="Scrapy request failed.")
+                response = getattr(failure.value, "response", None)
+                status = getattr(response, "status", None)
+                access_challenge = status == 403
+                holder.response = ScrapyWorkerResponse(
+                    ok=False,
+                    final_url=getattr(response, "url", None),
+                    http_status=status,
+                    error_code=(
+                        "access_challenge_detected" if access_challenge else "fetch_failed"
+                    ),
+                    error=(
+                        "The source refused automated access with HTTP 403."
+                        if access_challenge
+                        else "Scrapy request failed."
+                    ),
+                )
 
     process = CrawlerProcess(
         settings={

@@ -8,6 +8,7 @@ from typing import ClassVar, Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError
 
+from god_news.sources.admission import guardian_query_with_exclusions
 from god_news.sources.collectors.models import CollectorReadiness, SourceCollectionRun
 from god_news.sources.collectors.support import (
     CollectorFailure,
@@ -207,7 +208,7 @@ class GuardianContentAPICollector:
         assert self._api_key is not None
         params: dict[str, str | int] = {
             "api-key": self._api_key.get_secret_value(),
-            "q": self._query,
+            "q": guardian_query_with_exclusions(self._query),
             "page-size": limit,
             "order-by": "newest",
             "show-fields": "body,byline,trailText,thumbnail",

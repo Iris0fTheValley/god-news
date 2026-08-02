@@ -50,6 +50,15 @@ def test_example_environment_file_is_parseable() -> None:
     assert Path("J:/AI friend/DSakiko3.10").resolve() in settings.tts_trusted_asset_roots
 
 
+def test_legacy_dazhong_root_is_upgraded_to_public_listing() -> None:
+    settings = Settings(
+        _env_file=None,
+        source_dazhong_endpoint="https://m.dzplus.dzng.com/",
+    )
+
+    assert settings.source_dazhong_endpoint.endswith("/share/home/1/0")
+
+
 def test_tts_trusted_asset_roots_must_not_be_empty(tmp_path: Path) -> None:
     with pytest.raises(ValidationError, match="tts_trusted_asset_roots"):
         Settings(

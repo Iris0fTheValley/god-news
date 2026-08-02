@@ -52,6 +52,8 @@ _CAPTCHA_MARKERS = (
     "验证码",
     "人机验证",
     "安全验证",
+    "ddos-guard",
+    "access denied",
 )
 
 
@@ -74,7 +76,8 @@ def _canonical_candidate(value: str, base_url: str) -> str | None:
 
 
 def _links_from_document(document: FetchedDocument) -> list[str]:
-    candidates = [match.group(1) for match in _MARKDOWN_LINK.finditer(document.content)]
+    candidates = [str(link) for link in document.outbound_links]
+    candidates.extend(match.group(1) for match in _MARKDOWN_LINK.finditer(document.content))
     candidates.extend(match.group(0) for match in _BARE_LINK.finditer(document.content))
     unique: list[str] = []
     seen: set[str] = set()
@@ -149,9 +152,11 @@ class AuthorizedPublicPageCollector(ABC, Generic[RawPublicItemT]):
             candidates = await self._discover(requested_limit, recorder)
         except CollectorFailure as exc:
             recorder.errors.append(exc.evidence())
-            outcome: CollectionOutcome | None = (
-                "stopped_captcha" if exc.code == "captcha_detected" else None
-            )
+            outcome: CollectionOutcome | None = None
+            if exc.code == "captcha_detected":
+                outcome = "stopped_captcha"
+            elif exc.code == "access_challenge_detected":
+                outcome = "stopped_access_challenge"
             return recorder.finish(items=[], outcome=outcome)
 
         items: list[RawPublicItemT] = []
@@ -167,6 +172,11 @@ class AuthorizedPublicPageCollector(ABC, Generic[RawPublicItemT]):
                     return recorder.finish(
                         items=list(items),
                         outcome="stopped_captcha",
+                    )
+                if exc.code == "access_challenge_detected":
+                    return recorder.finish(
+                        items=list(items),
+                        outcome="stopped_access_challenge",
                     )
                 continue
             except (ValidationError, ValueError):
@@ -227,6 +237,18 @@ class AuthorizedPublicPageCollector(ABC, Generic[RawPublicItemT]):
             result = await self._fetcher.fetch_with_trace(UrlSource(url=url))
         except TracedFetchError as exc:
             self._record_fetch_attempts(exc.attempts, operation, recorder)
+            if any(
+                attempt.error_code == "access_challenge_detected"
+                for attempt in exc.attempts
+            ):
+                raise CollectorFailure(
+                    "access_challenge_detected",
+                    (
+                        f"The {self.source} provider refused automated access; "
+                        "collection stopped without bypassing its access controls."
+                    ),
+                    retryable=False,
+                ) from exc
             raise CollectorFailure(
                 "public_page_fetch_failed",
                 f"Every configured fetch layer failed for a {self.source} page.",

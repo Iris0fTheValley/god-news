@@ -16,6 +16,7 @@ from god_news.infrastructure.source_runs import (
     InMemorySourceRunRepository,
     SqlAlchemySourceRunRepository,
 )
+from god_news.sources.admission import ContentAdmissionPolicy
 from god_news.sources.collectors.models import (
     CollectionAttempt,
     CollectorDiagnostic,
@@ -107,6 +108,16 @@ class BlockingIngestor:
         return await self._delegate.ingest_source_item(request, trace_id=trace_id)
 
 
+class CallCountingIngestor:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def ingest_source_item(self, request, *, trace_id=None):  # type: ignore[no-untyped-def]
+        del request, trace_id
+        self.calls += 1
+        raise AssertionError("filtered items must not reach the story ingestor")
+
+
 class ManualClock:
     def __init__(self) -> None:
         self.now = 0.0
@@ -141,6 +152,7 @@ async def test_source_run_persists_progress_and_deduplicates_items(stack: Stack)
         repository=repository,
         collectors=StaticCollectorGateway(collection),
         normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=stack.workflow,
     )
     trace_id = uuid4()
@@ -185,6 +197,7 @@ async def test_source_run_exposes_sanitized_current_item_while_ingesting(stack: 
         repository=InMemorySourceRunRepository(),
         collectors=StaticCollectorGateway(collection),
         normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=ingestor,
     )
     started = await service.start(
@@ -225,6 +238,7 @@ async def test_source_run_persists_rate_limit_wait(stack: Stack) -> None:
             sleeper=clock.sleep,
         ),
         normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=stack.workflow,
     )
 
@@ -242,6 +256,48 @@ async def test_source_run_persists_rate_limit_wait(stack: Stack) -> None:
 
     assert first_completed.cooldown_wait_ms == 0
     assert second_completed.cooldown_wait_ms == pytest.approx(23_000)
+    await service.aclose()
+
+
+@pytest.mark.asyncio
+async def test_source_run_filters_excluded_topics_before_story_ingestion(stack: Stack) -> None:
+    political_item = RawGuardianItem.model_validate(
+        {
+            **GUARDIAN_FIXTURE.model_dump(mode="json"),
+            "article_id": "politics/2026/aug/03/excluded",
+            "web_url": "https://www.theguardian.com/politics/2026/aug/03/excluded",
+            "web_title": "Parliament prepares for an election",
+            "section_id": "politics",
+        }
+    )
+    ingestor = CallCountingIngestor()
+    service = SourceRunService(
+        repository=InMemorySourceRunRepository(),
+        collectors=StaticCollectorGateway(
+            SourceCollectionRun(
+                source="guardian",
+                outcome="succeeded",
+                duration_ms=1,
+                items=[political_item],
+            )
+        ),
+        normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
+        ingestor=ingestor,
+    )
+
+    started = await service.start(
+        SourceRunRequest(source="guardian", requested_by="test-editor"),
+        trace_id=uuid4(),
+    )
+    completed = await service.wait(started.run_id)
+
+    assert completed.status is SourceRunStatus.COMPLETED
+    assert completed.filtered_count == 1
+    assert completed.failed_count == 0
+    assert completed.failure_rate is None
+    assert completed.item_results[0].error_code == "excluded_topic_politics"
+    assert ingestor.calls == 0
     await service.aclose()
 
 
@@ -293,6 +349,7 @@ async def test_source_run_api_starts_and_reports_background_progress(stack: Stac
         repository=InMemorySourceRunRepository(),
         collectors=StaticCollectorGateway(collection),
         normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=stack.workflow,
     )
     stack.container.source_runs = service
@@ -360,6 +417,7 @@ async def test_source_run_can_be_cancelled_without_losing_terminal_evidence(stac
         repository=InMemorySourceRunRepository(),
         collectors=collectors,
         normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=stack.workflow,
     )
     started = await service.start(
@@ -388,6 +446,7 @@ async def test_shutdown_cancellation_is_distinct_from_operator_cancellation(stac
         repository=repository,
         collectors=collectors,
         normalizer=stack.container.source_normalizers,
+        admission_policy=ContentAdmissionPolicy(),
         ingestor=stack.workflow,
     )
     started = await service.start(

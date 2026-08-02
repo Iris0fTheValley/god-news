@@ -145,9 +145,12 @@ function RunDetail({detail, onClose, onCancel}: {
                 {itemResults.map((item) => {
                   const outcomeIcon = item.outcome === 'ingested'
                     ? <CheckCircle2 size={14} />
-                    : item.outcome === 'duplicate' ? <Info size={14} /> : <XCircle size={14} />;
+                    : item.outcome === 'duplicate' || item.outcome === 'filtered'
+                      ? <Info size={14} />
+                      : <XCircle size={14} />;
                   const outcomeTone = item.outcome === 'ingested' ? 'success'
-                    : item.outcome === 'duplicate' ? 'info' : 'danger';
+                    : item.outcome === 'duplicate' ? 'info'
+                      : item.outcome === 'filtered' ? 'caution' : 'danger';
                   return (
                     <tr key={item.external_id}>
                       <td className="metadata">{item.external_id}</td>
@@ -306,7 +309,7 @@ export function SourceRunsPage() {
                       <tr key={runId ?? `${run.request.source}-${run.created_at ?? run.version}`}>
                         <td className="metadata">{run.request.source}</td>
                         <td><span className={`badge ${statusTone(run.status)}`}>{canCancel(run.status) ? <RefreshCw className="spinning" size={12} aria-hidden="true" /> : null} {STATUS_LABELS[run.status]}</span></td>
-                        <td className="metadata">成功 {String(run.ingested_count)} / 失败 {String(run.failed_count)}{run.duplicate_count > 0 ? ` / 重复 ${String(run.duplicate_count)}` : ''}</td>
+                        <td className="metadata">成功 {String(run.ingested_count)} / 失败 {String(run.failed_count)}{run.filtered_count > 0 ? ` / 过滤 ${String(run.filtered_count)}` : ''}{run.duplicate_count > 0 ? ` / 重复 ${String(run.duplicate_count)}` : ''}</td>
                         <td className="metadata">{run.started_at ?? '—'}</td>
                         <td className="metadata">{formatElapsed(run.started_at, run.finished_at)}</td>
                         <td className="actions-cell">
